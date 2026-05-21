@@ -5,7 +5,7 @@ This is the working capture list for the Ready S.E.T. Co-op Trust Hub.
 ## Images
 
 - 9 Ballow Road exterior: front, side, entry, access ramp, car park, rear access and bay-view context.
-- Ballow precinct walk: ferry terminal to 9 Ballow Road, then toward 10-12 Ballow Road and QUAMPI context.
+- Ferry-side walk to 9 Ballow Road: arrival point, street approach, entry, access and nearby public context.
 - Co-working table: laptops, notebooks, forms, tea, printed checklists and public/private folder labels.
 - Trust-building detail: shared checklist, permission note, asset return card or group work surface.
 - Gear care board: microphone, phone clamp, tripod, projector, chargers, sign-out card and repair note.
@@ -21,7 +21,7 @@ This is the working capture list for the Ready S.E.T. Co-op Trust Hub.
 
 - 60 seconds: why Ready S.E.T. exists.
 - Walk to 9 Ballow Road from the ferry-side arrival point.
-- What is a trust ladder?
+- What is the trust spectrum?
 - Borrowing gear safely.
 - Digital custodian micro-lesson.
 - Grant evidence in one minute.
@@ -30,7 +30,7 @@ This is the working capture list for the Ready S.E.T. Co-op Trust Hub.
 
 ## Landscape Videos
 
-- The coherent picture: Strange but True seed, trust ladder, 9 Ballow, jobs, media, grants and horizon.
+- The coherent picture: Strange but True seed, trust spectrum, 9 Ballow, jobs, media, grants and horizon.
 - 9 Ballow and the first 90 days.
 - From co-working to 300+ jobs.
 - Public/private boundaries for shared assets and community media.
