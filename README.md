@@ -92,7 +92,7 @@ The [shared shell helper](scripts/refresh-shell.mjs) applies navigation, footer,
 
 The [site checker](scripts/check-site.mjs) checks all root pages, internal links and anchors, images, headings and geographic map navigation. The form and private API have their own integration tests.
 
-Every public page starts with larger-text/high-contrast and language controls. The larger-text view uses the same content and forms in one column; it saves only the chosen view on that browser. A link ending in `?view=easy` selects that view, and `?view=normal` restores the standard view. Optional read aloud starts only on request and excludes forms, hidden material, dialogs and status messages. Reading and translation checks use a silent voice stub rather than playing audio.
+Every public page starts with larger-text/high-contrast and language controls. The larger-text view uses 24px body text, larger headings and the same content and forms in one column while preserving the purple, blue, yellow and green identity; it saves only the chosen view on that browser. A link ending in `?view=easy` selects that view, and `?view=normal` restores the standard view. Optional read aloud starts only on request and excludes forms, hidden material, dialogs and status messages. Reading and translation checks use a silent voice stub rather than playing audio.
 
 The noticeboard publishing/synchronisation service and C-Hour personal-agent/ledger remain separate proposed builds. Production organiser access stays locked until its identity configuration is completed and verified.
 
