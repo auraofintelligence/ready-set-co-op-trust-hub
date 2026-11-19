@@ -9,6 +9,24 @@ const BASE = 'https://participate.example';
 const LOCAL = 'http://127.0.0.1:8787';
 const NOW = '2026-11-19T08:00:00.000Z';
 const SECRET = 'test-only-secret-with-at-least-32-characters';
+
+test('the short public home address serves index.html while preserving its query and method', async () => {
+  const seen = [];
+  const worker = createWorker();
+  const env = { ASSETS: { fetch: async request => {
+    seen.push({ url: request.url, method: request.method });
+    return new Response('<!doctype html><title>Ready SETCO</title>', { headers: { 'Content-Type': 'text/html' } });
+  } } };
+  for (const method of ['GET', 'HEAD']) {
+    const response = await worker.fetch(new Request(`${BASE}/?from=phone`, { method }), env);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get('Content-Type'), 'text/html');
+  }
+  assert.deepEqual(seen, [
+    { url: `${BASE}/index.html?from=phone`, method: 'GET' },
+    { url: `${BASE}/index.html?from=phone`, method: 'HEAD' },
+  ]);
+});
 const pair = await generateKeyPair('RS256');
 const publicJwk = { ...await exportJWK(pair.publicKey), kid: 'test-key', alg: 'RS256', use: 'sig' };
 const resolver = createLocalJWKSet({ keys: [publicJwk] });

@@ -320,7 +320,10 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
           fail(404, 'not_found', 'The endpoint was not found.');
         }
         if (!env.ASSETS?.fetch) fail(503, 'service_unavailable', 'The site is temporarily unavailable.');
-        return secure(await env.ASSETS.fetch(request), { privatePage, allowLocation: url.pathname === '/map.html' });
+        const assetUrl = new URL(url);
+        if (assetUrl.pathname === '/') assetUrl.pathname = '/index.html';
+        const assetRequest = assetUrl.href === url.href ? request : new Request(assetUrl, request);
+        return secure(await env.ASSETS.fetch(assetRequest), { privatePage, allowLocation: url.pathname === '/map.html' });
       } catch (error) {
         const known = error instanceof HttpError;
         const status = known ? error.status : 503;
