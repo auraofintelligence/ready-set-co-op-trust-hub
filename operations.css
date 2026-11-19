@@ -1,0 +1,49 @@
+.operations-hero { padding-top: 3.5rem; padding-bottom: 2.5rem; }
+.operations-hero h1 { max-width: 17ch; font-size: clamp(2.6rem, 6vw, 4.5rem); }
+.operations-hero .hero-lede { max-width: 65ch; margin-top: 1.2rem; }
+.operations-layout { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(15rem, 1fr); gap: 1.5rem; align-items: start; padding-bottom: 4rem; }
+.operations-card { background: var(--deeper-panel); border: 1px solid var(--line); border-radius: 1.2rem; padding: clamp(1.2rem, 3vw, 2rem); }
+.operations-card h2 { font-size: 1.8rem; max-width: none; margin-bottom: 1rem; }
+.operations-card h3 { margin: 1.3rem 0 .6rem; }
+.operations-card p + p { margin-top: .8rem; }
+.operations-card ol { padding-left: 1.3rem; }
+.operations-card li + li { margin-top: 1rem; }
+.operations-form { display: grid; gap: 1.3rem; }
+.operations-form label, .operations-field { display: grid; gap: .4rem; font-weight: 700; }
+.operations-form input:not([type=checkbox]), .operations-form select, .operations-form textarea, .review-controls input, .review-controls select { background: #101523; border: 1px solid #77738a; border-radius: .5rem; color: var(--soft-white); font: inherit; font-size: 1rem; padding: .8rem; width: 100%; }
+.operations-form input:focus-visible, .operations-form select:focus-visible, .operations-form textarea:focus-visible, .review-controls :focus-visible, button:focus-visible { outline: 3px solid var(--true-cyan); outline-offset: 3px; }
+.operations-form textarea { resize: vertical; min-height: 7rem; }
+.operations-form fieldset { border: 1px solid var(--panel-line); border-radius: .7rem; margin: 0; padding: 1rem; min-width: 0; }
+.operations-form legend { font-family: var(--heading); font-weight: 800; padding: 0 .3rem; }
+.check-options { display: grid; gap: .7rem; }
+.operations-form .check-option { display: flex; gap: .7rem; align-items: flex-start; font-weight: 400; }
+.check-option input { width: 1.2rem; height: 1.2rem; margin: .2rem 0 0; flex-shrink: 0; accent-color: var(--minjerribah-aqua); }
+.field-hint { font-weight: 400; color: var(--muted-light); font-size: .94rem; }
+.field-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.operations-form .button { justify-self: start; cursor: pointer; font: inherit; }
+.operations-form button:disabled { opacity: .6; cursor: wait; }
+.operations-notice { background: rgba(144, 240, 224, .08); border-left: 3px solid var(--minjerribah-aqua); border-radius: .4rem; padding: 1rem; }
+.operations-status { border: 1px solid var(--true-cyan); border-radius: .6rem; padding: 1rem; }
+.operations-status[data-kind=error] { border-color: var(--coral); }
+.operations-status[data-kind=success] { border-color: var(--help-green); }
+.reference { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
+[hidden] { display: none !important; }
+.review-layout { display: grid; gap: 1.3rem; padding-bottom: 4rem; }
+.review-controls { display: flex; gap: .8rem; flex-wrap: wrap; align-items: end; }
+.review-controls label { display: grid; gap: .4rem; flex: 1 1 13rem; }
+.review-controls button { font: inherit; cursor: pointer; }
+.review-count { margin: 1rem 0; color: var(--muted-light); }
+.review-table-wrap { overflow-x: auto; }
+.review-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 1rem; }
+.review-table th, .review-table td { padding: .8rem .6rem; border-bottom: 1px solid var(--panel-line); vertical-align: top; }
+.review-table th { color: var(--minjerribah-aqua); }
+.review-table button { border: 0; background: transparent; color: var(--true-cyan); font: inherit; text-align: left; text-decoration: underline; cursor: pointer; padding: .15rem 0; }
+.review-table small { display: block; color: var(--muted-light); font-size: .9rem; }
+.review-detail { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+.review-detail dl { margin: 0; }
+.review-detail dt { color: var(--minjerribah-aqua); font-weight: 700; margin-top: .8rem; }
+.review-detail dd { margin: .2rem 0 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+.review-pages { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-top: 1rem; }
+.review-pages button { cursor: pointer; font: inherit; }
+.review-pages button:disabled { opacity: .5; cursor: default; }
+@media (max-width: 760px) { .operations-layout, .review-detail { grid-template-columns: 1fr; } .field-pair { grid-template-columns: 1fr; } .operations-hero { padding-top: 2.2rem; } }

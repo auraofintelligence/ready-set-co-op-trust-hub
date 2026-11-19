@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en-AU"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow">
+  <title>Participant register | Ready SETCO</title>
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="operations.css"><link rel="icon" href="assets/favicon-raster-32.png" type="image/png">
+  <script src="operations-config.js" defer></script><script src="manage.js" defer></script>
+</head><body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="nav" aria-label="Main navigation"><a class="brand-mark" href="index.html"><span class="brand-ready">Ready</span><span><span class="brand-set">S.E.T.</span> <span class="brand-coop">Co-op</span></span></a><div class="nav-links"><a href="join.html">Public sign-on</a><a href="index.html">Trust Hub</a><a href="/cdn-cgi/access/logout">Sign out</a></div></nav></header>
+  <main id="main">
+    <section class="section operations-hero"><p class="eyebrow">Organiser workspace · Private records</p><h1>Follow up. Agree the next step.</h1><p class="hero-lede">Review people and organisations interested in local work and cooperative formation. Strange But True operates this register during the pilot.</p></section>
+    <div class="section review-layout">
+      <section id="local-login" class="operations-card" hidden><h2>Local development sign-in</h2><p>The local server prints an organiser token for this session.</p><form id="local-login-form" class="operations-form"><label>Session token<input type="password" name="token" autocomplete="off" required></label><button class="button secondary">Unlock local register</button></form></section>
+      <div id="review-status" class="operations-status" role="status" aria-live="polite" hidden></div>
+      <section class="operations-card" aria-labelledby="register-title"><h2 id="register-title">Expressions of interest</h2>
+        <form id="review-filter" class="review-controls"><label>Name, email or organisation<input name="search" type="search" maxlength="120"></label><label>Stage<select name="status"><option value="">All stages</option><option value="interest">Interest received</option><option value="contacted">Contacted</option><option value="pilot_partner">Pilot partner agreed</option><option value="founding_interest">Interested in founding</option><option value="withdrawn">Withdrawn</option></select></label><button class="button secondary">Find records</button></form>
+        <p id="review-count" class="review-count">Loading records…</p>
+        <div class="review-table-wrap"><table class="review-table"><thead><tr><th scope="col">Person / organisation</th><th scope="col">Taking part as</th><th scope="col">Stage</th><th scope="col">Received</th></tr></thead><tbody id="participants"></tbody></table></div>
+        <div class="review-pages"><button id="previous-page" class="button secondary" disabled>Previous</button><span id="page-label">Page 1</span><button id="next-page" class="button secondary" disabled>Next</button></div>
+      </section>
+      <section id="participant-detail" class="operations-card" aria-labelledby="detail-title" hidden><h2 id="detail-title">Review participant</h2><div class="review-detail"><dl id="participant-summary"></dl><form id="participant-review" class="operations-form"><label>Next stage<select name="status"><option value="interest">Interest received</option><option value="contacted">Contacted</option><option value="pilot_partner">Pilot partner agreed</option><option value="founding_interest">Interested in founding</option><option value="withdrawn">Withdrawn</option></select></label><label>Private follow-up notes<textarea name="notes" maxlength="4000" rows="7"></textarea></label><p class="field-hint">A stage change records your review. Formal membership, employment and transfer of legal responsibility each require a separate approved agreement.</p><button class="button primary" id="save-review">Save review</button></form></div></section>
+      <section class="operations-card"><h2>Keep the handover portable.</h2><p>The register retains the original operator and consent. A future cooperative handover will have an effective date and approval. Private exports include contact details and review history.</p><div class="hero-actions"><button id="export-register" class="button secondary" type="button">Download private register</button></div><p class="field-hint">Store exports in your private operations storage. Only authorised organisers can access this workspace.</p></section>
+    </div>
+  </main><footer class="site-footer"><p>Ready SETCO · Participant and formation register</p><div class="footer-links"><a href="join.html">Public sign-on</a><a href="index.html">Trust Hub</a></div></footer>
+</body></html>

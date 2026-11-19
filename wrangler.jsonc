@@ -1,0 +1,26 @@
+{
+  "name": "ready-setco",
+  "account_id": "8ec4bbe64bddc4086162119149e37ef8",
+  "main": "cloudflare/worker.mjs",
+  "compatibility_date": "2026-11-19",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://auraofintelligence.github.io",
+    "INTAKE_RATE_LIMIT": "60"
+  },
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "html_handling": "none",
+    "run_worker_first": ["/api/*", "/manage", "/manage.html", "/manage/*"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "ready-setco-operations",
+      "database_id": "da54bed9-19e4-4559-91a0-605661217183",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "name": "ready-setco-operations",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Ready SETCO participation intake and operations, initially operated by Strange But True",
+  "license": "SEE LICENSE IN LICENCE.md",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "test": "node --test",
+    "dev": "node --watch scripts/local-server.mjs",
+    "start": "node scripts/local-server.mjs",
+    "check": "node scripts/check.mjs"
+  },
+  "dependencies": {
+    "jose": "^6.0.0"
+  },
+  "devDependencies": {
+    "jsdom": "^26.1.0",
+    "wrangler": "4.119.0"
+  }
+}

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Express your interest in local events, training, employment and the formation of Ready Sustainable Employment and Training Cooperative.">
+  <title>Take part | Ready SETCO</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Nunito+Sans:wght@700;800;900&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="operations.css">
+  <link rel="icon" href="assets/favicon-raster-32.png" type="image/png">
+  <script src="operations-config.js" defer></script><script src="join.js" defer></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="nav" aria-label="Main navigation">
+    <a class="brand-mark" href="index.html"><span class="brand-ready">Ready</span><span><span class="brand-set">S.E.T.</span> <span class="brand-coop">Co-op</span></span></a>
+    <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links">Menu</button>
+    <div class="nav-links" id="nav-links"><a href="index.html">Home</a><a href="trust-ladder.html">Trust</a><a href="jobs.html">Jobs</a><a href="grant-roadmap.html">Grants</a><a href="join.html" aria-current="page">Take part</a><a href="site-map.html">Map</a></div>
+  </nav></header>
+  <main id="main">
+    <section class="section operations-hero">
+      <p class="eyebrow">Local businesses, community groups and people</p>
+      <h1>Bring your business, skills or local knowledge.</h1>
+      <p class="hero-lede">Start a conversation about events, guest services, training or shared local work on Minjerribah. Help shape Ready Sustainable Employment and Training Cooperative as it forms.</p>
+    </section>
+    <div class="section operations-layout">
+      <section class="operations-card" aria-labelledby="interest-title">
+        <h2 id="interest-title">Where would you like to take part?</h2>
+        <form id="interest-form" class="operations-form">
+          <label>Your name<input name="name" autocomplete="name" maxlength="120" required></label>
+          <div class="field-pair">
+            <label>Email<input name="email" type="email" autocomplete="email" maxlength="254" required></label>
+            <label>Phone <span class="field-hint">Optional</span><input name="phone" type="tel" autocomplete="tel" maxlength="40"></label>
+          </div>
+          <label>I'm taking part as<select name="participantType" id="participant-type" required><option value="">Choose one</option><option value="business">A local business</option><option value="community">A community group or community leader</option><option value="resident">A resident or individual supporter</option><option value="worker">Someone interested in work or training</option></select></label>
+          <div id="organisation-fields" class="operations-form" hidden>
+            <label>Business or community group<input name="organisation" maxlength="180" autocomplete="organization"></label>
+            <label class="check-option"><input name="authorityConfirmed" type="checkbox"><span>I am authorised to make this enquiry for the organisation, or I am enquiring in my own capacity as a community leader.</span></label>
+          </div>
+          <fieldset><legend>What interests you?</legend><p class="field-hint">Choose at least one.</p>
+            <div class="check-options">
+              <label class="check-option"><input type="checkbox" name="interests" value="events"><span>Conferences, music, outdoor cinema and event guest services</span></label>
+              <label class="check-option"><input type="checkbox" name="interests" value="tourism"><span>Island tours and visitor experiences</span></label>
+              <label class="check-option"><input type="checkbox" name="interests" value="training"><span>AI skills, practical training and mentoring</span></label>
+              <label class="check-option"><input type="checkbox" name="interests" value="employment"><span>Local paid work or workforce support</span></label>
+              <label class="check-option"><input type="checkbox" name="interests" value="grants"><span>Community projects and grant preparation</span></label>
+              <label class="check-option"><input type="checkbox" name="interests" value="resources"><span>Sharing a venue, equipment, services or expertise</span></label>
+              <label class="check-option"><input type="checkbox" name="interests" value="founding"><span>Helping form the cooperative</span></label>
+            </div>
+          </fieldset>
+          <label>What could we work on together? <span class="field-hint">Optional. A short idea, offer or need is enough. Please keep identity documents and other sensitive details for a later private process.</span><textarea name="offer" rows="5" maxlength="1200"></textarea></label>
+          <div class="operations-notice"><strong>Who receives this?</strong><p>Luke Hayes, trading as Strange But True (ABN 81 913 657 174), operates this initial private register. The proposed cooperative has not yet taken over. Your details stay out of the public website and directory.</p></div>
+          <label class="check-option"><input type="checkbox" name="consentContact" required><span>I agree to Strange But True holding this enquiry and contacting me about the interests I selected. I can ask Luke to correct or withdraw it at <a href="mailto:sbt4183@gmail.com">sbt4183@gmail.com</a>.</span></label>
+          <label class="check-option"><input type="checkbox" name="consentFutureHandover"><span>Optional: I agree to the details in this form being shared with Ready SETCO once it is registered, for the same purposes. Any handover will be recorded separately.</span></label>
+          <p class="field-hint">This starts a conversation. Formal cooperative membership, paid work and any service agreement each have their own application or agreement.</p>
+          <button type="submit" class="button primary" id="send-interest">Send my interest</button>
+          <div id="intake-status" class="operations-status" role="status" aria-live="polite" tabindex="-1" hidden></div>
+          <button type="button" class="button secondary" id="download-receipt" hidden>Download my receipt</button>
+          <noscript><p>This form needs JavaScript. You can also contact Luke at <a href="mailto:sbt4183@gmail.com">sbt4183@gmail.com</a>.</p></noscript>
+        </form>
+      </section>
+      <aside class="operations-card">
+        <p class="eyebrow">From first conversation to shared work</p>
+        <h2>Start now. Build the cooperative together.</h2>
+        <ol><li><strong>Share your interest.</strong><br>Tell Luke what would be useful and what you could bring.</li><li><strong>Agree a practical first step.</strong><br>A conversation, a conference role, a training session or a business pilot.</li><li><strong>Shape the cooperative.</strong><br>Interested founders can work on the rules, ownership and service model.</li><li><strong>Record the handover.</strong><br>The registered cooperative takes on agreed responsibilities when its people, registrations and agreements are ready.</li></ol>
+        <p><a href="https://auraofintelligence.github.io/ready-set-co-op-cultural-intelligence-node/" target="_blank" rel="noopener noreferrer">Explore the island intelligence node</a></p>
+        <p><a href="boundaries.html">How permission and sharing work</a></p>
+        <p class="field-hint">Guest-services work for conferences and events will have defined duties and an identified employer. Working holiday visa eligibility is assessed against the actual work and records.</p>
+      </aside>
+    </div>
+  </main>
+  <nav class="route-nav" aria-label="Previous and next pages"><a href="trust-ladder.html">Previous: Trust</a><a href="jobs.html">Next: Jobs</a></nav>
+  <footer class="site-footer"><p>Ready Sustainable Employment and Training Cooperative · Formation and local participation</p><div class="footer-links"><a href="index.html">Home</a><a href="site-map.html">Site map</a><a href="manage.html">Organiser sign-in</a></div></footer>
+  <button class="to-top" type="button" data-to-top aria-label="Back to top">Top</button><script src="script.js"></script>
+</body></html>

@@ -1,1 +1,9 @@
 .qa-*.png
+node_modules/
+dist/
+.wrangler/
+.local/
+.dev.vars
+.dev.vars.*
+.env
+.env.*

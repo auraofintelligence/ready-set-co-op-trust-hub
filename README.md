@@ -122,3 +122,32 @@ evidence of partnership, approval or endorsement.
 - [Ready SET Co-op Media](https://auraofintelligence.github.io/ready-set-co-op-hyperlocal-media/)
 - [Minjerribah Screen & Media Network](https://auraofintelligence.github.io/minjerribah-screen-media-network/)
 - [Mineral Moonshots](https://auraofintelligence.github.io/mineral-moonshots/)
+
+
+## Participation and operational handover (19 November 2026)
+
+Ready Sustainable Employment and Training Cooperative is the current preferred
+name. Historic research also uses Straddie Employment and Training Company.
+Strange But True remains the initial sole trader operator; cooperative formation,
+formal admission and transfer of services require their own decisions.
+
+- `join.html`: public expressions of interest, separate contact and future handover consent, and a server-confirmed receipt.
+- `manage.html`: private organiser review, stages and follow-up notes, with audit history and a portable export.
+- `cloudflare/`: Cloudflare Worker API and portable SQLite/D1 repository.
+- `migrations/`: versioned database schema retaining the original operator and consent.
+- [Launch and handover plan](docs/SBT-TO-SETCO-HANDOVER.md).
+- [Cloudflare deployment and local hosting](docs/CLOUDFLARE-OPERATIONS.md).
+
+The operational build uses Cloudflare Workers and its own D1 database. Existing
+GitHub Pages remains a public project site; its participation links should point
+to the verified Cloudflare service once deployed. Configure `operations-config.js`
+with the verified API origin only if the form is also served from GitHub Pages.
+An empty API origin uses the same host, including local development.
+
+Use Node.js 24 or newer: `npm install`, `npm run check`, `npm test`, then
+`npm start` for the local SQLite-backed build. `npm run build` produces a public
+asset bundle without the server source, private records or local credentials.
+
+This release provides intake and private human review. It does not run payroll,
+admit cooperative members, approve visa days, transfer employment, collect money
+or replace a registered training organisation or legal review.
