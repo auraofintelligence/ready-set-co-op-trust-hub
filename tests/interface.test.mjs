@@ -35,8 +35,8 @@ test('participant and organiser interfaces persist, retry, review and export thr
   try {
     await waitFor(() => token || child.exitCode !== null, 'local server startup');
     assert.ok(token, `Local test server failed: ${serverError}`);
-    async function page(filename) {
-      const dom = new JSDOM(await readFile(path.join(root, filename), 'utf8'), { url: `${origin}/${filename}`, runScripts: 'outside-only' });
+    async function page(filename, query = '') {
+      const dom = new JSDOM(await readFile(path.join(root, filename), 'utf8'), { url: `${origin}/${filename}${query}`, runScripts: 'outside-only' });
       windows.push(dom.window);
       dom.window.HTMLElement.prototype.scrollIntoView = () => {};
       dom.window.crypto.randomUUID = randomUUID;
@@ -114,6 +114,36 @@ test('participant and organiser interfaces persist, retry, review and export thr
     assert.equal(privateExport.auditEvents.length, 2, 'One intake and one review audit event');
     assert.equal(organiser.localStorage.length, 0, 'No admin token/records in localStorage');
     assert.equal(organiser.sessionStorage.length, 0, 'No admin token/records in sessionStorage');
+
+    const backpacker = await page('join.html', '?interest=working_holiday');
+    backpacker.eval(await readFile(path.join(root, 'join.js'), 'utf8'));
+    const workForm = backpacker.document.querySelector('#interest-form');
+    const workField = name => workForm.elements.namedItem(name);
+    assert.equal(backpacker.document.querySelector('#backpacker-enquiry').hidden, false);
+    assert.equal(workField('participantType').value, 'worker');
+    assert.deepEqual([...workForm.querySelectorAll('[name=interests]:checked')].map(input => input.value), ['working_holiday']);
+    assert.equal(workField('consentContact').checked, false, 'Arriving through the working holiday path does not give contact consent');
+    assert.equal(workField('consentFutureHandover').checked, false);
+    workField('name').value = 'Fictional Working Holiday Visitor';
+    workField('email').value = 'visitor@example.test';
+    workField('offer').value = 'Available next month for paid guest services. Previous hospitality experience.';
+    workForm.dispatchEvent(new backpacker.Event('submit', { bubbles: true, cancelable: true }));
+    assert.equal(backpacker.document.querySelector('#intake-status').hidden, true, 'The required consent prevents sending');
+    workField('consentContact').checked = true;
+    workForm.dispatchEvent(new backpacker.Event('submit', { bubbles: true, cancelable: true }));
+    await waitFor(() => backpacker.document.querySelector('#intake-status').dataset.kind === 'success', 'working holiday enquiry saved');
+    const workExport = await (await fetch(`${origin}/api/admin/export`, { headers: { Authorization: `Bearer ${token}` } })).json();
+    const workRecord = workExport.participants.find(record => record.email === 'visitor@example.test');
+    assert.equal(workExport.participants.length, 2);
+    assert.deepEqual(workRecord.interests, ['working_holiday']);
+    assert.equal(workRecord.participantType, 'worker');
+    assert.equal(workRecord.offer, workField('offer').value);
+    assert.equal(workRecord.status, 'interest', 'An enquiry is not a placement or visa approval');
+    assert.equal(workRecord.consentFutureHandover, false);
+    await organiser.document.querySelector('#review-filter').dispatchEvent(new organiser.Event('submit', { bubbles: true, cancelable: true }));
+    await waitFor(() => organiser.document.querySelector('#review-count').textContent.includes('2 matching records'), 'organiser sees working holiday enquiry');
+    [...organiser.document.querySelectorAll('#participants button')].find(button => button.textContent === 'Fictional Working Holiday Visitor').click();
+    assert.match(organiser.document.querySelector('#participant-summary').textContent, /Working holiday \/ specified-work enquiry/);
   } finally {
     for (const window of windows) window.close();
     child.kill('SIGTERM');

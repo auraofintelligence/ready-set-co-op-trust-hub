@@ -12,6 +12,14 @@ Accepted direction from Luke, 19 November 2026. This records the public rebuild'
 
 Audience correction, 19 November 2026: the homepage must introduce Ready Sustainable Employment and Training Cooperative to locals who have never heard of the organisation or Luke. Lead with the full name, practical goals, who it is for, what the proposed cooperative means and the invitation to help shape it. Introduce Luke and Strange but True separately by their role. Keep the wider framework as background rather than the visitor's entry requirement.
 
+This applies to the **whole public site**, including the map, enquiry form, linked-project descriptions and earlier research. Luke's wider work has developed over more than a decade largely without a local audience; this site is a first touch point. Every topic needs an ordinary introduction, local purpose, clear present stage and practical next step. For example, the “missing middle” means the people, training, equipment, funding and coordination between having an idea and carrying it out. Introduce unfamiliar projects by what they help people do, then offer contextual links into the wider work.
+
+Backpackers seeking specified working holiday work need a visible homepage route to `jobs.html#backpacker-work` and `join.html?interest=working_holiday`. The form stores a distinct working holiday interest for private follow-up, without giving contact or future handover consent automatically. The page explains 4183 and actual-role eligibility, lawful pay, evidence and current timing. Home Affairs' November 2026 announced transition from 88 to 120 days for second-visa applications from 1 March 2027 is linked and dated; keep it current. An enquiry is not a vacancy, placement or visa decision. Ordinary C-Hour volunteering does not replace paid tourism work.
+
+Keep the local invitation focused. Related inquiry papers belong behind contextual further-reading links, with their status explained. UNGA81 is Luke's independent response to the call to restore trust in multilateralism, circulated by him to officials through X; it was not a formal UN submission. Policy requests in inquiry contributions do not establish current exemptions or adopted government programmes.
+
+Every public page needs an immediately visible larger-text/high-contrast choice at the start, suitable for the island's substantial older population, and an easy language option. Use the same underlying content, keyboard-friendly controls and a layout that survives heavy zoom. Listening is optional and never automatic. Translation must explain any external service and must not send private enquiry fields, map suggestions or organiser records to it.
+
 | Route | Purpose |
 | --- | --- |
 | `index.html` | The local invitation and practical service foundations. |

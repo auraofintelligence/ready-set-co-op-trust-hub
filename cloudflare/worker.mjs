@@ -4,7 +4,7 @@ import { handleMapRequest } from './map-records.mjs';
 
 const BODY_LIMIT = 12 * 1024;
 const CONSENT_VERSION = '2026-11-19';
-const INTERESTS = new Set(['events', 'tourism', 'training', 'employment', 'grants', 'resources', 'founding', 'media', 'support', 'mapping']);
+const INTERESTS = new Set(['events', 'tourism', 'training', 'employment', 'working_holiday', 'grants', 'resources', 'founding', 'media', 'support', 'mapping']);
 const TYPES = new Set(['business', 'community', 'resident', 'worker']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const encoder = new TextEncoder();

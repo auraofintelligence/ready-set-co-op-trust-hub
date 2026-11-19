@@ -12,7 +12,7 @@
   }
   let token = ''; let page = 1; let records = []; let selected = null;
   const stages = { interest: 'Interest received', contacted: 'Contacted', pilot_partner: 'Pilot partner agreed', founding_interest: 'Interested in founding', withdrawn: 'Withdrawn' };
-  const interestNames = { events: 'Events & guest services', tourism: 'Tours & visitor experiences', training: 'Training & mentoring', employment: 'Paid work', grants: 'Grants & projects', media: 'Notices, news & media', mapping: 'Local mapping & information checks', support: 'Administration & compliance support', resources: 'Shared resources & expertise', founding: 'Cooperative formation' };
+  const interestNames = { events: 'Events & guest services', tourism: 'Tours & visitor experiences', training: 'Training & mentoring', employment: 'Paid work', working_holiday: 'Working holiday / specified-work enquiry', grants: 'Grants & projects', media: 'Notices, news & media', mapping: 'Local mapping & information checks', support: 'Administration & compliance support', resources: 'Shared resources & expertise', founding: 'Cooperative formation' };
   function notice(message, error = false) { feedback.textContent = message; feedback.dataset.kind = error ? 'error' : 'success'; feedback.hidden = false; }
   async function request(path, options = {}) {
     const headers = new Headers(options.headers || {});

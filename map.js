@@ -2,6 +2,21 @@
   'use strict';
   const $ = id => document.getElementById(id), form = $('place-form');
   if (!form) return;
+  if (/(^|\.)translate\.goog$/i.test(location.hostname)) {
+    form.hidden = true;
+    for (const control of form.elements) control.disabled = true;
+    form.addEventListener('submit', event => event.preventDefault());
+    const workspace = document.querySelector('.map-workspace'); if (workspace) workspace.hidden = true;
+    const dialog = form.closest('dialog'); if (dialog) dialog.hidden = true;
+    const notice = document.createElement('section'); notice.className = 'section note translated-form-notice';
+    const heading = document.createElement('h2'); heading.textContent = 'Open the original website to use the map';
+    const explanation = document.createElement('p'); explanation.textContent = 'The map and place form work on the original Ready SETCO page. You can use your browser’s Translate option there to read the page in another language.';
+    const link = document.createElement('a'); link.className = 'button primary'; link.textContent = 'Open the original local map';
+    link.href = 'https://ready-setco.auraofintelligence.workers.dev/map.html'; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.referrerPolicy = 'no-referrer';
+    notice.append(heading, explanation, link);
+    const introduction = document.querySelector('.map-intro'); if (introduction) introduction.after(notice); else form.before(notice);
+    return;
+  }
   const field = name => form.elements.namedItem(name);
   const apiBase = (window.READY_SETCO?.apiBase || '').replace(/\/$/, '');
   const draftKey = 'ready-setco-place-draft-v1';

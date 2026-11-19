@@ -1,6 +1,18 @@
 (() => {
   const form = document.querySelector('#interest-form');
   if (!form) return;
+  if (/(^|\.)translate\.goog$/i.test(location.hostname)) {
+    form.hidden = true;
+    for (const control of form.elements) control.disabled = true;
+    form.addEventListener('submit', event => event.preventDefault());
+    const notice = document.createElement('section'); notice.className = 'note translated-form-notice';
+    const heading = document.createElement('h2'); heading.textContent = 'Use the original website for this form';
+    const explanation = document.createElement('p'); explanation.textContent = 'Open the original Ready SETCO page to make your enquiry. You can use your browser’s Translate option there to read the form.';
+    const link = document.createElement('a'); link.className = 'button primary'; link.textContent = 'Open the original enquiry form';
+    link.href = 'https://ready-setco.auraofintelligence.workers.dev/join.html'; link.target = '_blank'; link.rel = 'noopener noreferrer'; link.referrerPolicy = 'no-referrer';
+    notice.append(heading, explanation, link); form.before(notice);
+    return;
+  }
   const status = document.querySelector('#intake-status');
   const send = document.querySelector('#send-interest');
   const receiptButton = document.querySelector('#download-receipt');
@@ -12,6 +24,10 @@
   const suggestedInterest = new URLSearchParams(location.search).get('interest');
   for (const option of form.querySelectorAll('[name=interests]')) {
     if (option.value === suggestedInterest) option.checked = true;
+  }
+  if (suggestedInterest === 'working_holiday') {
+    document.querySelector('#backpacker-enquiry').hidden = false;
+    field('participantType').value = 'worker';
   }
   const endpoint = `${(window.READY_SETCO?.apiBase || '').replace(/\/$/, '')}/api/intake`;
   function show(message, kind) {

@@ -2,6 +2,7 @@ import { readFile, writeFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
+import { applyPublicDetails } from './public-page-details.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const origin = 'https://ready-setco.auraofintelligence.workers.dev';
@@ -19,7 +20,7 @@ function header(file) {
 function dock(file) {
   return `<nav class="mobile-dock" aria-label="Quick navigation"><a href="events.html"${current(file, 'events.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 2v6m8-6v6M4 11h16"/></svg>Events</a><a href="map.html"${current(file, 'map.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Zm6-2v16m6-14v16"/></svg>Map</a><a class="dock-join" href="join.html"${current(file, 'join.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m4-14v8m-4-4h8"/></svg>Take part</a></nav>`;
 }
-const footer = `<div class="footer-inner"><div class="footer-brand">${brand}<p>Ready Sustainable Employment and Training Cooperative.<br>A minimum viable community for a fair go in the age of superintelligence.</p></div><div class="footer-links"><a href="about.html">About the pattern</a><a href="members.html">Members & decisions</a><a href="boundaries.html">Permission & support</a><a href="ecosystem-links.html">Sources & connected work</a><a href="site-map.html">Site directory</a><a href="mailto:sbt4183@gmail.com">Contact Luke</a></div></div><div class="footer-bottom"><span>Initially operated by Luke Hayes, trading as Strange But True · ABN 81 913 657 174.<br>Ready SETCO is a proposed cooperative. Formal membership and handovers require their own agreements.</span><a href="https://auraofintelligence.github.io/strange-but-true/">Strange But True</a></div>`;
+const footer = `<div class="footer-inner"><div class="footer-brand">${brand}<p>Ready Sustainable Employment and Training Cooperative.<br>A proposed local cooperative for skills, paid work and shared resources. Help shape it from the beginning.</p></div><div class="footer-links"><a href="about.html">About Ready SETCO</a><a href="members.html">Members & decisions</a><a href="boundaries.html">Permissions & support</a><a href="ecosystem-links.html">Sources & connected work</a><a href="site-map.html">Site directory</a><a href="mailto:sbt4183@gmail.com">Contact Luke</a></div></div><div class="footer-bottom"><span>Initially operated by Luke Hayes, trading as Strange But True · ABN 81 913 657 174.<br>Ready SETCO is still forming. Joining as a member or transferring services will require separate agreements.</span><a href="https://auraofintelligence.github.io/strange-but-true/">Strange But True</a></div>`;
 
 let count = 0;
 for (const name of (await readdir(root)).filter(name => name.endsWith('.html'))) {
@@ -46,6 +47,7 @@ for (const name of (await readdir(root)).filter(name => name.endsWith('.html')))
       if (!doc.querySelector('.legacy-banner')) doc.querySelector('main').insertAdjacentHTML('afterbegin', '<aside class="legacy-banner">Earlier concept material: retained as background research. Current priorities are for the proposed cooperative to choose. <a href="index.html">Return to Ready SETCO</a>.</aside>');
     }
   }
+  applyPublicDetails(doc, name);
   await writeFile(path.join(root, name), dom.serialize() + '\n');
   dom.window.close();
   count++;

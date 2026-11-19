@@ -88,9 +88,11 @@ The earlier trust-ladder.html, ballow-road.html and horizon.html remain as label
 
 The phone-first design keeps Map in the main menu and a mobile quick-navigation bar. It uses local Archivo fonts, the purple/blue/yellow/green tide mark, readable text, visible focus, reduced-motion preferences and safe-area spacing.
 
-The [shared shell helper](scripts/refresh-shell.mjs) applies navigation, footer, metadata and favicon references to the root HTML pages. It preserves page content and scoped styles. Run it after adding or renaming a page, then run the project checks.
+The [shared shell helper](scripts/refresh-shell.mjs) applies navigation, footer, metadata and favicon references to the root HTML pages. It preserves page content and scoped styles. Run it after adding or renaming a page, then run the project checks. The [public details helper](scripts/refresh-public-details.mjs) updates only the footer page tour and visible Strange but True colour markup after content edits. Its [shared sequence](scripts/public-page-details.mjs) includes all 15 public pages, with earlier research labelled separately; the private organiser page stays outside the tour.
 
 The [site checker](scripts/check-site.mjs) checks all root pages, internal links and anchors, images, headings and geographic map navigation. The form and private API have their own integration tests.
+
+Every public page starts with larger-text/high-contrast and language controls. The larger-text view uses the same content and forms in one column; it saves only the chosen view on that browser. A link ending in `?view=easy` selects that view, and `?view=normal` restores the standard view. Optional read aloud starts only on request and excludes forms, hidden material, dialogs and status messages. Reading and translation checks use a silent voice stub rather than playing audio.
 
 The noticeboard publishing/synchronisation service and C-Hour personal-agent/ledger remain separate proposed builds. Production organiser access stays locked until its identity configuration is completed and verified.
 

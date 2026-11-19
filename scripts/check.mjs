@@ -14,7 +14,7 @@ for (const directory of ['scripts', 'cloudflare']) {
     if (entry.isFile() && /\.mjs$/.test(entry.name)) sourceFiles.push(path.join(root, directory, entry.name));
   }
 }
-for (const name of ['join.js', 'manage.js', 'operations-config.js', 'script.js', 'map.js']) {
+for (const name of ['join.js', 'manage.js', 'operations-config.js', 'script.js', 'map.js', 'reading.js', 'translation.js']) {
   await readFile(path.join(root, name));
   sourceFiles.push(path.join(root, name));
 }
