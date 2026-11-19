@@ -103,6 +103,9 @@ figcaption{font-size:.8rem;color:var(--muted-light);line-height:1.5;padding-top:
 .home-hero{max-width:var(--max-width);margin:auto;padding:2.5rem 1.25rem;display:grid;gap:2rem}
 .home-hero h1{font-size:clamp(3.05rem,10.9vw,5.8rem);letter-spacing:-.06em;line-height:1.02;font-weight:750}
 .home-hero h1 span{color:#7938d4}
+.organisation-name{font-size:1.08rem;font-weight:700;line-height:1.45;color:#39425e;max-width:38ch;margin-bottom:1.15rem;letter-spacing:-.015em}
+.home-purpose{padding-top:1rem}
+.home-purpose .feature-panel .text-link{margin-top:1.25rem}
 .home-hero .hero-lede{font-size:1.2rem;line-height:1.5;margin-top:1.5rem;max-width:34ch;font-weight:550}
 .hero-description{margin-top:1rem;color:var(--muted-light);max-width:48ch;font-size:1rem}
 .formation-note{font-size:.82rem;color:#5c6378;max-width:58ch;margin-top:1.5rem;line-height:1.9}

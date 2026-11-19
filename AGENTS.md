@@ -4,6 +4,7 @@ Read [the accepted rebuild brief](docs/REBUILD-BRIEF.md), README.md and any rele
 
 ## Purpose and scope
 
+- Write for local residents, businesses, clubs and community groups with no prior knowledge of Luke or this project. Introduce the full name, Ready Sustainable Employment and Training Cooperative, near the top of the homepage. Explain its practical purpose, proposed/member-shaped status and how people can take part before wider framework language. Introduce Luke and Strange but True by their role; do not assume familiarity. Keep the deeper Sensorium, fractal and superintelligence framing in the background and About material.
 - Ready SETCO is a proposed **minimum viable community for a fair go in the age of superintelligence**. “Fractal” describes a repeatable foundation with locally chosen priorities and peer relationships.
 - Lead with events, training and work, notices/news/media, grants, compliance support and member decisions. Keep **Map** in the main menu and mobile navigation. `map.html` is geographic; `site-map.html` is the site directory.
 - Keep the map narrow and simple across ages: find a place, add a place, suggest a correction. Optional details sit behind progressive disclosure. The wider Sensorium informs compatible records; it does not expand this app into self/home/bioregion portals, a governance engine or a task manager. Read [the growth constraints](docs/SENSORIUM-GROWTH.md).

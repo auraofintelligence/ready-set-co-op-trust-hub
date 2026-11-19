@@ -10,6 +10,8 @@ Accepted direction from Luke, 19 November 2026. This records the public rebuild'
 
 ## The public experience
 
+Audience correction, 19 November 2026: the homepage must introduce Ready Sustainable Employment and Training Cooperative to locals who have never heard of the organisation or Luke. Lead with the full name, practical goals, who it is for, what the proposed cooperative means and the invitation to help shape it. Introduce Luke and Strange but True separately by their role. Keep the wider framework as background rather than the visitor's entry requirement.
+
 | Route | Purpose |
 | --- | --- |
 | `index.html` | The local invitation and practical service foundations. |
