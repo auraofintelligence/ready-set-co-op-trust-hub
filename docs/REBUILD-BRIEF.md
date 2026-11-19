@@ -47,6 +47,8 @@ The rebuilt preview currently contains exactly 16 authored pages: the 12 public 
 
 The primary menu includes Events, Training & work, Notices & media, Grants, Support, Map, Members and Take part. About, source material and the site directory remain easy to reach. Mobile navigation includes Map directly.
 
+Reading-flow correction, 19 November 2026: the site should offer a calm introduction for Straddie residents across ages, with Previous/Next carrying the reading sequence. Reduce repeated opening button pairs, jump-down prompts and competing calls to leave the page. Keep the current content and service overview, direct menu access, useful contextual links, specific work enquiries and functional map/form/accessibility controls. Make optional research secondary and place topic enquiries after the relevant explanation. Apply this proportionately without a wholesale redesign or forcing everyone through every page.
+
 ## The first shared build
 
 The **Straddie Noticeboard Network** connects people forming the cooperative, local businesses, residents, community groups and tourists. It is the first proposed shared build. The current Noticeboard website is a prototype with researched examples; inclusion does not mean an organisation has opted in. Its browser builder prepares a notice, rather than publishing or synchronising an operating network.
