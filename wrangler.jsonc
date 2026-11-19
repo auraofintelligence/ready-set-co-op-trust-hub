@@ -13,7 +13,7 @@
     "directory": "./dist",
     "binding": "ASSETS",
     "html_handling": "none",
-    "run_worker_first": ["/api/*", "/manage", "/manage.html", "/manage/*"]
+    "run_worker_first": ["/api/*", "/manage", "/manage.html", "/manage/*", "/", "/map.html"]
   },
   "d1_databases": [
     {

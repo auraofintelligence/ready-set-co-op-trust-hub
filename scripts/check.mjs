@@ -26,7 +26,7 @@ for (const source of sourceFiles) {
 const configuration = JSON.parse(await readFile(path.join(root, 'wrangler.jsonc'), 'utf8'));
 if (configuration.name !== 'ready-setco' || configuration.assets?.directory !== './dist' ||
     !configuration.assets.run_worker_first.includes('/api/*') ||
-    !['/manage', '/manage.html', '/manage/*'].every(route => configuration.assets.run_worker_first.includes(route)) ||
+    !['/manage', '/manage.html', '/manage/*', '/', '/map.html'].every(route => configuration.assets.run_worker_first.includes(route)) ||
     configuration.d1_databases?.[0]?.binding !== 'DB') {
   throw new Error('The operations routes and dedicated database binding must remain configured.');
 }
