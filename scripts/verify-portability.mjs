@@ -53,8 +53,14 @@ const miniflare = new Miniflare({
 const createdAt = '2026-11-19T01:00:00.000Z';
 const reviewedAt = '2026-11-19T02:00:00.000Z';
 const exportedAt = '2026-11-19T03:00:00.000Z';
+const token = 'local-portability-rehearsal-token-32-characters';
 let snapshot;
 let reference;
+let mapSnapshot;
+let publicMapSnapshot;
+let mapPlaceId;
+let mapSuggestionId;
+let correctionId;
 try {
   const d1 = await miniflare.getD1Database('DATABASE');
   const repository = createRepository(d1);
@@ -74,6 +80,49 @@ try {
   snapshot = await repository.exportAll(exportedAt);
   assert.equal(snapshot.participants.length, 1);
   assert.equal(snapshot.auditEvents.length, 2);
+
+  async function mapRequest(route, { method = 'GET', data, at = exportedAt, privateRoute = false } = {}) {
+    const worker = createWorker({ now: () => at });
+    const response = await worker.fetch(new Request(`http://127.0.0.1${route}`, {
+      method, headers: {
+        ...(method === 'GET' ? {} : { Origin: 'http://127.0.0.1', 'Content-Type': 'application/json' }),
+        ...(privateRoute ? { Authorization: `Bearer ${token}` } : {}),
+      }, ...(data === undefined ? {} : { body: JSON.stringify(data) }),
+    }), { DB: d1, LOCAL_DEV: 'true', LOCAL_ADMIN_TOKEN: token, INTAKE_RATE_LIMIT: '100' });
+    assert.ok(response.ok, `The fictional D1 map rehearsal request failed: ${route} (${response.status}).`);
+    return response.json();
+  }
+  const point = {
+    submissionId: crypto.randomUUID(), name: 'Fictional portability-check bus stop', category: 'bus_stop',
+    latitude: -27.44, longitude: 153.42, locationDescription: 'Fictional test position, not a public listing.',
+    description: 'Created only in an isolated local migration rehearsal.', access: 'public', wheelchair: 'unknown',
+    facilities: ['shelter', 'seating'], stopMarking: 'unmarked', sourceType: 'firsthand', sourceUrl: '',
+    observedOn: '2026-11-18', publicCredit: '', publicationConsent: true, consentVersion: '2026-11-19',
+  };
+  const mapReceipt = await mapRequest('/api/map/suggestions', { method: 'POST', data: point, at: createdAt });
+  assert.equal(mapReceipt.status, 'received'); mapSuggestionId = mapReceipt.reference;
+  const queue = await mapRequest('/api/admin/map/suggestions', { privateRoute: true });
+  assert.equal(queue.suggestions.length, 1);
+  const publication = await mapRequest(`/api/admin/map/suggestions/${mapSuggestionId}/review`, {
+    method: 'POST', at: reviewedAt, privateRoute: true,
+    data: { decision: 'publish', expectedUpdatedAt: queue.suggestions[0].updatedAt, notes: 'Fictional source checked for the restore rehearsal.' },
+  });
+  mapPlaceId = publication.place.id; assert.equal(publication.place.properties.version, 1);
+  const correction = await mapRequest('/api/map/suggestions', {
+    method: 'POST', at: reviewedAt,
+    data: { ...point, submissionId: crypto.randomUUID(), placeId: mapPlaceId, baseVersion: 1, name: 'Fictional pending portability correction' },
+  });
+  correctionId = correction.reference;
+  mapSnapshot = await mapRequest('/api/admin/map/export', { privateRoute: true });
+  assert.equal(mapSnapshot.places.length, 1);
+  assert.equal(mapSnapshot.suggestions.length, 2);
+  assert.equal(mapSnapshot.suggestions.find(item => item.id === correctionId).status, 'pending');
+  assert.equal(mapSnapshot.revisions.length, 1);
+  assert.equal(mapSnapshot.auditEvents.length, 3);
+  publicMapSnapshot = await mapRequest('/api/map/export');
+  assert.equal(publicMapSnapshot.features.length, 1);
+  assert.equal(publicMapSnapshot.features[0].properties.name, point.name);
+  assert.deepEqual(publicMapSnapshot.features[0].geometry.coordinates, [153.42, -27.44]);
 } finally {
   await miniflare.dispose();
 }
@@ -91,14 +140,28 @@ try {
   assert.throws(() => database.prepare('DELETE FROM audit_events WHERE participant_id = ?')
     .run(reference), /append-only/i, 'Audit events must remain append-only after restore.');
 
-  const token = 'local-portability-rehearsal-token-32-characters';
   const worker = createWorker({ now: () => exportedAt });
   const response = await worker.fetch(new Request('http://127.0.0.1/api/admin/export', {
     headers: { Authorization: `Bearer ${token}` },
   }), { DB: createSqliteD1(database), LOCAL_DEV: 'true', LOCAL_ADMIN_TOKEN: token });
   assert.equal(response.status, 200, 'The shared Worker API must run against restored native SQLite.');
   assert.deepEqual(await response.json(), snapshot);
-  console.log('Portability passed: real local D1 migration, SQL export, native SQLite restore, protected history and shared Worker API.');
+
+  const restoredMapResponse = await worker.fetch(new Request('http://127.0.0.1/api/admin/map/export', {
+    headers: { Authorization: `Bearer ${token}` },
+  }), { DB: createSqliteD1(database), LOCAL_DEV: 'true', LOCAL_ADMIN_TOKEN: token });
+  assert.equal(restoredMapResponse.status, 200, 'The private map export must run against restored native SQLite.');
+  assert.deepEqual(await restoredMapResponse.json(), mapSnapshot, 'Published places, pending corrections, source permission, revisions and audit must survive D1 SQL export exactly.');
+  const restoredPublicMap = await worker.fetch(new Request('http://127.0.0.1/api/map/export'), { DB: createSqliteD1(database) });
+  assert.equal(restoredPublicMap.status, 200);
+  assert.deepEqual(await restoredPublicMap.json(), publicMapSnapshot, 'The public GeoJSON must remain identical and exclude the pending correction after restore.');
+  assert.throws(() => database.prepare('UPDATE map_suggestions SET consent_version = ? WHERE id = ?')
+    .run('rewrite', correctionId), /immutable/i, 'Original map display permission must remain protected after restore.');
+  assert.throws(() => database.prepare('DELETE FROM map_revisions WHERE place_id = ?')
+    .run(mapPlaceId), /append-only/i, 'Map source revisions must remain append-only after restore.');
+  assert.throws(() => database.prepare('DELETE FROM map_audit_events WHERE suggestion_id = ?')
+    .run(mapSuggestionId), /append-only/i, 'Map audit events must remain append-only after restore.');
+  console.log('Portability passed: real local D1 migrations, SQL export, native SQLite restore, protected participant and map history, identical public GeoJSON and shared Worker APIs.');
   console.log(`Fictional rehearsal files: ${directory}`);
 } finally {
   database.close();

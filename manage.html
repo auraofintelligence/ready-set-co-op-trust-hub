@@ -1,25 +1,40 @@
-<!doctype html>
-<html lang="en-AU"><head>
-  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="robots" content="noindex,nofollow">
+<!DOCTYPE html><html lang="en-AU"><head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex,nofollow">
   <title>Participant register | Ready SETCO</title>
-  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="operations.css"><link rel="icon" href="assets/favicon-raster-32.png" type="image/png">
-  <script src="operations-config.js" defer></script><script src="manage.js" defer></script>
-</head><body>
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="operations.css">
+  <script src="operations-config.js" defer=""></script><script src="manage.js" defer=""></script>
+<meta name="theme-color" content="#101020"><link rel="icon" href="assets/ready-setco-tide.ico?v=20261119" sizes="16x16 32x32 48x48"><link rel="icon" type="image/png" sizes="32x32" href="assets/ready-setco-tide-32.png?v=20261119"><link rel="icon" type="image/png" sizes="192x192" href="assets/ready-setco-tide-192.png?v=20261119"><link rel="apple-touch-icon" sizes="180x180" href="assets/ready-setco-tide-apple-180.png?v=20261119"></head><body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav" aria-label="Main navigation"><a class="brand-mark" href="index.html"><span class="brand-ready">Ready</span><span><span class="brand-set">S.E.T.</span> <span class="brand-coop">Co-op</span></span></a><div class="nav-links"><a href="join.html">Public sign-on</a><a href="index.html">Trust Hub</a><a href="/cdn-cgi/access/logout">Sign out</a></div></nav></header>
   <main id="main">
     <section class="section operations-hero"><p class="eyebrow">Organiser workspace · Private records</p><h1>Follow up. Agree the next step.</h1><p class="hero-lede">Review people and organisations interested in local work and cooperative formation. Strange But True operates this register during the pilot.</p></section>
     <div class="section review-layout">
-      <section id="local-login" class="operations-card" hidden><h2>Local development sign-in</h2><p>The local server prints an organiser token for this session.</p><form id="local-login-form" class="operations-form"><label>Session token<input type="password" name="token" autocomplete="off" required></label><button class="button secondary">Unlock local register</button></form></section>
-      <div id="review-status" class="operations-status" role="status" aria-live="polite" hidden></div>
+      <section id="local-login" class="operations-card" hidden=""><h2>Local development sign-in</h2><p>The local server prints an organiser token for this session.</p><form id="local-login-form" class="operations-form"><label>Session token<input type="password" name="token" autocomplete="off" required=""></label><button class="button secondary">Unlock local register</button></form></section>
+      <div id="review-status" class="operations-status" role="status" aria-live="polite" hidden=""></div>
       <section class="operations-card" aria-labelledby="register-title"><h2 id="register-title">Expressions of interest</h2>
         <form id="review-filter" class="review-controls"><label>Name, email or organisation<input name="search" type="search" maxlength="120"></label><label>Stage<select name="status"><option value="">All stages</option><option value="interest">Interest received</option><option value="contacted">Contacted</option><option value="pilot_partner">Pilot partner agreed</option><option value="founding_interest">Interested in founding</option><option value="withdrawn">Withdrawn</option></select></label><button class="button secondary">Find records</button></form>
         <p id="review-count" class="review-count">Loading records…</p>
         <div class="review-table-wrap"><table class="review-table"><thead><tr><th scope="col">Person / organisation</th><th scope="col">Taking part as</th><th scope="col">Stage</th><th scope="col">Received</th></tr></thead><tbody id="participants"></tbody></table></div>
-        <div class="review-pages"><button id="previous-page" class="button secondary" disabled>Previous</button><span id="page-label">Page 1</span><button id="next-page" class="button secondary" disabled>Next</button></div>
+        <div class="review-pages"><button id="previous-page" class="button secondary" disabled="">Previous</button><span id="page-label">Page 1</span><button id="next-page" class="button secondary" disabled="">Next</button></div>
       </section>
-      <section id="participant-detail" class="operations-card" aria-labelledby="detail-title" hidden><h2 id="detail-title">Review participant</h2><div class="review-detail"><dl id="participant-summary"></dl><form id="participant-review" class="operations-form"><label>Next stage<select name="status"><option value="interest">Interest received</option><option value="contacted">Contacted</option><option value="pilot_partner">Pilot partner agreed</option><option value="founding_interest">Interested in founding</option><option value="withdrawn">Withdrawn</option></select></label><label>Private follow-up notes<textarea name="notes" maxlength="4000" rows="7"></textarea></label><p class="field-hint">A stage change records your review. Formal membership, employment and transfer of legal responsibility each require a separate approved agreement.</p><button class="button primary" id="save-review">Save review</button></form></div></section>
+      <section id="participant-detail" class="operations-card" aria-labelledby="detail-title" hidden=""><h2 id="detail-title">Review participant</h2><div class="review-detail"><dl id="participant-summary"></dl><form id="participant-review" class="operations-form"><label>Next stage<select name="status"><option value="interest">Interest received</option><option value="contacted">Contacted</option><option value="pilot_partner">Pilot partner agreed</option><option value="founding_interest">Interested in founding</option><option value="withdrawn">Withdrawn</option></select></label><label>Private follow-up notes<textarea name="notes" maxlength="4000" rows="7"></textarea></label><p class="field-hint">A stage change records your review. Formal membership, employment and transfer of legal responsibility each require a separate approved agreement.</p><button class="button primary" id="save-review">Save review</button></form></div></section>
       <section class="operations-card"><h2>Keep the handover portable.</h2><p>The register retains the original operator and consent. A future cooperative handover will have an effective date and approval. Private exports include contact details and review history.</p><div class="hero-actions"><button id="export-register" class="button secondary" type="button">Download private register</button></div><p class="field-hint">Store exports in your private operations storage. Only authorised organisers can access this workspace.</p></section>
-    </div>
+
+<section class="operations-card" id="map-review" aria-labelledby="map-review-title">
+  <p class="eyebrow">Local places &amp; facilities</p><h2 id="map-review-title">Review map suggestions</h2>
+  <p>Check the place, position and source before publishing. Suggestions stay private until reviewed.</p>
+  <form id="map-review-filter" class="review-controls"><label>Show<select name="status"><option value="pending">Awaiting review</option><option value="published">Published suggestions</option><option value="rejected">Declined suggestions</option><option value="all">All suggestions</option></select></label><button class="button secondary">Refresh suggestions</button></form>
+  <p id="map-review-count" class="review-count">Sign in to review map suggestions.</p>
+  <div id="map-review-status" class="operations-status" role="status" aria-live="polite" hidden=""></div>
+  <div id="map-queue-list" class="map-queue-list"></div>
+  <div class="review-pages"><button id="map-queue-previous" class="button secondary" type="button" disabled="">Previous</button><span id="map-queue-page">Page 1</span><button id="map-queue-next" class="button secondary" type="button" disabled="">Next</button></div>
+  <section id="map-suggestion-detail" class="map-suggestion-detail" hidden="" aria-labelledby="map-suggestion-title"><h3 id="map-suggestion-title">Map suggestion</h3><dl id="map-suggestion-summary"></dl>
+    <form id="map-review-decision" class="operations-form"><label>Private review note<textarea name="notes" maxlength="2000" rows="3"></textarea></label><div class="hero-actions"><button class="button primary" type="submit" id="map-publish">Publish this information</button><button class="button secondary" type="button" id="map-reject">Decline suggestion</button></div></form>
+  </section>
+  <details><summary>Remove a published place</summary><p>The history is retained when a place is removed from public display.</p><form id="map-archive-form" class="operations-form"><label>Published place<select name="place" required=""><option value="">Choose a place</option></select></label><label>Reason<input name="reason" maxlength="2000" required=""></label><button class="button secondary" type="submit">Remove from public map</button></form><div class="review-pages"><button id="map-place-previous" class="button secondary" type="button" disabled="">Previous places</button><span id="map-place-page">Page 1</span><button id="map-place-next" class="button secondary" type="button" disabled="">More places</button></div></details>
+  <div class="hero-actions"><button class="button secondary" id="export-map-register" type="button">Download private map register</button><a class="button secondary" href="map.html">View public map</a></div>
+</section></div>
   </main><footer class="site-footer"><p>Ready SETCO · Participant and formation register</p><div class="footer-links"><a href="join.html">Public sign-on</a><a href="index.html">Trust Hub</a></div></footer>
+
+
 </body></html>

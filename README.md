@@ -1,4 +1,4 @@
-# Ready S.E.T. Co-op Trust Hub
+# Ready SETCO
 
 <!-- github-organisation:start -->
 
@@ -59,70 +59,42 @@ Each link below reflects an evidenced family, lineage or direct connection. This
 
 <!-- github-organisation:end -->
 
-Static GitHub Pages site for the public-facing trust, co-working and asset-sharing pathway toward Ready S.E.T. Co-op on Minjerribah / North Stradbroke Island.
+## Current public service
 
-## Public page
+Ready SETCO is being developed as a **minimum viable community for a fair go in the age of superintelligence**. A fractal pattern describes repeatable foundations with locally chosen services and peer relationships.
 
-- [Open the Ready S.E.T. Co-op Trust Hub](https://auraofintelligence.github.io/ready-set-co-op-trust-hub/)
+The current public service is [Ready SETCO on Cloudflare](https://ready-setco.auraofintelligence.workers.dev/). Its 19 November 2026 rebuild replaces the earlier property-led Trust Hub front door while retaining original build history and clearly marked earlier research.
 
-## Purpose
+Read [the accepted rebuild brief](docs/REBUILD-BRIEF.md) for scope and original sources, and [AGENTS.md](AGENTS.md) before changing the site.
 
-This repo is the coherent public doorway between:
+## Public pages
 
-- Strange but True as Luke's sole-trader seed and proof layer.
-- Resident and business co-working.
-- Trust-building before asset sharing.
-- Hyperlocal media and film club capability.
-- Grant writing, legal source trails and public/private boundaries.
-- The possible Ready S.E.T. Co-op headquarters around 9 Ballow Road, Dunwich.
-- The later Mineral Moonshots horizon, kept deliberately deep in the pathway.
+- index.html: useful local entry points and the minimum viable community.
+- events.html: proposed events, experiences and guest support.
+- jobs.html: training, paid work and the C-Hours section.
+- media-assets.html: notices, news, screen media and the noticeboard first build with embedded resilience.
+- grant-roadmap.html: project preparation and grant evidence.
+- boundaries.html: compliance support, consent and practical responsibilities.
+- map.html: find, add and correct public places and facilities; opt-in map background, chosen GPS or map position, simple source details, review and portable map data. Private self/home information stays outside this intake. No real places are seeded automatically.
+- members.html: participation, local decisions and formal handover.
+- about.html: the fractal pattern and future Missing Middle stewardship.
+- join.html: durable expressions of interest, separate from formal membership.
+- ecosystem-links.html: current connected projects and sources.
+- site-map.html: site directory, distinct from the geographic map.
 
-The plain-language goal is to help repeatable local support work become systems, training and paid roles so Luke can hand work over and move to the next project.
+The earlier trust-ladder.html, ballow-road.html and horizon.html remain as labelled research. They do not establish a confirmed property, adopted cooperative programme or operating installation.
 
-## Pages
+## Design and maintenance
 
-- `index.html` - compact gateway.
-- `trust-ladder.html` - trust-building pathway before shared assets.
-- `ballow-road.html` - 9 Ballow Road and nearby Ballow precinct.
-- `jobs.html` - rapid AI assisted jobs spectrum for 300+ people.
-- `media-assets.html` - image and video capture list plus placeholders.
-- `ecosystem-links.html` - links to the related public repos and pages.
-- `site-map.html` - internal site map plus public workbench links.
-- `grant-roadmap.html` - grant and readiness pathway.
-- `boundaries.html` - public/private/cultural/legal boundaries.
-- `horizon.html` - optional deeper Mineral Moonshots pathway.
+The phone-first design keeps Map in the main menu and a mobile quick-navigation bar. It uses local Archivo fonts, the purple/blue/yellow/green tide mark, readable text, visible focus, reduced-motion preferences and safe-area spacing.
 
-## Local Preview
+The [shared shell helper](scripts/refresh-shell.mjs) applies navigation, footer, metadata and favicon references to the root HTML pages. It preserves page content and scoped styles. Run it after adding or renaming a page, then run the project checks.
 
-```powershell
-python -m http.server 4187
-```
+The [site checker](scripts/check-site.mjs) checks all root pages, internal links and anchors, images, headings and geographic map navigation. The form and private API have their own integration tests.
 
-Then open:
+The noticeboard publishing/synchronisation service and C-Hour personal-agent/ledger remain separate proposed builds. Production organiser access stays locked until its identity configuration is completed and verified.
 
-```text
-http://localhost:4187/
-```
-
-## Notes
-
-- All visitor-facing links should use public GitHub Pages URLs.
-- Property details can go stale. The 9 Ballow Road references are dated source notes, not live property advice.
-- Supplied 9 Ballow Road reference images are optimised into `assets/ballow/`; public listing links remain acknowledged as source trails.
-- Generated 9 Ballow concept images are separated from factual reference views and labelled as concept-only.
-- Hero images in `assets/heroes/` are generated project assets optimised as WebP.
-- The site is intentionally grounded at the front door. Moonshot material belongs in the optional deep horizon.
-
-Ready S.E.T. Co-op remains a proposal, not a registered co-operative, employer,
-training provider or confirmed property project. Linked pages are context, not
-evidence of partnership, approval or endorsement.
-
-## Related pages
-
-- [Ready SET Co-op Media](https://auraofintelligence.github.io/ready-set-co-op-hyperlocal-media/)
-- [Minjerribah Screen & Media Network](https://auraofintelligence.github.io/minjerribah-screen-media-network/)
-- [Mineral Moonshots](https://auraofintelligence.github.io/mineral-moonshots/)
-
+The public map and its private review queue use a separate place register alongside the participation register. Read [map records and portability](docs/MAP-DATA.md) for the implemented API, source and permission history, export and local-server migration. [Sensorium growth constraints](docs/SENSORIUM-GROWTH.md) records the larger direction while keeping the everyday app small and simple.
 
 ## Participation and operational handover (19 November 2026)
 

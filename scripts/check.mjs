@@ -14,7 +14,7 @@ for (const directory of ['scripts', 'cloudflare']) {
     if (entry.isFile() && /\.mjs$/.test(entry.name)) sourceFiles.push(path.join(root, directory, entry.name));
   }
 }
-for (const name of ['join.js', 'manage.js', 'operations-config.js']) {
+for (const name of ['join.js', 'manage.js', 'operations-config.js', 'script.js', 'map.js']) {
   await readFile(path.join(root, name));
   sourceFiles.push(path.join(root, name));
 }
@@ -36,3 +36,4 @@ for (const entry of ['node_modules/', 'dist/', '.wrangler/', '.local/', '.dev.va
   if (!ignore.split(/\r?\n/).includes(entry)) throw new Error(`Missing private/build exclusion: ${entry}`);
 }
 console.log(`Checked ${sourceFiles.length} JavaScript files, private-file exclusions and Worker routing.`);
+await import('./check-site.mjs');

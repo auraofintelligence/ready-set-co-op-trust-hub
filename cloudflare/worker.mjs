@@ -1,9 +1,10 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { createRepository, PARTICIPANT_STATUSES } from './repository.mjs';
+import { handleMapRequest } from './map-records.mjs';
 
 const BODY_LIMIT = 12 * 1024;
 const CONSENT_VERSION = '2026-11-19';
-const INTERESTS = new Set(['events', 'tourism', 'training', 'employment', 'grants', 'resources', 'founding']);
+const INTERESTS = new Set(['events', 'tourism', 'training', 'employment', 'grants', 'resources', 'founding', 'media', 'support', 'mapping']);
 const TYPES = new Set(['business', 'community', 'resident', 'worker']);
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const encoder = new TextEncoder();
@@ -21,12 +22,12 @@ function json(value, status = 200, headers = {}) {
   return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers } });
 }
 
-function secure(response, { api = false, privatePage = false, origin } = {}) {
+function secure(response, { api = false, privatePage = false, origin, allowLocation = false } = {}) {
   const result = new Response(response.body, response);
   result.headers.set('X-Content-Type-Options', 'nosniff');
   result.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
   result.headers.set('X-Frame-Options', 'DENY');
-  result.headers.set('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+  result.headers.set('Permissions-Policy', `camera=(), microphone=(), geolocation=${allowLocation ? '(self)' : '()'}`);
   if (api || privatePage) {
     result.headers.set('Cache-Control', 'no-store');
     result.headers.set('Pragma', 'no-cache');
@@ -257,9 +258,11 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
       const privatePage = /^\/manage(?:\.html|\/.*)?$/i.test(url.pathname);
       let corsOrigin;
       try {
-        if (url.pathname === '/api/intake') corsOrigin = allowedPublicOrigin(request, env, url);
+        const publicWrite = ['/api/intake', '/api/map/suggestions'].includes(url.pathname);
+        const publicMapRead = request.method === 'GET' && ['/api/map/places', '/api/map/export'].includes(url.pathname);
+        if (publicWrite || publicMapRead) corsOrigin = allowedPublicOrigin(request, env, url);
         else if (api) requireSameOrigin(request, url);
-        if (request.method === 'OPTIONS' && url.pathname === '/api/intake') {
+        if (request.method === 'OPTIONS' && publicWrite) {
           if (!corsOrigin || request.headers.get('Access-Control-Request-Method') !== 'POST' ||
             (request.headers.get('Access-Control-Request-Headers') ?? '').split(',').map(x => x.trim().toLowerCase()).filter(Boolean).some(x => x !== 'content-type')) {
             fail(403, 'origin_not_allowed', 'This preflight request is not allowed.');
@@ -276,6 +279,16 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
         if (api) {
           if (!env.DB?.prepare || !env.DB?.batch) fail(503, 'service_unavailable', 'The service is temporarily unavailable.');
           const repository = createRepository(env.DB);
+          if (url.pathname.startsWith('/api/map/') || url.pathname.startsWith('/api/admin/map/')) {
+            if (url.pathname.startsWith('/api/admin/map/') && ['POST', 'PATCH'].includes(request.method)) {
+              requireSameOrigin(request, url, { required: true });
+            }
+            if (url.pathname === '/api/map/suggestions' && request.method === 'POST') {
+              await rateLimit(request, env, url, repository, now());
+            }
+            const response = await handleMapRequest(request, env, { actor, now: now(), readJSON: () => readJSON(request) });
+            if (response) return secure(response, { api, origin: corsOrigin });
+          }
           if (url.pathname === '/api/intake' && request.method === 'POST') {
             await rateLimit(request, env, url, repository, now());
             const data = validateIntake(await readJSON(request));
@@ -307,7 +320,7 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
           fail(404, 'not_found', 'The endpoint was not found.');
         }
         if (!env.ASSETS?.fetch) fail(503, 'service_unavailable', 'The site is temporarily unavailable.');
-        return secure(await env.ASSETS.fetch(request), { privatePage });
+        return secure(await env.ASSETS.fetch(request), { privatePage, allowLocation: url.pathname === '/map.html' });
       } catch (error) {
         const known = error instanceof HttpError;
         const status = known ? error.status : 503;

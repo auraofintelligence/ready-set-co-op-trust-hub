@@ -5,12 +5,18 @@
 
 User-agent: *
 Allow: /
+Disallow: /manage
+Disallow: /api/
 
 User-agent: OAI-SearchBot
 Allow: /
+Disallow: /manage
+Disallow: /api/
 
 User-agent: Claude-SearchBot
 Allow: /
+Disallow: /manage
+Disallow: /api/
 
 User-agent: GPTBot
 Disallow: /
@@ -21,4 +27,4 @@ Disallow: /
 User-agent: Google-Extended
 Disallow: /
 
-Sitemap: https://auraofintelligence.github.io/ready-set-co-op-trust-hub/sitemap.xml
+Sitemap: https://ready-setco.auraofintelligence.workers.dev/sitemap.xml

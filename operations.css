@@ -26,6 +26,13 @@
 .operations-status { border: 1px solid var(--true-cyan); border-radius: .6rem; padding: 1rem; }
 .operations-status[data-kind=error] { border-color: var(--coral); }
 .operations-status[data-kind=success] { border-color: var(--help-green); }
+.map-queue-list{display:grid;gap:.75rem;margin-block:1rem}
+.map-queue-row{display:flex;align-items:center;flex-wrap:wrap;gap:.5rem 1rem}
+.map-queue-row .button{text-align:left;justify-content:flex-start;overflow-wrap:anywhere}
+.map-suggestion-detail{margin-block:1.5rem;padding-top:1rem;border-top:1px solid var(--line)}
+.map-suggestion-detail dl{display:grid;gap:.25rem;margin-block:1rem}
+.map-suggestion-detail dt{font-weight:700;margin-top:.6rem}
+.map-suggestion-detail dd{margin:0;white-space:pre-wrap;overflow-wrap:anywhere}
 .reference { font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
 [hidden] { display: none !important; }
 .review-layout { display: grid; gap: 1.3rem; padding-bottom: 4rem; }
@@ -47,3 +54,14 @@
 .review-pages button { cursor: pointer; font: inherit; }
 .review-pages button:disabled { opacity: .5; cursor: default; }
 @media (max-width: 760px) { .operations-layout, .review-detail { grid-template-columns: 1fr; } .field-pair { grid-template-columns: 1fr; } .operations-hero { padding-top: 2.2rem; } }
+
+/* Public forms share the light surfaces and large controls of the rebuilt site. */
+.operations-form input:not([type=checkbox]), .operations-form select, .operations-form textarea, .review-controls input, .review-controls select { background:#fff; color:var(--ink-text); border-color:#919bad; min-height:3rem; }
+.operations-form select,.review-controls select{appearance:none;padding-right:2.5rem;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath fill='none' stroke='%23414b64' stroke-width='2' d='m1 1 5 5 5-5'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 1rem center}
+.operations-notice{background:#e8f5ef;border-left-color:#237653}
+.check-option input{width:1.35rem;height:1.35rem;accent-color:#7334d4}
+.operations-form .check-option{padding:.35rem 0;min-height:2.75rem;align-items:flex-start}
+.operations-form .button{min-height:3.2rem}
+.operations-hero h1{max-width:19ch}
+.review-table th{color:#206448}
+@media(max-width:760px){.operations-layout{gap:1.5rem}.operations-card{padding:1.25rem}.operations-hero .hero-lede{font-size:1.1rem}.operations-form .button{width:100%;justify-self:stretch}}

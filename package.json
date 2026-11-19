@@ -10,7 +10,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node --test",
+    "test": "node --test --test-concurrency=1",
     "dev": "node --watch scripts/local-server.mjs",
     "start": "node scripts/local-server.mjs",
     "check": "node scripts/check.mjs"

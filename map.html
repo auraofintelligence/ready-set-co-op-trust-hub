@@ -1,0 +1,96 @@
+<!DOCTYPE html><html lang="en-AU"><head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="A locally held map of businesses, bus stops, picnic places, seats, toilets, clubs and beaches. Add local knowledge, suggest corrections and keep the records portable.">
+  <title>Map | Ready SETCO</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="assets/vendor/leaflet/leaflet.css">
+  <link rel="stylesheet" href="map.css">
+<script src="assets/vendor/leaflet/leaflet.js" defer=""></script><script src="operations-config.js" defer=""></script><script src="map.js" defer=""></script>
+  <script src="script.js" defer=""></script>
+<meta name="theme-color" content="#101020"><link rel="icon" href="assets/ready-setco-tide.ico?v=20261119" sizes="16x16 32x32 48x48"><link rel="icon" type="image/png" sizes="32x32" href="assets/ready-setco-tide-32.png?v=20261119"><link rel="icon" type="image/png" sizes="192x192" href="assets/ready-setco-tide-192.png?v=20261119"><link rel="apple-touch-icon" sizes="180x180" href="assets/ready-setco-tide-apple-180.png?v=20261119"><link rel="canonical" href="https://ready-setco.auraofintelligence.workers.dev/map.html"><meta property="og:title" content="Map | Ready SETCO"><meta property="og:description" content="A locally held map of businesses, bus stops, picnic places, seats, toilets, clubs and beaches. Add local knowledge, suggest corrections and keep the records portable."><meta property="og:type" content="website"><meta property="og:url" content="https://ready-setco.auraofintelligence.workers.dev/map.html"><meta property="og:image" content="https://ready-setco.auraofintelligence.workers.dev/assets/heroes/home-hero.webp"></head>
+<body class="service-page map-page">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <header class="site-header"><nav class="nav" aria-label="Main navigation"><a class="brand-mark" href="index.html" aria-label="Ready SETCO home"><img class="brand-logo" src="assets/ready-setco-tide-192.png" width="192" height="192" alt=""><span class="brand-name">Ready <span class="set">SET</span>CO<span class="brand-subtitle">PEOPLE · SKILLS · POSSIBILITY</span></span></a><button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links"><span class="menu-lines" aria-hidden="true"></span>Menu</button><div class="nav-links" id="nav-links"><a href="events.html">Events</a><a href="jobs.html">Training &amp; work</a><a href="media-assets.html">Notices &amp; media</a><a href="grant-roadmap.html">Grants</a><a href="boundaries.html">Support</a><a href="map.html" aria-current="page">Map</a><a href="members.html">Members</a><a class="mobile-only" href="about.html">About Ready SETCO</a><a class="nav-join" href="join.html">Take part</a></div></nav></header>
+  <main id="main">
+    <section class="map-intro" aria-labelledby="page-title">
+      <div><p class="eyebrow">The places we know</p><h1 id="page-title">Find a place.<br>Add what you know.</h1><p>Businesses, beaches, the seat in the shade and the bus stop with no sign. A map we can keep useful together.</p></div>
+      <button class="button primary map-add" id="add-place" type="button" hidden=""><span aria-hidden="true">＋</span> Add a place</button>
+    </section>
+
+    <section class="map-workspace" aria-label="Community places map">
+      <div class="map-tools">
+        <label class="map-search">Find something local<input id="place-search" type="search" placeholder="A name, a place, a landmark…" autocomplete="off"></label>
+        <label class="map-area">Explore<select id="map-area"><option value="minjerribah">Minjerribah / Straddie</option><option value="smbi">Southern Moreton Bay Islands</option><option value="redlands">Redlands</option><option value="all">All recorded places</option></select></label>
+      </div>
+      <div class="map-category-scroll"><div class="map-categories" id="map-categories" role="group" aria-label="Filter places by kind"></div></div>
+      <div class="map-layout">
+        <div class="map-surface">
+          <div class="map-stage" id="map-stage">
+            <div class="map-placeholder" id="map-placeholder">
+              <div class="map-preview-symbol" aria-hidden="true"><span>⌖</span><i></i><i></i><i></i></div>
+              <p class="eyebrow">Your places. Your local knowledge.</p><h2>See the places<br>around you.</h2>
+              <p>The place list loads from our own register. Load the map background when you want to explore or drop a pin.</p>
+              <button class="button primary" id="load-map" type="button" hidden="">Load the map</button>
+              <p class="map-small">Map background © OpenStreetMap contributors. Loading it connects to OpenStreetMap.</p>
+            </div>
+            <div id="map-canvas" role="region" aria-label="Interactive community map" tabindex="0" hidden=""></div>
+          </div>
+          <div class="map-position-prompt" id="map-position-prompt" hidden=""><strong>Tap the map to choose this place.</strong><button class="button secondary" id="cancel-position" type="button">Cancel pin</button></div>
+          <div class="map-canvas-tools"><p id="map-status" role="status" aria-live="polite">The map background has not been loaded.</p><button type="button" class="map-text-button" id="remove-map" hidden="">Hide map background</button></div>
+        </div>
+        <aside class="map-results" aria-labelledby="results-title">
+          <div class="map-results-heading"><div><p class="eyebrow">Local place register</p><h2 id="results-title">Explore the details.</h2></div><p id="place-count">Loading places…</p></div>
+          <div id="places-message" class="map-message" role="status" aria-live="polite"></div>
+          <button class="button secondary" id="retry-places" type="button" hidden="">Try loading places again</button>
+          <ul id="place-list" class="place-list" aria-label="Matching places"></ul>
+          <button class="button secondary" id="more-places" type="button" hidden="">Load more places</button>
+          <section id="place-detail" class="place-detail" aria-labelledby="place-detail-title" hidden="">
+            <button class="map-text-button" type="button" id="close-detail">Back to the list</button>
+            <p id="place-detail-category" class="eyebrow"></p><h3 id="place-detail-title" tabindex="-1"></h3>
+            <p id="place-detail-description"></p><dl id="place-detail-facts"></dl>
+            <div id="place-detail-facilities" class="place-facilities"></div>
+            <div class="hero-actions"><button type="button" id="correct-place" class="button primary">Suggest a correction</button><a id="place-external-map" class="button secondary" href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Open this location</a></div>
+          </section>
+        </aside>
+      </div>
+      <div class="map-data-bar"><p><strong>Local records, kept portable.</strong> Keep a copy of the published place records.</p><button class="button secondary" type="button" id="export-places" hidden="">Download map data</button></div>
+      <p id="export-status" class="map-small" role="status" aria-live="polite"></p>
+      <noscript><div class="note"><p>Adding and browsing the local register needs JavaScript. You can still <a href="https://www.openstreetmap.org/#map=11/-27.560/153.475">explore Minjerribah on OpenStreetMap</a> or <a href="mailto:sbt4183@gmail.com">contact Luke with a place or correction</a>.</p></div></noscript>
+    </section>
+
+    <section class="section map-help" aria-labelledby="map-help-title"><details><summary id="map-help-title">How this map works</summary><p>Find a place, add something missing, or suggest a correction. New information is checked before it appears on the public map.</p><p>Include useful local details: an unmarked bus stop, a nearby landmark, a seat in the shade or who can use a facility. A listing describes a place and does not imply cooperative membership.</p><p>The place records are held in our local register, initially operated by Strange But True. You can download the published records and keep a copy. Map background data is supplied by OpenStreetMap.</p><p><a href="join.html?interest=mapping">Help build and care for the local map</a></p></details></section>
+
+    <dialog class="place-dialog" id="place-dialog" aria-labelledby="place-dialog-title">
+      <div class="place-dialog-header"><div><p class="eyebrow">Add your local knowledge</p><h2 id="place-dialog-title">Add a place.</h2></div><button class="dialog-close" id="close-place-dialog" type="button" aria-label="Close place form">×</button></div>
+      <form id="place-form" class="place-form">
+        <div class="map-draft-banner" id="draft-banner" hidden=""><p>A saved draft is on this device.</p><div><button class="map-text-button" id="restore-draft" type="button">Use saved draft</button><button class="map-text-button" id="remove-draft" type="button">Remove saved draft</button></div></div>
+        <p id="correction-context" class="map-message" hidden=""></p>
+        <div class="place-form-pair"><label>What is it called?<input name="name" id="place-name" maxlength="140" placeholder="A name or short description" required=""></label><label>What kind of place?<select name="category" id="place-category" required=""><option value="">Choose one</option><option value="business">Business</option><option value="bus_stop">Bus stop / shelter</option><option value="picnic">Picnic place / equipment</option><option value="seat">Seat / bench</option><option value="toilet">Toilet</option><option value="club">Club / community group</option><option value="beach">Beach / beach access</option><option value="water">Drinking water</option><option value="other">Another useful place</option></select></label></div>
+        <fieldset class="place-position"><legend>Where is it?</legend><div class="place-position-actions"><button type="button" class="button secondary" id="choose-on-map">Choose on the map</button><button type="button" class="button secondary" id="use-position">Use my location</button></div><p id="position-status" class="map-small" role="status" aria-live="polite">Choose a location above, or enter one below.</p><details id="manual-position"><summary>Enter a location manually</summary><div class="place-form-pair"><label>Latitude<input name="latitude" type="number" min="-90" max="90" step="any" inputmode="decimal" placeholder="-27.5…"></label><label>Longitude<input name="longitude" type="number" min="-180" max="180" step="any" inputmode="decimal" placeholder="153.4…"></label></div></details></fieldset>
+        <div id="bus-stop-fields" class="place-context-field" hidden=""><label>Is there a bus stop sign?<select name="stopMarking"><option value="unknown">Not sure</option><option value="marked">Yes — marked / signed</option><option value="unmarked">No — an unmarked local stop</option></select></label></div>
+        <label>Anything helpful? <span class="map-small">Optional</span><textarea name="description" maxlength="1600" rows="3" placeholder="A nearby landmark, access details or something people should know."></textarea></label>
+        <label>How do you know?<select name="sourceType"><option value="firsthand">I know the place / saw it myself</option><option value="website">I found it on a public website</option><option value="existing_record">An existing record</option><option value="other">Another source</option></select></label>
+        <details class="place-more-details" id="place-more-details"><summary>More details — optional</summary>
+          <label>Nearby landmark or directions<textarea name="locationDescription" maxlength="800" rows="2" placeholder="Which side of the road? Near which landmark?"></textarea></label>
+          <div class="place-form-pair"><label>Who can use it?<select name="access"><option value="unknown">Not sure</option><option value="public">Public access</option><option value="customers">Customers / members</option><option value="permission">Permission needed</option></select></label><label>Wheelchair / step-free access<select name="wheelchair"><option value="unknown">Not checked</option><option value="yes">Observed accessible access</option><option value="no">Observed access barrier</option></select></label></div>
+          <fieldset class="place-facility-fields"><legend>Facilities you know are there</legend><p class="map-small">Leave anything you have not checked blank.</p><div class="place-facility-options">
+            <label><input type="checkbox" name="facilities" value="shelter"> Shelter</label><label><input type="checkbox" name="facilities" value="seating"> Seating</label><label><input type="checkbox" name="facilities" value="picnic_table"> Picnic table</label><label><input type="checkbox" name="facilities" value="bbq"> Barbecue</label><label><input type="checkbox" name="facilities" value="toilet"> Toilet</label><label><input type="checkbox" name="facilities" value="drinking_water"> Drinking water</label><label><input type="checkbox" name="facilities" value="shade"> Shade</label><label><input type="checkbox" name="facilities" value="accessible_toilet"> Accessible toilet</label><label><input type="checkbox" name="facilities" value="baby_change"> Baby change</label><label><input type="checkbox" name="facilities" value="power"> Power</label><label><input type="checkbox" name="facilities" value="dog_friendly"> Dogs permitted</label>
+          </div></fieldset>
+          <label>Date observed, if known<input name="observedOn" type="date"></label>
+          <label>Source or public website<input name="sourceUrl" type="url" maxlength="600" placeholder="https://"></label><label>Public credit <span class="map-small">Optional. This name will be visible if published.</span><input name="publicCredit" maxlength="100" autocomplete="off" placeholder="Leave blank to omit your name"></label>
+        </details>
+        <label class="place-consent"><input type="checkbox" name="publicationConsent" required=""><span>I can share this information publicly.</span></label>
+        <p class="map-small">For public places and facilities. Keep private home details, personal information and restricted cultural knowledge out of this entry.</p>
+        <div id="suggestion-status" class="suggestion-status" role="status" aria-live="polite" tabindex="-1" hidden=""></div>
+        <div class="place-submit-actions"><button class="button primary" id="submit-place" type="submit">Send for review</button><button class="button secondary" id="save-draft" type="button">Save draft on this device</button><button class="map-text-button" id="download-draft" type="button">Download a copy of this draft</button></div>
+        <p id="draft-status" class="map-small" role="status" aria-live="polite"></p>
+      </form>
+    </dialog>
+  </main>
+  <footer class="site-footer"><div class="footer-inner"><div class="footer-brand"><a class="brand-mark" href="index.html" aria-label="Ready SETCO home"><img class="brand-logo" src="assets/ready-setco-tide-192.png" width="192" height="192" alt=""><span class="brand-name">Ready <span class="set">SET</span>CO<span class="brand-subtitle">PEOPLE · SKILLS · POSSIBILITY</span></span></a><p>Ready Sustainable Employment and Training Cooperative.<br>A minimum viable community for a fair go in the age of superintelligence.</p></div><div class="footer-links"><a href="about.html">About the pattern</a><a href="members.html">Members &amp; decisions</a><a href="boundaries.html">Permission &amp; support</a><a href="ecosystem-links.html">Sources &amp; connected work</a><a href="site-map.html">Site directory</a><a href="mailto:sbt4183@gmail.com">Contact Luke</a></div></div><div class="footer-bottom"><span>Initially operated by Luke Hayes, trading as Strange But True · ABN 81 913 657 174.<br>Ready SETCO is a proposed cooperative. Formal membership and handovers require their own agreements.</span><a href="https://auraofintelligence.github.io/strange-but-true/">Strange But True</a></div></footer>
+
+
+
+<nav class="mobile-dock" aria-label="Quick navigation"><a href="events.html"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"></rect><path d="M8 2v6m8-6v6M4 11h16"></path></svg>Events</a><a href="map.html" aria-current="page"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Zm6-2v16m6-14v16"></path></svg>Map</a><a class="dock-join" href="join.html"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"></circle><path d="M3 21v-3a6 6 0 0 1 12 0v3m4-14v8m-4-4h8"></path></svg>Take part</a></nav>
+</body></html>

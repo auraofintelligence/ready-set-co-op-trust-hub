@@ -9,6 +9,10 @@
   let receipt = null;
   let submitted = false;
   const field = name => form.elements.namedItem(name);
+  const suggestedInterest = new URLSearchParams(location.search).get('interest');
+  for (const option of form.querySelectorAll('[name=interests]')) {
+    if (option.value === suggestedInterest) option.checked = true;
+  }
   const endpoint = `${(window.READY_SETCO?.apiBase || '').replace(/\/$/, '')}/api/intake`;
   function show(message, kind) {
     status.textContent = message;

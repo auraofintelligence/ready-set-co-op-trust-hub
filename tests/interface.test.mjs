@@ -8,12 +8,12 @@ import { fileURLToPath } from 'node:url';
 import { JSDOM } from 'jsdom';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
-const waitFor = async (check, description) => {
+const waitFor = async (check, description, diagnostic = () => '') => {
   for (let tries = 0; tries < 150; tries++) {
     if (check()) return;
     await new Promise(resolve => setTimeout(resolve, 20));
   }
-  assert.fail(`Timed out: ${description}`);
+  assert.fail(`Timed out: ${description}${diagnostic() ? ` (${diagnostic()})` : ''}`);
 };
 
 test('participant and organiser interfaces persist, retry, review and export through the real local API', { timeout: 30000 }, async () => {
@@ -29,6 +29,7 @@ test('participant and organiser interfaces persist, retry, review and export thr
     token = /sign-in field:\r?\n([^\r\n]+)/.exec(output)?.[1] ?? '';
   });
   let serverError = '';
+  let networkError = '';
   child.stderr.on('data', chunk => { serverError += String(chunk); });
   const exit = new Promise(resolve => child.once('exit', resolve));
   try {
@@ -42,7 +43,10 @@ test('participant and organiser interfaces persist, retry, review and export thr
       dom.window.fetch = (url, options = {}) => {
         const headers = new Headers(options.headers);
         if (options.method && options.method !== 'GET') headers.set('Origin', origin);
-        return fetch(new URL(url, origin), { ...options, headers });
+        return fetch(new URL(url, origin), { ...options, headers }).catch(error => {
+          networkError = `${error.message}; ${error.cause?.code || error.cause?.message || 'no additional network detail'}`;
+          throw error;
+        });
       };
       await dom.window.eval(await readFile(path.join(root, 'operations-config.js'), 'utf8'));
       return dom.window;
@@ -71,8 +75,10 @@ test('participant and organiser interfaces persist, retry, review and export thr
     submit();
     assert.match(guest.document.querySelector('#intake-status').textContent, /at least one interest/);
     form.querySelector('[name=interests][value=events]').checked = true;
+    form.querySelector('[name=interests][value=media]').checked = true;
+    form.querySelector('[name=interests][value=support]').checked = true;
     submit();
-    await waitFor(() => guest.document.querySelector('#intake-status').textContent.includes('connection lost'), 'lost response displayed truthfully');
+    await waitFor(() => guest.document.querySelector('#intake-status').textContent.includes('connection lost'), 'lost response displayed truthfully', () => `Displayed status: ${guest.document.querySelector('#intake-status').textContent}; network: ${networkError || 'no failure'}`);
     assert.equal(guest.document.querySelector('#send-interest').disabled, false);
     submit();
     await waitFor(() => guest.document.querySelector('#intake-status').dataset.kind === 'success', 'confirmed receipt');
@@ -104,6 +110,7 @@ test('participant and organiser interfaces persist, retry, review and export thr
     assert.equal(privateExport.participants[0].status, 'pilot_partner');
     assert.equal(privateExport.participants[0].initialOperatingEntityId, 'sbt');
     assert.equal(privateExport.participants[0].consentFutureHandover, false, 'Optional consent remains off by default');
+    assert.deepEqual(privateExport.participants[0].interests, ['events', 'media', 'support'], 'The rebuilt public service choices survive intake and private export');
     assert.equal(privateExport.auditEvents.length, 2, 'One intake and one review audit event');
     assert.equal(organiser.localStorage.length, 0, 'No admin token/records in localStorage');
     assert.equal(organiser.sessionStorage.length, 0, 'No admin token/records in sessionStorage');
