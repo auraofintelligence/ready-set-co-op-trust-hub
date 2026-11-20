@@ -79,7 +79,7 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
       return response;
     };
     guest.eval(await readFile(path.join(root, 'map.js'), 'utf8'));
-    guest.document.querySelector('#add-place').click();
+    guest.document.querySelector('#add-detailed-place').click();
     const form = guest.document.querySelector('#place-form'); const field = name => form.elements.namedItem(name);
     field('name').value = 'Fictional unmarked bus stop'; field('category').value = 'bus_stop';
     field('category').dispatchEvent(new guest.Event('change'));
@@ -180,6 +180,57 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
     assert.equal((await publicMap()).features.length, 0);
     const finalData = await privateMap(); assert.equal(finalData.places[0].status, 'archived'); assert.equal(finalData.places[0].properties.version, 3);
     assert.equal(finalData.revisions.length, 3); assert.equal(finalData.auditEvents.length, 5, 'Retries added no duplicate audit event');
+    const quickGuest = await mapPage();
+    const canvas = quickGuest.document.querySelector('#map-canvas');
+    Object.defineProperties(canvas, { clientWidth: { get: () => 640 }, clientHeight: { get: () => 480 } });
+    quickGuest.SVGSVGElement.prototype.createSVGRect = () => ({});
+    quickGuest.requestAnimationFrame = callback => quickGuest.setTimeout(() => callback(Date.now()), 0);
+    quickGuest.eval(await readFile(path.join(root, 'assets/vendor/leaflet/leaflet.js'), 'utf8'));
+    quickGuest.L.Browser.any3d = true;
+    let quickMap; const createMap = quickGuest.L.map;
+    quickGuest.L.map = (...args) => { quickMap = createMap(...args); return quickMap; };
+    let quickReceipt; let quickPayload;
+    const realQuickFetch = quickGuest.fetch;
+    quickGuest.fetch = async (url, options = {}) => {
+      const response = await realQuickFetch(url, options);
+      if (new URL(url, origin).pathname === '/api/map/suggestions' && options.method === 'POST') {
+        quickPayload = JSON.parse(options.body); quickReceipt = await response.clone().json();
+      }
+      return response;
+    };
+    quickGuest.document.querySelector('#add-place').click();
+    assert.ok(quickMap, 'Drop a pin loads the map when needed');
+    quickMap.fire('click', { latlng: quickGuest.L.latLng(-27.46, 153.43) });
+    assert.equal(quickGuest.document.querySelector('#place-dialog').open, false);
+    assert.equal(quickGuest.document.querySelector('#quick-pin').hidden, false);
+    assert.equal(quickGuest.document.querySelector('#quick-pin-name').value, '');
+    submit(quickGuest, quickGuest.document.querySelector('#quick-pin-form'));
+    await waitFor(() => quickReceipt?.status === 'received' && quickGuest.document.querySelector('#map-status').dataset.reference === quickReceipt.reference, 'blank quick pin receives a durable save confirmation');
+    assert.equal(quickGuest.document.querySelector('#quick-pin').hidden, true);
+    assert.equal(quickPayload.entryMode, 'quick_pin');
+    for (const absent of ['category', 'iconId', 'sourceType']) assert.equal(quickPayload[absent], undefined, 'A blank quick pin does not invent ' + absent);
+    const quickPending = (await privateMap()).suggestions.find(item => item.id === quickReceipt.reference);
+    assert.ok(quickPending); assert.equal(quickPending.status, 'pending');
+    assert.equal(quickPending.data.name, 'Unnamed pin');
+    assert.equal(quickPending.data.category, 'other');
+    assert.equal(quickPending.data.sourceType, 'map_pin');
+    assert.equal((await publicMap()).features.length, 0, 'Quick pins also await human publication review');
+    submit(organiser, organiser.document.querySelector('#map-review-filter'));
+    await waitFor(() => organiser.document.querySelector('#map-review-count').textContent.includes('1 matching suggestion'), 'quick pin appears for human review');
+    organiser.document.querySelector('#map-queue-list button').click();
+    submit(organiser, decision);
+    await waitFor(() => organiser.document.querySelector('#map-review-count').textContent.includes('0 matching suggestions'), 'quick pin published by its reviewer');
+    const quickPublished = await publicMap();
+    assert.equal(quickPublished.features.length, 1);
+    assert.equal(quickPublished.features[0].properties.name, 'Unnamed pin');
+    assert.equal(quickPublished.features[0].properties.sourceType, 'map_pin');
+    assert.deepEqual(quickPublished.features[0].geometry.coordinates, [153.43, -27.46]);
+    const quickReader = await mapPage();
+    await waitFor(() => quickReader.document.querySelector('#place-list button')?.textContent.includes('Unnamed pin'), 'a published quick pin can be revisited');
+    quickReader.document.querySelector('#place-list button').click();
+    quickReader.document.querySelector('#correct-place').click();
+    assert.equal(quickReader.document.querySelector('#place-form').elements.namedItem('sourceType').value, 'map_pin', 'An optional detailed correction preserves the original pin-only source');
+    assert.equal(quickReader.document.querySelector('#place-form').elements.namedItem('publicationConsent').checked, false);
     for (const window of windows) { assert.equal(window.localStorage.length, 0); assert.equal(window.sessionStorage.length, 0); }
   } finally {
     for (const window of windows) window.close();

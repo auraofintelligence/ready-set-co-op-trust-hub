@@ -6,7 +6,7 @@ export const MAP_ICON_IDS = Object.freeze(iconCatalog.icons.map(icon => icon.id)
 const CONSENT_VERSION = '2026-11-19';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REUSE_NOTICE = 'Contributed for display on the community map. Other reuse terms have not yet been selected; preserve each source and its conditions.';
-const fields = new Set(['submissionId', 'placeId', 'baseVersion', 'name', 'category', 'iconId', 'latitude', 'longitude', 'locationDescription', 'description', 'access', 'wheelchair', 'facilities', 'stopMarking', 'sourceType', 'sourceUrl', 'observedOn', 'publicCredit', 'publicationConsent', 'consentVersion']);
+const fields = new Set(['submissionId', 'placeId', 'baseVersion', 'entryMode', 'name', 'category', 'iconId', 'latitude', 'longitude', 'locationDescription', 'description', 'access', 'wheelchair', 'facilities', 'stopMarking', 'sourceType', 'sourceUrl', 'observedOn', 'publicCredit', 'publicationConsent', 'consentVersion']);
 class MapError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
@@ -43,6 +43,7 @@ function validDate(value) {
 }
 function suggestionData(input) {
   keys(input, fields);
+  const quickPin = input.entryMode === undefined ? false : choice(input.entryMode, 'the entry mode', ['quick_pin']) === 'quick_pin';
   const submissionId = uuid(input.submissionId, 'the submission reference');
   const placeId = input.placeId === undefined || input.placeId === null ? null : uuid(input.placeId, 'the place reference');
   const baseVersion = placeId ? positive(input.baseVersion, 'the original place version') : null;
@@ -61,9 +62,10 @@ function suggestionData(input) {
   if (observedOn) validDate(observedOn);
   if (input.publicationConsent !== true || input.consentVersion !== CONSENT_VERSION) fail(400, 'permission_required', 'Confirm that this information may be displayed publicly.');
   const data = {
-    name: text(input.name, 'the place name', 140, true),
-    category: choice(input.category, 'the place category', MAP_CATEGORIES),
+    name: text(input.name, 'the place name', 140, !quickPin) || 'Unnamed pin',
+    category: choice(input.category, 'the place category', MAP_CATEGORIES, quickPin ? 'other' : undefined),
     ...(input.iconId === undefined ? {} : { iconId: choice(input.iconId, 'the map icon', MAP_ICON_IDS) }),
+    ...(quickPin ? { entryMode: 'quick_pin' } : {}),
     latitude: input.latitude, longitude: input.longitude,
     locationDescription: text(input.locationDescription, 'the location description', 800),
     description: text(input.description, 'the place details', 1600),
@@ -71,7 +73,7 @@ function suggestionData(input) {
     wheelchair: choice(input.wheelchair, 'step-free access', ['yes', 'no', 'unknown'], 'unknown'),
     facilities: [...facilities].sort(),
     stopMarking: choice(input.stopMarking, 'the bus stop markings', ['marked', 'unmarked', 'unknown'], 'unknown'),
-    sourceType: choice(input.sourceType, 'the source type', ['firsthand', 'website', 'existing_record', 'other']),
+    sourceType: choice(input.sourceType, 'the source type', ['firsthand', 'website', 'existing_record', 'other', 'map_pin'], quickPin ? 'map_pin' : undefined),
     sourceUrl, observedOn,
     publicCredit: text(input.publicCredit, 'the optional public credit', 100),
   };

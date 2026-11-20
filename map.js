@@ -6,6 +6,8 @@
     form.hidden = true;
     for (const control of form.elements) control.disabled = true;
     form.addEventListener('submit', event => event.preventDefault());
+    const quickForm = $('quick-pin-form');
+    if (quickForm) { quickForm.hidden = true; for (const control of quickForm.elements) control.disabled = true; quickForm.addEventListener('submit', event => event.preventDefault()); }
     const workspace = document.querySelector('.map-workspace'); if (workspace) workspace.hidden = true;
     const dialog = form.closest('dialog'); if (dialog) dialog.hidden = true;
     const notice = document.createElement('section'); notice.className = 'section note translated-form-notice';
@@ -42,6 +44,7 @@
   let selectedCategory='all',features=[],metadata={total:0,offset:0,limit:200,hasMore:false},selectedFeature=null;
   let map=null,markerLayer=null,draftMarker=null,choosingPosition=false,tileErrors=0,baseLayer=null,baseView='satellite',areaOverview=null;
   let locationMarker=null,locationCircle=null,locationSequence=0,expanded=false,showExpandedList=false,inertBackground=[],choosingFromEditor=false;
+  let quickSending=false,quickPayload=null;
   const mapLayout=$('map-layout');
   mapLayout.append($('place-dialog'));
   let searchTimer=null,loadSequence=0,loadController=null,submissionId=crypto.randomUUID(),correction=null,sent=false,sending=false,lastDialogOpener=null,returnDialogFocus=true;
@@ -198,7 +201,13 @@
     map=window.L.map('map-canvas',{scrollWheelZoom:false,tapHold:true,zoomSnap:0}).setView([-27.56,153.47],11);
     map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
     markerLayer=window.L.layerGroup().addTo(map);$('map-toolbar').hidden=false;setBaseView(baseView);
-    map.on('click',event=>{if(!choosingPosition)return;setPosition(event.latlng.lat,event.latlng.lng,'Pin chosen on the map. Check the facility location before sending.');setChoosing(false);openEditor({preserve:true});});
+    map.on('click',event=>{
+      if(quickSending||$('place-dialog').open)return;
+      const detailed=choosingPosition&&choosingFromEditor;
+      if(!detailed&&($('quick-pin').hidden||quickPayload))prepareEditor();
+      setPosition(event.latlng.lat,event.latlng.lng,'Pin chosen on the map.');setChoosing(false);
+      if(detailed)openEditor({preserve:true});else showQuickPin();
+    });
     zoomToArea();renderMarkers();renderDraftMarker();notice($('map-status'),choosingPosition?'Tap the map to choose the place.':'Loading the map background…');$('map-stage').classList.toggle('is-choosing',choosingPosition);
   }
   function unloadMap(){if(!map)return;if(expanded)setExpanded(false);clearLocation();map.remove();map=null;markerLayer=null;draftMarker=null;baseLayer=null;$('map-toolbar').hidden=true;$('map-layer-note').hidden=true;$('map-canvas').hidden=true;$('map-placeholder').hidden=false;$('remove-map').hidden=true;notice($('map-status'),'Map background hidden. The place list is still available.');$('load-map').focus();}
@@ -229,7 +238,7 @@
     fact('Access',({public:'Public access',customers:'Customers / members',permission:'Permission needed',unknown:'Not checked'})[p.access]||'Not checked');
     fact('Wheelchair / step-free access',({yes:'Accessible access observed',no:'Access barrier observed',unknown:'Not checked'})[p.wheelchair]||'Not checked');
     if(p.category==='bus_stop')fact('Bus stop sign',({marked:'Marked / signed',unmarked:'Unmarked local stop',unknown:'Not checked'})[p.stopMarking]||'Not checked');
-    fact('Source',({firsthand:'First-hand observation',website:'Public website',existing_record:'Existing record',other:'Another source'})[p.sourceType]||'Not recorded',safeUrl(p.sourceUrl));
+    fact('Source',({firsthand:'First-hand observation',website:'Public website',existing_record:'Existing record',map_pin:'Map pin · details to be checked',other:'Another source'})[p.sourceType]||'Not recorded',safeUrl(p.sourceUrl));
     if(p.observedOn)fact('Observed',day(p.observedOn));if(p.updatedAt)fact('Record updated',day(p.updatedAt));if(p.publicCredit)fact('Contributed by',p.publicCredit);
     $('place-detail-facilities').replaceChildren();for(const f of p.facilities||[])if(facilityNames[f])$('place-detail-facilities').append(el('span',facilityNames[f]));
     $('place-external-map').href='https://www.openstreetmap.org/?mlat='+c[1]+'&mlon='+c[0]+'#map=18/'+c[1]+'/'+c[0];
@@ -237,7 +246,7 @@
     $('place-detail').hidden=false;$('place-list').hidden=true;$('more-places').hidden=true;$('places-message').hidden=true;renderMarkers();if(map&&moveMap)map.setView([c[1],c[0]],Math.max(map.getZoom(),16),{animate:false});$('place-detail-title').focus({preventScroll:expanded});
   }
   function closeDetail(){selectedFeature=null;$('place-detail').hidden=true;$('place-list').hidden=false;$('places-message').hidden=false;$('more-places').hidden=!metadata.hasMore;renderPlaces();}
-  function setChoosing(value){choosingPosition=value;$('map-position-prompt').hidden=!value;$('map-stage').classList.toggle('is-choosing',value);$('add-map-pin').setAttribute('aria-pressed',String(value));$('add-map-pin').textContent=value?'Cancel pin':'Add a pin';}
+  function setChoosing(value){choosingPosition=value;$('map-position-prompt').hidden=!value;$('map-stage').classList.toggle('is-choosing',value);$('add-map-pin').setAttribute('aria-pressed',String(value));$('add-map-pin').textContent=value?'Cancel pin':'Drop pin';}
   function cancelChoosing(){const returnToEditor=choosingFromEditor;setChoosing(false);if(returnToEditor)openEditor({preserve:true});else{$('add-map-pin').focus({preventScroll:true});notice($('map-status'),'Pin cancelled. You can keep exploring the map.');}}
   function setPosition(lat,lon,message){field('latitude').value=Number(lat).toFixed(6);field('longitude').value=Number(lon).toFixed(6);notice($('position-status'),message||'Location selected. Check that it marks the place itself.');renderDraftMarker();}
   function renderDraftMarker(){
@@ -246,6 +255,45 @@
     draftMarker=window.L.marker([lat,lon],{icon:window.L.divIcon({className:'map-pin-wrap',html:'<span class="map-pin-draft" aria-hidden="true">＋</span>',iconSize:[44,44],iconAnchor:[22,22]}),title:'Your chosen place location',keyboard:false}).addTo(map);
   }
   function draftExists(){try{return Boolean(localStorage.getItem(draftKey));}catch{return false;}}
+  function showQuickPin(){
+    const preserveName=!$('quick-pin').hidden&&!quickPayload;
+    if(!preserveName)$('quick-pin-name').value=field('name').value;
+    quickPayload=null;$('quick-pin').hidden=false;$('map-stage').classList.add('quick-pin-open');
+    $('map-stage').style.setProperty('--map-credit-height',(map?.attributionControl?.getContainer()?.offsetHeight||30)+'px');
+    for(const control of $('quick-pin-form').elements)control.disabled=false;
+    $('close-quick-pin').disabled=false;$('send-quick-pin').textContent='Send pin';$('quick-pin-status').hidden=true;
+    $('send-quick-pin').focus({preventScroll:true});$('quick-pin').scrollIntoView({behavior:'auto',block:'nearest'});
+  }
+  function hideQuickPin(discard=false){
+    if(quickSending)return;
+    $('quick-pin').hidden=true;$('map-stage').classList.remove('quick-pin-open');quickPayload=null;
+    if(discard){field('latitude').value='';field('longitude').value='';renderDraftMarker();}
+  }
+  function startQuickPin(){
+    if(sending||quickSending)return;
+    if(choosingPosition){cancelChoosing();return;}
+    hideQuickPin();prepareEditor();choosingFromEditor=false;if(!map)loadMap();
+    if(!map)return;setChoosing(true);notice($('map-status'),'Tap the map to drop a pin. No typing needed.');
+    $('map-stage').scrollIntoView({behavior:'auto',block:'center'});$('map-canvas').focus({preventScroll:true});
+  }
+  async function sendQuickPin(event){
+    event.preventDefault();if(quickSending||$('quick-pin').hidden)return;
+    if(!quickPayload){
+      const latitude=Number(field('latitude').value),longitude=Number(field('longitude').value);
+      if(!field('latitude').value||!field('longitude').value||!Number.isFinite(latitude)||!Number.isFinite(longitude))return;
+      quickPayload={entryMode:'quick_pin',submissionId,name:$('quick-pin-name').value.trim(),latitude,longitude,publicationConsent:true,consentVersion:'2026-11-19'};
+    }
+    quickSending=true;for(const control of $('quick-pin-form').elements)control.disabled=true;$('close-quick-pin').disabled=true;
+    $('send-quick-pin').textContent='Sending…';$('quick-pin-status').hidden=false;notice($('quick-pin-status'),'Sending your pin…');
+    try{
+      const result=await apiRequest('/api/map/suggestions',{method:'POST',body:JSON.stringify(quickPayload)});
+      if(result.status!=='received'||!result.reference)throw new Error('The pin could not be confirmed.');
+      quickSending=false;hideQuickPin();notice($('map-status'),'Pin saved for review.','success');$('map-status').dataset.reference=result.reference;$('add-map-pin').focus({preventScroll:true});
+    }catch(error){
+      notice($('quick-pin-status'),error.name==='AbortError'?'No confirmation yet. Try sending the same pin again.':error.message||'No confirmation yet. Try again.','error');
+      $('send-quick-pin').disabled=false;$('send-quick-pin').textContent='Try sending again';$('close-quick-pin').disabled=false;
+    }finally{quickSending=false;}
+  }
   function updateCategoryFields(){const bus=field('category').value==='bus_stop';$('bus-stop-fields').hidden=!bus;if(!bus)field('stopMarking').value='unknown';updateSelectedIcon();}
   function setFormEnabled(enabled){for(const control of form.querySelectorAll('input,select,textarea,button'))control.disabled=!enabled;}
   function populate(data){
@@ -262,7 +310,8 @@
     $('draft-banner').hidden=!draftExists();
   }
   function openEditor(options={}){
-    if(sending)return;
+    if(sending||quickSending)return;
+    hideQuickPin();
     lastDialogOpener=document.activeElement;returnDialogFocus=true;prepareEditor(options);
     if(!$('place-dialog').open){if(typeof $('place-dialog').showModal==='function')$('place-dialog').showModal();else $('place-dialog').setAttribute('open','');}
     field('name').focus({preventScroll:true});
@@ -277,23 +326,29 @@
   }
   function showSuggestion(message,kind){notice($('suggestion-status'),message,kind);$('suggestion-status').hidden=false;$('suggestion-status').focus();}
   function download(value,name){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/geo+json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-  $('add-place').hidden=false;$('load-map').hidden=false;$('export-places').hidden=false;renderCategories();renderIconPicker();updateSelectedIcon();
-  $('add-place').addEventListener('click',()=>openEditor());$('load-map').addEventListener('click',loadMap);$('remove-map').addEventListener('click',unloadMap);$('retry-places').addEventListener('click',()=>loadPlaces());$('more-places').addEventListener('click',()=>loadPlaces(true));
+  $('add-place').hidden=false;$('add-detailed-place').hidden=false;$('load-map').hidden=false;$('export-places').hidden=false;renderCategories();renderIconPicker();updateSelectedIcon();
+  $('add-place').addEventListener('click',startQuickPin);$('add-detailed-place').addEventListener('click',()=>openEditor());$('load-map').addEventListener('click',loadMap);$('remove-map').addEventListener('click',unloadMap);$('retry-places').addEventListener('click',()=>loadPlaces());$('more-places').addEventListener('click',()=>loadPlaces(true));
   $('map-road').addEventListener('click',()=>{if(baseView!=='road')setBaseView('road');});$('map-satellite').addEventListener('click',()=>{if(baseView!=='satellite')setBaseView('satellite');});
   $('find-me').addEventListener('click',findLocation);$('clear-location').addEventListener('click',clearLocation);
-  $('add-map-pin').addEventListener('click',()=>{if(choosingPosition){cancelChoosing();return;}if(sending)return;prepareEditor();choosingFromEditor=false;setChoosing(true);notice($('map-status'),'Tap the map to drop your new place pin.');$('map-canvas').focus({preventScroll:true});});
+  $('add-map-pin').addEventListener('click',startQuickPin);
+  $('quick-pin-form').addEventListener('submit',sendQuickPin);
+  $('close-quick-pin').addEventListener('click',()=>{hideQuickPin(true);if(map)$('map-canvas').focus({preventScroll:true});});
+  $('quick-pin-details').addEventListener('click',()=>{if(quickPayload||quickSending)return;field('name').value=$('quick-pin-name').value.trim();field('sourceType').value='map_pin';openEditor({preserve:true});});
   $('choose-icon').addEventListener('click',()=>{const open=$('icon-chooser').hidden;$('icon-chooser').hidden=!open;$('choose-icon').setAttribute('aria-expanded',String(open));if(open){renderIconPicker();$('icon-group').focus({preventScroll:true});}});
   $('default-icon').addEventListener('click',()=>chooseIcon(''));$('icon-group').addEventListener('change',renderIconPicker);$('icon-search').addEventListener('input',renderIconPicker);
   $('expand-map').addEventListener('click',()=>setExpanded(!expanded));$('toggle-map-list').addEventListener('click',()=>setExpandedList(!showExpandedList));$('directions-mode').addEventListener('change',updateDirections);
   window.addEventListener('resize',resizeMap);
   document.addEventListener('keydown',event=>{
-    if(!expanded||$('place-dialog').open)return;
+    if($('place-dialog').open)return;
+    if(event.key==='Escape'&&!$('quick-pin').hidden){event.preventDefault();event.stopPropagation();if(!quickSending){hideQuickPin(true);$('map-canvas').focus({preventScroll:true});}return;}
+    if(!expanded)return;
     if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setExpanded(false);return;}
     if(event.key!=='Tab')return;
     const focusable=[...mapLayout.querySelectorAll('button,a[href],input,select,textarea,[tabindex="0"]')].filter(node=>!node.disabled&&!node.closest('[hidden]')&&node.getClientRects().length);
     const first=focusable[0],last=focusable.at(-1);if(!first){event.preventDefault();mapLayout.focus();return;}
     if(event.shiftKey&&(document.activeElement===first||!mapLayout.contains(document.activeElement))){event.preventDefault();last.focus();}else if(!event.shiftKey&&(document.activeElement===last||!mapLayout.contains(document.activeElement))){event.preventDefault();first.focus();}
   },true);
+  $('map-canvas').addEventListener('keydown',event=>{if(event.key==='Enter'&&event.target===$('map-canvas')&&map&&!quickSending){event.preventDefault();map.fire('click',{latlng:map.getCenter()});}});
   $('map-area').addEventListener('change',()=>{closeDetail();zoomToArea();loadPlaces();});
   $('place-search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{closeDetail();loadPlaces();},300);});
   $('close-detail').addEventListener('click',closeDetail);$('correct-place').addEventListener('click',()=>{if(selectedFeature)openEditor({feature:selectedFeature});});

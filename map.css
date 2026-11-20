@@ -2,6 +2,17 @@
 .map-intro h1{font-size:clamp(2.35rem,7vw,3.6rem);max-width:22ch}
 .map-intro p:not(.eyebrow){max-width:60ch;margin-top:1rem;color:var(--muted-light)}
 .map-add{gap:.45rem;flex:none}.map-add>span{font-size:1.4rem;line-height:1}
+.map-entry-actions{display:flex;align-items:center;gap:.6rem 1rem;flex-wrap:wrap}
+.map-quick-pin{position:absolute;top:.75rem;left:.75rem;right:.75rem;z-index:1100;max-width:22rem;max-height:calc(100% - var(--map-credit-height,3rem) - 1.5rem);overflow:auto;overscroll-behavior:contain;padding:.75rem;background:var(--paper);color:var(--ink-text);border:1px solid #9183ab;border-radius:.75rem;box-shadow:0 4px 24px #10102044}
+.quick-pin-heading{display:flex;align-items:center;justify-content:space-between;gap:.75rem;margin-bottom:.3rem}
+.map-quick-pin #quick-pin-title{font-size:1.25rem;line-height:1.3}
+.quick-pin-heading .dialog-close{width:44px;height:44px;font-size:32px}
+#quick-pin-form{display:grid;gap:.4rem}
+#quick-pin-name{width:100%;min-width:0;min-height:2.8rem;padding:.6rem .7rem;border:1px solid #929caf;border-radius:.4rem;background:#fff;color:var(--ink-text);font:inherit}
+#quick-pin-form .button{width:100%}
+#quick-pin-form .map-text-button{text-align:center}
+.map-stage.quick-pin-open .leaflet-top.leaflet-left{visibility:hidden}
+html[data-reading-mode=easy] #quick-pin-title{font-size:1.2rem}
 .map-workspace{max-width:1240px;margin:auto;padding:0 1.25rem 2rem}
 .map-tools{display:grid;gap:1rem}
 .map-search,.map-area{display:grid;gap:.35rem;font-size:1rem;font-weight:650}

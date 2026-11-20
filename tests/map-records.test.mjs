@@ -60,6 +60,56 @@ test('canonical retries save no duplicate suggestion or audit and reject changed
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM map_audit_events').get().n, 1);
 });
 
+test('a quick pin needs no typed details, persists privately and publishes its source and entry mode after review', async t => {
+  const f = fixture(t);
+  const data = { submissionId: crypto.randomUUID(), entryMode: 'quick_pin', latitude: -27.51, longitude: 153.43,
+    publicationConsent: true, consentVersion: '2026-11-19' };
+  const id = await received(f, data);
+  const original = (await queue(f))[0];
+  assert.equal(original.status, 'pending');
+  assert.equal(original.data.name, 'Unnamed pin');
+  assert.equal(original.data.category, 'other');
+  assert.equal(original.data.sourceType, 'map_pin', 'A dropped point does not assert first-hand knowledge');
+  assert.equal(original.data.entryMode, 'quick_pin');
+  assert.equal(Object.hasOwn(original.data, 'iconId'), false);
+  assert.equal((await (await f.call('/api/map/places')).json()).features.length, 0);
+  const retry = await f.call('/api/map/suggestions', { ...data, name: '  ', category: 'other', sourceType: 'map_pin' });
+  assert.equal(retry.status, 200); assert.deepEqual(await retry.json(), { status: 'received', reference: id, duplicate: true });
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM map_suggestions').get().n, 1);
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM map_audit_events').get().n, 1);
+  const response = await decide(f, id); assert.equal(response.status, 200);
+  const published = (await (await f.call('/api/map/export')).json()).features[0];
+  assert.equal(published.properties.name, 'Unnamed pin');
+  assert.equal(published.properties.entryMode, 'quick_pin');
+  assert.equal(published.properties.provenance.sourceType, 'map_pin');
+  assert.deepEqual(published.geometry.coordinates, [153.43, -27.51]);
+  const history = await (await f.call('/api/admin/map/export', undefined, ACTOR)).json();
+  assert.equal(history.revisions[0].data.entryMode, 'quick_pin');
+});
+
+test('quick pins accept an optional name but retain coordinate, permission and supplied-field validation', async t => {
+  const f = fixture(t);
+  const quick = () => ({ submissionId: crypto.randomUUID(), entryMode: 'quick_pin', latitude: -27.51, longitude: 153.43,
+    publicationConsent: true, consentVersion: '2026-11-19' });
+  for (const name of [undefined, '', '   ']) {
+    const data = quick(); if (name !== undefined) data.name = name;
+    const id = await received(f, data); assert.equal((await queue(f)).find(row => row.id === id).data.name, 'Unnamed pin');
+  }
+  const namedId = await received(f, { ...quick(), name: '  A named test pin  ', iconId: 'other' });
+  assert.equal((await queue(f)).find(row => row.id === namedId).data.name, 'A named test pin');
+  for (const change of [{ latitude: 91 }, { latitude: null }, { longitude: '153.43' }, { name: null }, { name: 'x'.repeat(141) },
+    { category: 'unsupported' }, { sourceType: 'unverified_gps' }, { entryMode: '' }, { entryMode: null }, { entryMode: 'details' },
+    { publicationConsent: false }, { publicationConsent: undefined }, { consentVersion: 'old' }, { email: 'private@example.test' }]) {
+    assert.equal((await f.call('/api/map/suggestions', { ...quick(), ...change })).status, 400, JSON.stringify(change));
+  }
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM map_suggestions').get().n, 4);
+  assert.equal((await f.call('/api/map/suggestions', point({ name: '' }))).status, 400, 'The detailed lane still needs its name');
+  const missingCategory = point(); delete missingCategory.category;
+  assert.equal((await f.call('/api/map/suggestions', missingCategory)).status, 400);
+  const missingSource = point(); delete missingSource.sourceType;
+  assert.equal((await f.call('/api/map/suggestions', missingSource)).status, 400);
+});
+
 test('the generated browser icon catalogue matches the backend allowlist and sheet positions', () => {
   const browser = { window: {} };
   runInNewContext(readFileSync(new URL('../map-icons.js', import.meta.url), 'utf8'), browser);
@@ -100,6 +150,8 @@ test('legacy map payloads omit icons and keep their original canonical retry sha
   const stored = f.sqlite.prepare('SELECT payload_json, data_json FROM map_suggestions WHERE id = ?').get(id);
   assert.equal(Object.hasOwn(JSON.parse(stored.payload_json).data, 'iconId'), false);
   assert.equal(Object.hasOwn(JSON.parse(stored.data_json), 'iconId'), false);
+  assert.equal(Object.hasOwn(JSON.parse(stored.payload_json).data, 'entryMode'), false);
+  assert.equal(Object.hasOwn(JSON.parse(stored.data_json), 'entryMode'), false);
   const response = await f.call('/api/map/suggestions', { ...data });
   assert.equal(response.status, 200); assert.equal((await response.json()).duplicate, true);
   await decide(f, id);

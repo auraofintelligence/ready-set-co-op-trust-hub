@@ -4,6 +4,7 @@ This is the first durable place-record foundation for Ready SETCO's local map. I
 
 ## What is implemented
 
+- Two contribution lanes: tap the map and send a quick pin without typing, optionally add a name, or deliberately choose Add more details / Add with details. The quick card is part of the map rather than a modal questionnaire. Its Send pin action explicitly offers the location for public-map review. Category, icon and detailed source fields are not mandatory in that lane.
 - The map has road and satellite / aerial backgrounds, an explicit Find me control with a temporary position and accuracy circle, a reversible full-screen view, and place-specific links into Google Maps directions. Backgrounds load only after the visitor chooses Load the map. Full screen stays inside the browser, includes an optional Places panel, traps focus, and returns to the padded page with Back to page or Escape.
 - People submit a new place or a correction with a chosen position, category, useful details, source and permission to display the information publicly.
 - Suggestions remain in a private review queue. Only an organiser's publication decision creates or changes a public place.
@@ -47,6 +48,10 @@ The first form deliberately collects no private email, phone or account details.
 Reading parameters are `category`, `search` (or `q`), `bbox=west,south,east,north`, `limit` (default 200, maximum 500) and `offset`. Pagination reports `total`, `limit`, `offset` and `hasMore`. Geographic export uses standard `[longitude, latitude]` coordinate order.
 
 A suggestion requires a UUID `submissionId`, `name`, `category`, numerical `latitude` and `longitude`, `sourceType`, `publicationConsent: true` and `consentVersion: "2026-11-19"`. Optional public details are `locationDescription`, `description`, `access`, `wheelchair`, `facilities`, `stopMarking`, `sourceUrl`, `observedOn` and `publicCredit`. Corrections additionally require `placeId` and its positive `baseVersion`. Unknown fields are rejected. HTTP(S) source links may not contain sign-in credentials. An observation date must be a real date.
+
+For the quick lane, `entryMode: "quick_pin"` allows a minimal request containing `submissionId`, numerical coordinates, `publicationConsent: true` and the consent version. Name is optional and defaults to “Unnamed pin”; category defaults to `other`; source defaults to `map_pin`, so no first-hand observation is invented. The original quick mode and source stay in review/history records. The details lane keeps its explicit fields. Legacy payloads remain unchanged.
+
+Send pin is the explicit sharing action for the quick card; it has a visible public-review explanation rather than a preselected checkbox. Choosing the detailed form does not carry over checkbox permission: the existing publication choice remains unchecked. A failed or uncertain quick reply retries the same frozen payload and submission UUID. It never reports a saved pin before the server confirms the committed record. Neither lane publishes directly.
 
 The first successful save returns `201` with `{status:"received", reference, duplicate:false}`. A canonical retry returns `200` with the same reference and `duplicate:true`; changed details under the same submission reference return `409`. A reference is returned only after the suggestion and audit event are committed together.
 

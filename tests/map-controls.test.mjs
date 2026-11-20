@@ -81,8 +81,91 @@ function pickIcon(f) {
   return selected.dataset.iconId;
 }
 
+test('an empty-map click offers a zero-typing pin, with details optional and no keyboard focus', async t => {
+  const f = await fixture(t); f.click('load-map');
+  f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.47321, 153.48123) });
+  const card = f.document.querySelector('#quick-pin'), name = f.document.querySelector('#quick-pin-name');
+  assert.equal(card.hidden, false);
+  assert.ok(f.document.querySelector('#map-stage').contains(card));
+  assert.equal(f.document.querySelector('#place-dialog').open, false);
+  assert.equal(name.required, false);
+  assert.equal(name.hasAttribute('autofocus'), false);
+  assert.notEqual(f.document.activeElement, name);
+  assert.equal(card.querySelectorAll('select,input[type="checkbox"]').length, 0, 'The quick card does not require category, icon or consent checkbox choices');
+  assert.match(card.textContent, /public|shar/i); assert.match(card.textContent, /review/i);
+  assert.equal(f.document.querySelector('#send-quick-pin').textContent.trim(), 'Send pin');
+  const permissionNote = f.document.getElementById(f.document.querySelector('#send-quick-pin').getAttribute('aria-describedby'));
+  assert.ok(permissionNote && /public/.test(permissionNote.textContent), 'The send action describes its public-map purpose to assistive readers');
+  f.click('close-quick-pin');
+  assert.equal(card.hidden, true); assert.equal(f.document.querySelector('#place-dialog').open, false);
+  f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.47321, 153.48123) });
+  name.value = 'Fictional optional pin name';
+  f.click('quick-pin-details');
+  const form = f.document.querySelector('#place-form');
+  assert.equal(form.elements.namedItem('name').value, 'Fictional optional pin name');
+  assert.equal(Number(form.elements.namedItem('latitude').value), -27.47321);
+  assert.equal(Number(form.elements.namedItem('longitude').value), 153.48123);
+  assert.equal(form.elements.namedItem('publicationConsent').checked, false, 'The optional detailed form retains its own sharing choice');
+});
+
+test('a blank quick pin sends only its position and chosen sharing, with safe repeat and uncertain-reply handling', async t => {
+  const f = await fixture(t); f.click('load-map');
+  f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.47321, 153.48123) });
+  const quickForm = f.document.querySelector('#quick-pin-form'), card = f.document.querySelector('#quick-pin');
+  const requests = []; let rejectFirst;
+  const originalFetch = f.window.fetch;
+  f.window.fetch = async (input, options = {}) => {
+    const url = new URL(input, f.window.location.href);
+    if (url.pathname !== '/api/map/suggestions') return originalFetch(input, options);
+    assert.equal(options.method, 'POST'); requests.push(JSON.parse(options.body));
+    if (requests.length === 1) return new Promise((resolve, reject) => { rejectFirst = reject; });
+    return { ok: true, json: async () => ({ status: 'received', reference: 'fictional-quick-pin-receipt', duplicate: true }) };
+  };
+  const submit = () => quickForm.dispatchEvent(new f.window.Event('submit', { bubbles: true, cancelable: true }));
+  submit(); submit();
+  assert.equal(requests.length, 1, 'Repeated taps cannot send another request while a pin is saving');
+  assert.equal(f.document.querySelector('#send-quick-pin').disabled, true);
+  const first = requests[0];
+  const allowed = new Set(['entryMode', 'submissionId', 'name', 'latitude', 'longitude', 'publicationConsent', 'consentVersion']);
+  assert.ok(Object.keys(first).every(key => allowed.has(key)));
+  assert.equal(first.entryMode, 'quick_pin');
+  assert.match(first.submissionId, /^[0-9a-f-]{36}$/i);
+  assert.equal(first.name ?? '', '');
+  assert.equal(first.latitude, -27.47321); assert.equal(first.longitude, 153.48123);
+  assert.equal(first.publicationConsent, true); assert.equal(first.consentVersion, '2026-11-19');
+  assert.equal(first.sourceType, undefined, 'Dropping a pin does not invent a first-hand observation');
+  rejectFirst(new Error('Fictional reply lost after saving.')); await settle();
+  assert.match(card.textContent, /Fictional reply lost/);
+  assert.equal(f.document.querySelector('#send-quick-pin').disabled, false);
+  submit(); await settle();
+  assert.equal(requests.length, 2); assert.deepEqual(requests[1], first, 'An uncertain retry retains the exact ID and fields');
+  assert.equal(f.document.querySelector('#map-status').dataset.reference, 'fictional-quick-pin-receipt');
+  assert.equal(card.hidden, true);
+  submit(); await settle();
+  assert.equal(requests.length, 2, 'A confirmed pin cannot be sent a second time');
+  assert.equal(f.document.querySelector('#place-dialog').open, false);
+});
+
+test('keyboard pin placement and Escape keep the expanded map available', async t => {
+  const f = await fixture(t); f.click('load-map'); f.click('expand-map');
+  const canvas = f.document.querySelector('#map-canvas'), card = f.document.querySelector('#quick-pin');
+  const centre = f.maps[0].getCenter();
+  canvas.focus(); canvas.dispatchEvent(new f.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  assert.equal(card.hidden, false);
+  assert.notEqual(f.document.activeElement, f.document.querySelector('#quick-pin-name'));
+  f.document.dispatchEvent(new f.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true, cancelable: true }));
+  assert.equal(card.hidden, true);
+  assert.equal(f.document.querySelector('.map-layout').classList.contains('is-expanded'), true, 'Escape dismisses the pin card before leaving the map');
+  assert.equal(f.document.activeElement, canvas);
+  canvas.dispatchEvent(new f.window.KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+  f.click('quick-pin-details');
+  const form = f.document.querySelector('#place-form');
+  assert.ok(Math.abs(Number(form.elements.namedItem('latitude').value) - centre.lat) < 0.000001);
+  assert.ok(Math.abs(Number(form.elements.namedItem('longitude').value) - centre.lng) < 0.000001);
+});
+
 test('the optional icon library can be filtered, searched and returned to the category default', async t => {
-  const f = await fixture(t); f.click('add-place');
+  const f = await fixture(t); f.click('add-detailed-place');
   const chooser = f.document.querySelector('#icon-chooser');
   assert.equal(chooser.hidden, true);
   f.click('choose-icon');
@@ -122,6 +205,9 @@ test('a pin can be placed from the expanded map and completed with an icon', asy
   assert.equal(f.document.querySelector('#place-dialog').open, false, 'Choose the position before opening a fresh place form');
   assert.equal(layout.classList.contains('is-expanded'), true);
   f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.47123, 153.48234) });
+  assert.equal(f.document.querySelector('#quick-pin').hidden, false);
+  assert.equal(f.document.querySelector('#place-dialog').open, false, 'A new pin starts with the quick card');
+  f.click('quick-pin-details');
   assert.equal(f.document.querySelector('#place-dialog').open, true);
   assert.equal(layout.classList.contains('is-expanded'), true, 'The editor stays with the expanded map');
   assert.ok(layout.contains(f.document.querySelector('#place-dialog')), 'The expanded map owns its editor');
@@ -144,6 +230,7 @@ test('cancelling a new drop leaves the map in place without opening an empty edi
   assert.equal(f.document.querySelector('#map-position-prompt').hidden, true);
   assert.equal(f.document.querySelector('#add-map-pin').getAttribute('aria-pressed'), 'false');
   f.click('add-map-pin'); f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.46, 153.48) });
+  f.click('quick-pin-details');
   const form = f.document.querySelector('#place-form');
   form.elements.namedItem('name').value = 'Fictional unfinished place';
   const iconId = pickIcon(f);
@@ -160,6 +247,7 @@ test('cancelling a new drop leaves the map in place without opening an empty edi
 test('icon choices stay with device drafts and restore without granting publication permission', async t => {
   const f = await fixture(t); f.click('load-map'); f.click('add-map-pin');
   f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.465, 153.481) });
+  f.click('quick-pin-details');
   const form = f.document.querySelector('#place-form');
   form.elements.namedItem('name').value = 'Fictional drafted pin';
   form.elements.namedItem('category').value = 'beach';
@@ -172,6 +260,7 @@ test('icon choices stay with device drafts and restore without granting publicat
   assert.equal(saved.suggestion.publicationConsent, false);
   f.click('close-place-dialog'); f.click('add-map-pin');
   f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.48, 153.49) });
+  f.click('quick-pin-details');
   assert.equal(form.elements.namedItem('iconId').value, '', 'A fresh pin starts with the category default rather than the previous explicit icon');
   assert.equal(f.document.querySelector('#default-icon').getAttribute('aria-pressed'), 'true');
   f.click('restore-draft');
