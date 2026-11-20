@@ -36,7 +36,9 @@
   const facilityNames = {shelter:'Shelter',seating:'Seating',picnic_table:'Picnic table',bbq:'Barbecue',toilet:'Toilet',drinking_water:'Drinking water',shade:'Shade',accessible_toilet:'Accessible toilet',baby_change:'Baby change',power:'Power',dog_friendly:'Dogs permitted'};
   const areas = {minjerribah:[153.38,-27.76,153.60,-27.37],smbi:[153.32,-27.75,153.46,-27.54],redlands:[153.13,-27.78,153.61,-27.34],all:null};
   let selectedCategory='all',features=[],metadata={total:0,offset:0,limit:200,hasMore:false},selectedFeature=null;
-  let map=null,markerLayer=null,draftMarker=null,choosingPosition=false,tileErrors=0;
+  let map=null,markerLayer=null,draftMarker=null,choosingPosition=false,tileErrors=0,baseLayer=null,baseView='road';
+  let locationMarker=null,locationCircle=null,locationSequence=0,expanded=false,showExpandedList=false,inertBackground=[];
+  const mapLayout=$('map-layout');
   let searchTimer=null,loadSequence=0,loadController=null,submissionId=crypto.randomUUID(),correction=null,sent=false,sending=false,lastDialogOpener=null,returnDialogFocus=true;
   function notice(node,text,kind){node.textContent=text;if(kind)node.dataset.kind=kind;else delete node.dataset.kind;}
   function el(tag,text,className){const node=document.createElement(tag);if(text!==undefined)node.textContent=text;if(className)node.className=className;return node;}
@@ -91,17 +93,75 @@
     if(b)map.fitBounds([[b[1],b[0]],[b[3],b[2]]],{padding:[22,22],animate:false});
     else{const points=visibleFeatures().map(coords).filter(Boolean);if(points.length)map.fitBounds(points.map(p=>[p[1],p[0]]),{padding:[35,35],maxZoom:16,animate:false});else map.setView([-27.56,153.47],11);}
   }
+  function resizeMap(){requestAnimationFrame(()=>{if(map)map.invalidateSize({animate:false});});}
+  function setExpandedList(value){
+    showExpandedList=Boolean(value);mapLayout.classList.toggle('show-place-list',showExpandedList);
+    $('toggle-map-list').setAttribute('aria-expanded',String(showExpandedList));
+    $('map-results').hidden=expanded&&!showExpandedList;resizeMap();
+  }
+  function setExpanded(value){
+    expanded=Boolean(value);mapLayout.classList.toggle('is-expanded',expanded);document.body.classList.toggle('map-expanded',expanded);
+    $('expand-map').textContent=expanded?'Back to page':'Full screen';$('expand-map').setAttribute('aria-pressed',String(expanded));$('toggle-map-list').hidden=!expanded;
+    if(expanded){
+      mapLayout.setAttribute('role','dialog');mapLayout.setAttribute('aria-modal','true');mapLayout.setAttribute('aria-label','Full screen community map');
+      inertBackground=[];let branch=mapLayout;
+      while(branch.parentElement){for(const sibling of branch.parentElement.children){if(sibling!==branch&&!sibling.inert){inertBackground.push(sibling);sibling.inert=true;}}branch=branch.parentElement;if(branch===document.body)break;}
+      setExpandedList(false);
+    }else{
+      for(const node of inertBackground)node.inert=false;inertBackground=[];
+      mapLayout.removeAttribute('role');mapLayout.removeAttribute('aria-modal');mapLayout.removeAttribute('aria-label');$('map-results').hidden=false;
+      mapLayout.classList.remove('show-place-list');$('toggle-map-list').setAttribute('aria-expanded','false');showExpandedList=false;
+    }
+    resizeMap();if(!expanded)$('expand-map').focus({preventScroll:true});
+  }
+  function setBaseView(view){
+    if(!map)return;
+    const previous=baseLayer;baseView=view==='satellite'?'satellite':'road';tileErrors=0;
+    const imagery=baseView==='satellite';
+    baseLayer=window.L.tileLayer(imagery?'https://spatial-img.information.qld.gov.au/arcgis/rest/services/Basemaps/LatestStateProgram_AllUsers/ImageServer/tile/{z}/{y}/{x}':'https://tile.openstreetmap.org/{z}/{x}/{y}.png',{
+      maxZoom:20,maxNativeZoom:imagery?20:19,
+      attribution:imagery?'Imagery &copy; <a href="https://www.data.qld.gov.au/dataset/queensland-imagery-latest-state-program-public-basemap-service">State of Queensland</a>; &copy; Planet Labs Netherlands B.V. (Planet / Geoplex), 2026':'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>',
+    });
+    const current=baseLayer;
+    current.on('tileerror',()=>{if(current!==baseLayer)return;tileErrors++;notice($('map-status'),imagery?'Some imagery could not load here. Try Map view or another zoom level.':'Some map tiles could not load. The place list is still available.');});
+    current.on('load',()=>{if(current!==baseLayer||tileErrors||choosingPosition)return;notice($('map-status'),imagery?'Satellite / aerial view ready. Capture dates vary.':'Map ready. Select a place to see its details.');});
+    if(previous)map.removeLayer(previous);current.addTo(map);
+    $('map-road').setAttribute('aria-pressed',String(!imagery));$('map-satellite').setAttribute('aria-pressed',String(imagery));$('map-layer-note').hidden=!imagery;
+    notice($('map-status'),imagery?'Loading Queensland aerial / satellite imagery…':'Loading the road map…');
+  }
+  function clearLocation(){
+    locationSequence++;if(map){if(locationMarker)map.removeLayer(locationMarker);if(locationCircle)map.removeLayer(locationCircle);}
+    locationMarker=null;locationCircle=null;$('find-me').disabled=false;$('clear-location').hidden=true;notice($('map-location-status'),'');
+  }
+  function findLocation(){
+    if(!map)return;
+    if(!navigator.geolocation){notice($('map-location-status'),'This device cannot provide a location. You can still browse the map.','error');return;}
+    clearLocation();
+    const request=++locationSequence;$('find-me').disabled=true;notice($('map-location-status'),'Asking your device for your location…');
+    navigator.geolocation.getCurrentPosition(position=>{
+      if(request!==locationSequence||!map)return;$('find-me').disabled=false;
+      const {latitude,longitude,accuracy}=position.coords;
+      if(!Number.isFinite(latitude)||!Number.isFinite(longitude)||latitude< -90||latitude>90||longitude< -180||longitude>180){notice($('map-location-status'),'The device returned an unreadable location. Please try again.','error');return;}
+      if(locationMarker)map.removeLayer(locationMarker);if(locationCircle)map.removeLayer(locationCircle);
+      locationMarker=window.L.marker([latitude,longitude],{title:'Your approximate location',keyboard:false,icon:window.L.divIcon({className:'map-location-dot-wrap',html:'<span class="map-location-dot" aria-hidden="true"></span>',iconSize:[24,24],iconAnchor:[12,12]})}).addTo(map);
+      if(Number.isFinite(accuracy)&&accuracy>0)locationCircle=window.L.circle([latitude,longitude],{radius:accuracy,color:'#126ca6',weight:1,fillColor:'#53c6f1',fillOpacity:.15,interactive:false}).addTo(map);
+      map.setView([latitude,longitude],Math.min(17,map.getZoom()<15?16:map.getZoom()),{animate:false});$('clear-location').hidden=false;
+      notice($('map-location-status'),'Your approximate location'+(Number.isFinite(accuracy)&&accuracy>0?' · accuracy about '+Math.round(accuracy)+' metres':'')+'. It has not been added to the place register.');
+    },error=>{
+      if(request!==locationSequence||!map)return;$('find-me').disabled=false;
+      notice($('map-location-status'),error.code===1?'Location permission was not granted. You can allow it in your browser settings or keep browsing.':error.code===3?'Your device took too long to find a location. Please try again.':'Your location could not be found. Check your device location settings and try again.','error');
+    },{enableHighAccuracy:true,timeout:15000,maximumAge:30000});
+  }
   function loadMap(){
     if(map)return;if(!window.L?.map){notice($('map-status'),'The map background is unavailable. You can still use the place list or enter a location manually.','error');return;}
     $('map-placeholder').hidden=true;$('map-canvas').hidden=false;$('remove-map').hidden=false;
-    map=window.L.map('map-canvas',{scrollWheelZoom:false,tapHold:true}).setView([-27.56,153.47],11);markerLayer=window.L.layerGroup().addTo(map);tileErrors=0;
-    const tiles=window.L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19,attribution:'&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap contributors</a>'});
-    tiles.on('tileerror',()=>{tileErrors++;notice($('map-status'),'Some map background tiles could not load. The place list and manual location entry still work.');});
-    tiles.on('load',()=>{if(!tileErrors&&!choosingPosition)notice($('map-status'),'Map ready. Select a place to see its details.');});tiles.addTo(map);
+    map=window.L.map('map-canvas',{scrollWheelZoom:false,tapHold:true}).setView([-27.56,153.47],11);
+    map.attributionControl.setPrefix('<a href="https://leafletjs.com">Leaflet</a>');
+    markerLayer=window.L.layerGroup().addTo(map);$('map-toolbar').hidden=false;setBaseView(baseView);
     map.on('click',event=>{if(!choosingPosition)return;setPosition(event.latlng.lat,event.latlng.lng,'Pin chosen on the map. Check the facility location before sending.');setChoosing(false);openEditor({preserve:true});});
     zoomToArea();renderMarkers();renderDraftMarker();notice($('map-status'),choosingPosition?'Tap the map to choose the place.':'Loading the map background…');$('map-stage').classList.toggle('is-choosing',choosingPosition);
   }
-  function unloadMap(){if(!map)return;map.remove();map=null;markerLayer=null;draftMarker=null;$('map-canvas').hidden=true;$('map-placeholder').hidden=false;$('remove-map').hidden=true;notice($('map-status'),'Map background hidden. The place list is still available.');$('load-map').focus();}
+  function unloadMap(){if(!map)return;if(expanded)setExpanded(false);clearLocation();map.remove();map=null;markerLayer=null;draftMarker=null;baseLayer=null;$('map-toolbar').hidden=true;$('map-layer-note').hidden=true;$('map-canvas').hidden=true;$('map-placeholder').hidden=false;$('remove-map').hidden=true;notice($('map-status'),'Map background hidden. The place list is still available.');$('load-map').focus();}
   async function loadPlaces(more=false){
     const sequence=++loadSequence;if(loadController)loadController.abort();const controller=new AbortController();loadController=controller;const timeout=setTimeout(()=>controller.abort(),15000);
     $('retry-places').hidden=true;$('more-places').disabled=true;notice($('places-message'),more?'Loading more places…':'Loading the local place register…');
@@ -116,6 +176,13 @@
     finally{clearTimeout(timeout);if(sequence===loadSequence)$('more-places').disabled=false;}
   }
   function fact(label,value,url){const row=document.createElement('div'),dd=el('dd');row.append(el('dt',label));if(url){const a=el('a',value);a.href=url;a.target='_blank';a.rel='noopener noreferrer';dd.append(a);}else dd.textContent=value;row.append(dd);$('place-detail-facts').append(row);}
+  function updateDirections(){
+    if(!selectedFeature)return;const c=coords(selectedFeature);if(!c)return;
+    const destination=c[1]+','+c[0],url=new URL('https://www.google.com/maps/dir/');url.searchParams.set('api','1');url.searchParams.set('destination',destination);
+    const mode=$('directions-mode').value;if(['walking','driving','bicycling','transit'].includes(mode))url.searchParams.set('travelmode',mode);
+    $('place-directions').href=url.href;
+    const point=new URL('https://www.google.com/maps/search/');point.searchParams.set('api','1');point.searchParams.set('query',destination);$('place-google-map').href=point.href;
+  }
   function openPlace(feature,moveMap){
     selectedFeature=feature;const p=feature.properties,c=coords(feature);$('place-detail-category').textContent=category(p.category).singular;$('place-detail-title').textContent=p.name;$('place-detail-description').textContent=p.description||'No additional note has been recorded yet.';$('place-detail-facts').replaceChildren();
     if(p.locationDescription)fact('Finding it',p.locationDescription);
@@ -126,7 +193,8 @@
     if(p.observedOn)fact('Observed',day(p.observedOn));if(p.updatedAt)fact('Record updated',day(p.updatedAt));if(p.publicCredit)fact('Contributed by',p.publicCredit);
     $('place-detail-facilities').replaceChildren();for(const f of p.facilities||[])if(facilityNames[f])$('place-detail-facilities').append(el('span',facilityNames[f]));
     $('place-external-map').href='https://www.openstreetmap.org/?mlat='+c[1]+'&mlon='+c[0]+'#map=18/'+c[1]+'/'+c[0];
-    $('place-detail').hidden=false;$('place-list').hidden=true;$('more-places').hidden=true;$('places-message').hidden=true;renderMarkers();if(map&&moveMap)map.setView([c[1],c[0]],Math.max(map.getZoom(),16),{animate:false});$('place-detail-title').focus({preventScroll:false});
+    updateDirections();if(expanded){setExpandedList(true);$('map-results').scrollTop=0;}
+    $('place-detail').hidden=false;$('place-list').hidden=true;$('more-places').hidden=true;$('places-message').hidden=true;renderMarkers();if(map&&moveMap)map.setView([c[1],c[0]],Math.max(map.getZoom(),16),{animate:false});$('place-detail-title').focus({preventScroll:expanded});
   }
   function closeDetail(){selectedFeature=null;$('place-detail').hidden=true;$('place-list').hidden=false;$('places-message').hidden=false;$('more-places').hidden=!metadata.hasMore;renderPlaces();}
   function setChoosing(value){choosingPosition=value;$('map-position-prompt').hidden=!value;$('map-stage').classList.toggle('is-choosing',value);}
@@ -146,6 +214,7 @@
   }
   function openEditor(options={}){
     if(sending)return;
+    if(expanded)setExpanded(false);
     lastDialogOpener=document.activeElement;returnDialogFocus=true;
     if(!options.preserve){
       form.reset();setFormEnabled(true);submissionId=crypto.randomUUID();correction=null;sent=false;$('suggestion-status').hidden=true;$('draft-status').textContent='';$('position-status').textContent='Choose a location above, or enter one below.';$('correction-context').hidden=true;$('place-dialog-title').textContent='Add a place.';$('submit-place').textContent='Send for review';$('manual-position').open=false;$('place-more-details').open=false;
@@ -167,6 +236,17 @@
   function download(value,name){const url=URL.createObjectURL(new Blob([JSON.stringify(value,null,2)],{type:'application/geo+json'})),a=document.createElement('a');a.href=url;a.download=name;document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
   $('add-place').hidden=false;$('load-map').hidden=false;$('export-places').hidden=false;renderCategories();
   $('add-place').addEventListener('click',()=>openEditor());$('load-map').addEventListener('click',loadMap);$('remove-map').addEventListener('click',unloadMap);$('retry-places').addEventListener('click',()=>loadPlaces());$('more-places').addEventListener('click',()=>loadPlaces(true));
+  $('map-road').addEventListener('click',()=>{if(baseView!=='road')setBaseView('road');});$('map-satellite').addEventListener('click',()=>{if(baseView!=='satellite')setBaseView('satellite');});
+  $('find-me').addEventListener('click',findLocation);$('clear-location').addEventListener('click',clearLocation);
+  $('expand-map').addEventListener('click',()=>setExpanded(!expanded));$('toggle-map-list').addEventListener('click',()=>setExpandedList(!showExpandedList));$('directions-mode').addEventListener('change',updateDirections);
+  document.addEventListener('keydown',event=>{
+    if(!expanded)return;
+    if(event.key==='Escape'){event.preventDefault();event.stopPropagation();setExpanded(false);return;}
+    if(event.key!=='Tab')return;
+    const focusable=[...mapLayout.querySelectorAll('button,a[href],input,select,textarea,[tabindex="0"]')].filter(node=>!node.disabled&&!node.closest('[hidden]')&&node.getClientRects().length);
+    const first=focusable[0],last=focusable.at(-1);if(!first){event.preventDefault();mapLayout.focus();return;}
+    if(event.shiftKey&&(document.activeElement===first||!mapLayout.contains(document.activeElement))){event.preventDefault();last.focus();}else if(!event.shiftKey&&(document.activeElement===last||!mapLayout.contains(document.activeElement))){event.preventDefault();first.focus();}
+  },true);
   $('map-area').addEventListener('change',()=>{closeDetail();zoomToArea();loadPlaces();});
   $('place-search').addEventListener('input',()=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>{closeDetail();loadPlaces();},300);});
   $('close-detail').addEventListener('click',closeDetail);$('correct-place').addEventListener('click',()=>{if(selectedFeature)openEditor({feature:selectedFeature});});

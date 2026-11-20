@@ -24,22 +24,28 @@
         <label class="map-area">Explore<select id="map-area"><option value="minjerribah">Minjerribah / Straddie</option><option value="smbi">Southern Moreton Bay Islands</option><option value="redlands">Redlands</option><option value="all">All recorded places</option></select></label>
       </div>
       <div class="map-category-scroll"><div class="map-categories" id="map-categories" role="group" aria-label="Filter places by kind"></div></div>
-      <div class="map-layout">
+      <div class="map-layout" id="map-layout" tabindex="-1">
         <div class="map-surface">
+          <div class="map-toolbar" id="map-toolbar" aria-label="Map controls" hidden="">
+            <div class="map-view-switch" role="group" aria-label="Map background"><button type="button" id="map-road" aria-pressed="true">Map</button><button type="button" id="map-satellite" aria-pressed="false">Satellite / aerial</button></div>
+            <div class="map-view-actions"><button type="button" id="find-me">Find me</button><button type="button" id="toggle-map-list" aria-expanded="false" aria-controls="map-results" hidden="">Places</button><button type="button" id="expand-map" aria-pressed="false" aria-controls="map-layout">Full screen</button></div>
+          </div>
           <div class="map-stage" id="map-stage">
             <div class="map-placeholder" id="map-placeholder">
               <div class="map-preview-symbol" aria-hidden="true"><span>⌖</span><i></i><i></i><i></i></div>
               <p class="eyebrow">Your places. Your local knowledge.</p><h2>See the places<br>around you.</h2>
               <p>Browse our list of locally contributed places without loading a map. Choose Load the map when you want to see their locations or mark a new place.</p>
               <button class="button primary" id="load-map" type="button" hidden="">Load the map</button>
-              <p class="map-small">Map background © OpenStreetMap contributors. Loading it connects to OpenStreetMap.</p>
+              <p class="map-small">Loading the map connects to OpenStreetMap. The optional satellite / aerial view connects to Queensland Government imagery.</p>
             </div>
             <div id="map-canvas" role="region" aria-label="Interactive community map" tabindex="0" hidden=""></div>
           </div>
           <div class="map-position-prompt" id="map-position-prompt" hidden=""><strong>Tap the map to choose this place.</strong><button class="button secondary" id="cancel-position" type="button">Cancel pin</button></div>
           <div class="map-canvas-tools"><p id="map-status" role="status" aria-live="polite">The map background has not been loaded.</p><button type="button" class="map-text-button" id="remove-map" hidden="">Hide map background</button></div>
+          <div class="map-location-note"><p id="map-location-status" class="map-small" role="status" aria-live="polite"></p><button type="button" id="clear-location" class="map-text-button" hidden="">Clear my location</button></div>
+          <p id="map-layer-note" class="map-small" hidden="">Queensland aerial / satellite imagery has different capture dates. Straddie samples are from 2022; this is not a live view.</p>
         </div>
-        <aside class="map-results" aria-labelledby="results-title">
+        <aside class="map-results" id="map-results" aria-labelledby="results-title">
           <div class="map-results-heading"><div><p class="eyebrow">Places people have shared</p><h2 id="results-title">Explore the details.</h2></div><p id="place-count">Loading places…</p></div>
           <div id="places-message" class="map-message" role="status" aria-live="polite"></div>
           <button class="button secondary" id="retry-places" type="button" hidden="">Try loading places again</button>
@@ -50,7 +56,8 @@
             <p id="place-detail-category" class="eyebrow"></p><h3 id="place-detail-title" tabindex="-1"></h3>
             <p id="place-detail-description"></p><dl id="place-detail-facts"></dl>
             <div id="place-detail-facilities" class="place-facilities"></div>
-            <div class="hero-actions"><button type="button" id="correct-place" class="button primary">Suggest a correction</button><a id="place-external-map" class="button secondary" href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Open this location</a></div>
+            <div class="hero-actions"><a id="place-directions" class="button primary" href="https://www.google.com/maps/dir/?api=1" target="_blank" rel="noopener noreferrer">Directions in Google Maps</a><button type="button" id="correct-place" class="button secondary">Suggest a correction</button></div>
+            <details class="place-journey"><summary>Journey and map options</summary><label for="directions-mode">Travel by</label><select id="directions-mode"><option value="">Choose in Google Maps</option><option value="walking">Walking</option><option value="driving">Driving</option><option value="bicycling">Cycling</option><option value="transit">Public transport</option></select><p class="map-small">Get directions opens Google Maps with this destination. Choose your starting point there and check the route, ferry services and timetables before travelling.</p><p><a id="place-google-map" class="reading-link" href="https://www.google.com/maps/" target="_blank" rel="noopener noreferrer">Open this place in Google Maps</a></p><p><a id="place-external-map" class="reading-link" href="https://www.openstreetmap.org/" target="_blank" rel="noopener noreferrer">Open this place in OpenStreetMap</a></p></details>
           </section>
         </aside>
       </div>
@@ -59,7 +66,7 @@
       <noscript><div class="note"><p>Adding and browsing the local register needs JavaScript. You can still <a href="https://www.openstreetmap.org/#map=11/-27.560/153.475">explore Minjerribah on OpenStreetMap</a> or <a href="mailto:sbt4183@gmail.com">contact Luke with a place or correction</a>.</p></div></noscript>
     </section>
 
-    <section class="section map-help" aria-labelledby="map-help-title"><details><summary id="map-help-title">How this map works</summary><p>Find a place, add something missing, or suggest a correction. New information is checked before it appears on the public map.</p><p>Include useful local details: an unmarked bus stop, a nearby landmark, a seat in the shade or who can use a facility. A listing describes a place and does not imply cooperative membership.</p><p>The place records are held in our local register, initially operated by <a class="sbt-brand-link sbt-brand-short" href="https://auraofintelligence.github.io/strange-but-true/"><strong><span class="sbt-brand-strange">Strange</span> <span class="sbt-brand-but">But</span> <span class="sbt-brand-true">True</span></strong></a>. You can download the published records and keep a copy. Map background data is supplied by OpenStreetMap.</p><p><a href="join.html?interest=mapping">Help build and care for the local map</a></p></details></section>
+    <section class="section map-help" aria-labelledby="map-help-title"><details><summary id="map-help-title">How this map works</summary><p>Find a place, add something missing, or suggest a correction. New information is checked before it appears on the public map.</p><p>Include useful local details: an unmarked bus stop, a nearby landmark, a seat in the shade or who can use a facility. A listing describes a place and does not imply cooperative membership.</p><p>The place records are held in our local register, initially operated by <a class="sbt-brand-link sbt-brand-short" href="https://auraofintelligence.github.io/strange-but-true/"><strong><span class="sbt-brand-strange">Strange</span> <span class="sbt-brand-but">But</span> <span class="sbt-brand-true">True</span></strong></a>. You can download the published records and keep a copy.</p><p>The road background comes from OpenStreetMap. Satellite / aerial uses the <a href="https://www.data.qld.gov.au/dataset/queensland-imagery-latest-state-program-public-basemap-service">Queensland Government public imagery service</a>, with imagery © State of Queensland and © Planet Labs Netherlands B.V., reproduced under Planet / Geoplex licence, 2026. Capture dates vary; checked Straddie samples are 2022 aerial photography, with older satellite imagery in some areas. <a href="https://spatial-img.information.qld.gov.au/arcgis/rest/services/Basemaps/LatestStateProgram_AllUsers/ImageServer">View the imagery metadata and credits</a>.</p><p>Find me asks your device for a location only when selected. It shows an approximate position and accuracy circle without adding it to the place register or your draft. Background providers receive requests for the map areas you view. Directions open Google Maps only when you choose that link; this page does not automatically pass your GPS position to Google.</p><p><a href="join.html?interest=mapping">Help build and care for the local map</a></p></details></section>
 
     <dialog class="place-dialog" id="place-dialog" aria-labelledby="place-dialog-title">
       <div class="place-dialog-header"><div><p class="eyebrow">Add your local knowledge</p><h2 id="place-dialog-title">Add a place.</h2></div><button class="dialog-close" id="close-place-dialog" type="button" aria-label="Close place form">×</button></div>

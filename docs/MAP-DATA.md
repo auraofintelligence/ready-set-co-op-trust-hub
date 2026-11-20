@@ -4,6 +4,7 @@ This is the first durable place-record foundation for Ready SETCO's local map. I
 
 ## What is implemented
 
+- The map has road and satellite / aerial backgrounds, an explicit Find me control with a temporary position and accuracy circle, a reversible full-screen view, and place-specific links into Google Maps directions. Backgrounds load only after the visitor chooses Load the map. Full screen stays inside the browser, includes an optional Places panel, traps focus, and returns to the padded page with Back to page or Escape.
 - People submit a new place or a correction with a chosen position, category, useful details, source and permission to display the information publicly.
 - Suggestions remain in a private review queue. Only an organiser's publication decision creates or changes a public place.
 - The published map exposes GeoJSON points. Pending submissions, review notes and organiser identities stay out of public responses and public downloads.
@@ -60,6 +61,16 @@ The existing production organiser access remains closed until its real identity 
 
 ## Ownership, permission and source conditions
 
+### Map backgrounds and navigation
+
+Checked 20 November 2026. The road layer uses OpenStreetMap's public tile service with contributor attribution. Leaflet's default attribution prefix is replaced with a plain Leaflet link, retaining the upstream licence and provider credits without the flag SVG.
+
+The satellite / aerial option uses Queensland Government's [Latest State Program public basemap service](https://www.data.qld.gov.au/dataset/queensland-imagery-latest-state-program-public-basemap-service). The official catalogue identifies the public service as CC BY 4.0. Its [service metadata](https://spatial-img.information.qld.gov.au/arcgis/rest/services/Basemaps/LatestStateProgram_AllUsers/ImageServer?f=pjson) describes EPSG:3857, cached tiles through level 20, older aerial photography and Planet satellite fallback. Retain the State of Queensland and Planet / Geoplex credits and links to full source information. Do not represent the imagery as live or uniformly current. Bounded sample checks at Dunwich, Point Lookout and central Straddie returned nonblank imagery and catalogue records for Redland 2022 aerial capture (24 July–12 September 2022). This is evidence for those samples, not a uniform date claim for every map location.
+
+Find me requests device location only on a click, uses it in memory for the map view, and does not modify place-form coordinates, drafts or the register. Clear my location and Hide map remove the temporary marker; callbacks from an earlier request are ignored after clearing or hiding. Viewing an area requests background tiles for that area from the selected provider. The existing separate Use my location action inside Add a place remains the deliberate way to populate a proposed facility location.
+
+Directions use Google's [documented Maps URLs](https://developers.google.com/maps/documentation/urls/get-started), which need no API key. They contain a published place's destination and chosen travel mode. No GPS origin is appended; the visitor chooses a starting point in Google Maps. Google embeds or JavaScript maps are separate provider integrations and have not been substituted for this local place register.
+
 The place records live in the organisation's register rather than in a proprietary map provider's place database. Their JSON/GeoJSON and SQLite data can be moved to suitable locally operated servers. That control does not turn third-party data into the organisation's intellectual property.
 
 Public display permission is recorded separately from reuse licensing. This build does not declare all contributions CC0 or grant a blanket open-data licence. Public exports preserve source details and say that wider reuse terms have not yet been selected. Existing source restrictions, cultural authority and third-party map/imagery conditions continue to apply. Base-map tiles and the community's contributed place records remain distinct layers.
@@ -75,6 +86,8 @@ Public display permission is recorded separately from reuse licensing. This buil
 ## Verification
 
 Run `node --test tests/map-records.test.mjs tests/map-worker.test.mjs` with Node.js 24 or newer. The tests use the production migration and native SQLite adapter, exercising persistence, private pending records, publication, canonical retries, stale correction conflicts, revision preservation, archiving, source handling, public/private exports and input validation. Worker integration tests cover routing, origin/rate-limit controls, authenticated map review and map-only geolocation permission.
+
+`tests/map-controls.test.mjs` runs the real vendored Leaflet and map interface in JSDOM with fictional published places, mocked GPS and no external map requests. It checks lazy loading, retained attribution without the flag, background switching without losing the view, GPS privacy/recovery and stale callbacks, full-screen focus/Escape restoration, and destination/mode directions without a GPS origin. Use the full suite's `--test-concurrency=1` because the SQLite interface tests share the public build directory.
 
 `node scripts/verify-portability.mjs` performs a separate real local D1-to-SQLite rehearsal. It applies all migrations to an isolated local Cloudflare store; records a fictional participant, one published fictional map point and a pending correction; exports through Wrangler's SQL exporter; and restores the SQL into native SQLite. The same Worker must then produce exactly matching participant and private map exports and identical public GeoJSON. The check also verifies that map permission, source revisions and audit triggers still prevent history rewrites after restore. The rehearsal never authenticates to a Cloudflare account, reads a live register or uses real participant/place data. It needs local loopback networking for Cloudflare's local runtime.
 
