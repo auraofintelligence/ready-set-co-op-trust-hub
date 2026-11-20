@@ -1,9 +1,12 @@
+import iconCatalog from '../assets/map-icons/catalog.json' with { type: 'json' };
+
 export const MAP_CATEGORIES = Object.freeze(['business', 'bus_stop', 'picnic', 'seat', 'toilet', 'club', 'beach', 'water', 'other']);
 export const MAP_FACILITIES = Object.freeze(['shelter', 'seating', 'picnic_table', 'bbq', 'toilet', 'drinking_water', 'shade', 'accessible_toilet', 'baby_change', 'power', 'dog_friendly']);
+export const MAP_ICON_IDS = Object.freeze(iconCatalog.icons.map(icon => icon.id));
 const CONSENT_VERSION = '2026-11-19';
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const REUSE_NOTICE = 'Contributed for display on the community map. Other reuse terms have not yet been selected; preserve each source and its conditions.';
-const fields = new Set(['submissionId', 'placeId', 'baseVersion', 'name', 'category', 'latitude', 'longitude', 'locationDescription', 'description', 'access', 'wheelchair', 'facilities', 'stopMarking', 'sourceType', 'sourceUrl', 'observedOn', 'publicCredit', 'publicationConsent', 'consentVersion']);
+const fields = new Set(['submissionId', 'placeId', 'baseVersion', 'name', 'category', 'iconId', 'latitude', 'longitude', 'locationDescription', 'description', 'access', 'wheelchair', 'facilities', 'stopMarking', 'sourceType', 'sourceUrl', 'observedOn', 'publicCredit', 'publicationConsent', 'consentVersion']);
 class MapError extends Error {
   constructor(status, code, message) { super(message); this.status = status; this.code = code; }
 }
@@ -60,6 +63,7 @@ function suggestionData(input) {
   const data = {
     name: text(input.name, 'the place name', 140, true),
     category: choice(input.category, 'the place category', MAP_CATEGORIES),
+    ...(input.iconId === undefined ? {} : { iconId: choice(input.iconId, 'the map icon', MAP_ICON_IDS) }),
     latitude: input.latitude, longitude: input.longitude,
     locationDescription: text(input.locationDescription, 'the location description', 800),
     description: text(input.description, 'the place details', 1600),

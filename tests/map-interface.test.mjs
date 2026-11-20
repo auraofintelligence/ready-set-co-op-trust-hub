@@ -55,6 +55,7 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
       });
     };
     window.eval(await readFile(path.join(root, 'operations-config.js'), 'utf8'));
+    if (filename === 'map.html') window.eval(await readFile(path.join(root, 'map-icons.js'), 'utf8'));
     return window;
   }
   async function mapPage() {
@@ -83,6 +84,19 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
     field('name').value = 'Fictional unmarked bus stop'; field('category').value = 'bus_stop';
     field('category').dispatchEvent(new guest.Event('change'));
     assert.equal(guest.document.querySelector('#bus-stop-fields').hidden, false);
+    const chooseIcon = (window, except = '') => {
+      const grid = window.document.querySelector('#icon-picker-grid');
+      assert.ok(grid, 'The place form offers the icon library');
+      if (window.document.querySelector('#icon-chooser')?.hidden) window.document.querySelector('#choose-icon').click();
+      const details = grid.closest('details'); if (details && !details.open) details.querySelector('summary').click();
+      const group = window.document.querySelector('#icon-group'); group.selectedIndex = 0; group.dispatchEvent(new window.Event('change'));
+      const choices = [...grid.querySelectorAll('button[data-icon-id]')].filter(button => button.dataset.iconId && button.dataset.iconId !== except);
+      assert.ok(choices.length, 'A contributor can choose a catalog icon');
+      choices[0].click();
+      assert.equal(window.document.querySelector('#place-icon').value, choices[0].dataset.iconId);
+      return choices[0].dataset.iconId;
+    };
+    const firstIcon = chooseIcon(guest);
     field('stopMarking').value = 'unmarked'; field('latitude').value = '-27.45'; field('longitude').value = '153.42';
     field('locationDescription').value = 'Fictional test roadside landmark.';
     field('description').value = 'Fictional local map test information.'; field('observedOn').value = '2026-11-18';
@@ -106,6 +120,8 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
     assert.match(guest.document.querySelector('#suggestion-status').textContent, /awaiting review/);
     const pending = await privateMap(); assert.equal(pending.suggestions.length, 1); assert.equal(pending.suggestions[0].id, reference);
     assert.equal(pending.suggestions[0].status, 'pending'); assert.equal(pending.suggestions[0].data.stopMarking, 'unmarked');
+    assert.equal(posted[0].iconId, firstIcon, 'The selected icon is included in the unchanged retry payload');
+    assert.equal(pending.suggestions[0].data.iconId, firstIcon, 'The private review record retains the selected icon');
     assert.equal((await publicMap()).features.length, 0, 'A saved suggestion is not published automatically');
 
     const organiser = await page('manage.html'); organiser.eval(await readFile(path.join(root, 'manage.js'), 'utf8'));
@@ -120,6 +136,7 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
     await waitFor(() => organiser.document.querySelector('#map-archive-form select').options.length === 2, 'published place appears in organiser controls');
     const firstPublished = await publicMap(); assert.equal(firstPublished.features.length, 1);
     const stableId = firstPublished.features[0].id; assert.equal(firstPublished.features[0].properties.version, 1);
+    assert.equal(firstPublished.features[0].properties.iconId, firstIcon, 'The published GeoJSON retains the chosen icon');
 
     const reader = await mapPage();
     await waitFor(() => reader.document.querySelector('#place-list button'), 'published place renders in a fresh public map');
@@ -130,13 +147,16 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
     reader.document.querySelector('#correct-place').click();
     const correctionForm = reader.document.querySelector('#place-form'); const correctionField = name => correctionForm.elements.namedItem(name);
     assert.equal(correctionField('name').value, 'Fictional unmarked bus stop'); assert.equal(correctionField('stopMarking').value, 'unmarked');
+    assert.equal(correctionField('iconId').value, firstIcon, 'A correction starts with the published icon');
     assert.equal(correctionField('publicationConsent').checked, false, 'A correction requires its own public sharing choice');
+    const secondIcon = chooseIcon(reader, firstIcon);
     correctionField('name').value = 'Fictional corrected unmarked bus stop'; correctionField('latitude').value = '-27.450125';
     correctionField('publicationConsent').checked = true; submit(reader, correctionForm);
     await waitFor(() => reader.document.querySelector('#suggestion-status').dataset.kind === 'success', 'correction saved for review');
     const beforeSecondReview = await privateMap(); const correction = beforeSecondReview.suggestions.find(item => item.status === 'pending');
     assert.equal(correction.placeId, stableId); assert.equal(correction.baseVersion, 1);
     assert.equal(correction.data.name, 'Fictional corrected unmarked bus stop');
+    assert.equal(correction.data.iconId, secondIcon);
     submit(organiser, organiser.document.querySelector('#map-review-filter'));
     await waitFor(() => organiser.document.querySelector('#map-review-count').textContent.includes('1 matching suggestion'), 'correction appears in organiser queue');
     organiser.document.querySelector('#map-queue-list button').click();
@@ -146,11 +166,13 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
     await waitFor(() => organiser.document.querySelector('#map-archive-form select').textContent.includes('Fictional corrected unmarked bus stop'), 'corrected place controls refreshed');
     const corrected = await publicMap(); assert.equal(corrected.features.length, 1); assert.equal(corrected.features[0].id, stableId);
     assert.equal(corrected.features[0].properties.version, 2); assert.equal(corrected.features[0].properties.latitude, -27.450125);
+    assert.equal(corrected.features[0].properties.iconId, secondIcon, 'Publishing the correction updates the icon without changing the place identity');
     const publicText = JSON.stringify(corrected); assert.ok(!publicText.includes('Fictional private review')); assert.ok(!publicText.includes('local-development'));
     const secondReader = await mapPage();
     await waitFor(() => secondReader.document.querySelector('#place-list button')?.textContent.includes('Fictional corrected unmarked bus stop'), 'fresh public map renders the correction');
     const history = await privateMap(); assert.equal(history.revisions.length, 2);
     assert.equal(history.revisions[0].data.name, 'Fictional unmarked bus stop'); assert.equal(history.revisions[1].data.name, 'Fictional corrected unmarked bus stop');
+    assert.equal(history.revisions[0].data.iconId, firstIcon); assert.equal(history.revisions[1].data.iconId, secondIcon);
 
     const archive = organiser.document.querySelector('#map-archive-form'); archive.elements.namedItem('place').value = stableId;
     archive.elements.namedItem('reason').value = 'Fictional integration removal.'; submit(organiser, archive);

@@ -1,6 +1,7 @@
 import { cp, lstat, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { generateMapIcons } from './generate-map-icons.mjs';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const publicNames = new Set(['robots.txt', 'sitemap.xml', 'site.webmanifest', 'LICENCE.md']);
@@ -28,6 +29,7 @@ async function countFiles(directory) {
 }
 
 export async function buildSite() {
+  await generateMapIcons();
   const destination = verifiedBuildDirectory('dist');
   const existing = await lstat(destination).catch(() => null);
   if (existing?.isSymbolicLink()) throw new Error('The build output must not be a symbolic link.');

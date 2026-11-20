@@ -17,9 +17,10 @@ const gps = { coords: { latitude: -28.12345, longitude: 154.87654, accuracy: 24 
 const settle = () => new Promise(resolve => setImmediate(resolve));
 
 async function fixture(t) {
-  const [html, leaflet, application] = await Promise.all([
+  const [html, leaflet, icons, application] = await Promise.all([
     readFile(new URL('../map.html', import.meta.url), 'utf8'),
     readFile(new URL('../assets/vendor/leaflet/leaflet.js', import.meta.url), 'utf8'),
+    readFile(new URL('../map-icons.js', import.meta.url), 'utf8'),
     readFile(new URL('../map.js', import.meta.url), 'utf8'),
   ]);
   const dom = new JSDOM(html, { url: 'https://ready-setco.example/map.html', runScripts: 'outside-only', pretendToBeVisual: true });
@@ -35,7 +36,8 @@ async function fixture(t) {
     window.HTMLDialogElement.prototype.close = function () { this.removeAttribute('open'); this.dispatchEvent(new window.Event('close')); };
   }
   const canvas = document.querySelector('#map-canvas');
-  Object.defineProperties(canvas, { clientWidth: { get: () => 640 }, clientHeight: { get: () => 480 } });
+  const size = { width: 640, height: 480 };
+  Object.defineProperties(canvas, { clientWidth: { get: () => size.width }, clientHeight: { get: () => size.height } });
   Object.defineProperty(window.navigator, 'geolocation', {
     configurable: true,
     value: { getCurrentPosition(success, error, options) { positionRequests.push({ success, error, options }); } },
@@ -47,15 +49,138 @@ async function fixture(t) {
     return { ok: true, json: async () => structuredClone({ type: 'FeatureCollection', features: [point], metadata: { total: 1, limit: 200, offset: 0, hasMore: false } }) };
   };
   window.eval(leaflet);
+  // Match the CSS-transform support of the phone and desktop browsers we ship to.
+  window.L.Browser.any3d = true;
   const createMap = window.L.map;
   window.L.map = (...args) => { const map = createMap(...args); maps.push(map); return map; };
+  window.eval(icons);
   window.eval(application);
   await settle();
   const click = id => { const target = document.getElementById(id); assert.ok(target, `Missing ${id} control`); target.click(); };
   const formValues = () => Array.from(new window.FormData(document.querySelector('#place-form')));
   const allLayers = map => { const layers = []; map.eachLayer(layer => layers.push(layer)); return layers; };
-  return { window, document, calls, positionRequests, maps, click, formValues, allLayers };
+  return { window, document, calls, positionRequests, maps, click, formValues, allLayers, size };
 }
+
+function pickIcon(f) {
+  const grid = f.document.querySelector('#icon-picker-grid');
+  assert.ok(grid, 'The place form includes the icon library');
+  if (f.document.querySelector('#icon-chooser')?.hidden) f.click('choose-icon');
+  const disclosure = grid.closest('details');
+  if (disclosure && !disclosure.open) disclosure.querySelector('summary').click();
+  const group = f.document.querySelector('#icon-group');
+  group.selectedIndex = 0; group.dispatchEvent(new f.window.Event('change'));
+  const search = f.document.querySelector('#icon-search');
+  search.value = ''; search.dispatchEvent(new f.window.Event('input'));
+  const options = [...grid.querySelectorAll('button[data-icon-id]')].filter(button => button.dataset.iconId);
+  assert.ok(options.length >= 40, 'The library offers a useful range of named icons');
+  const selected = options[0]; selected.click();
+  assert.equal(f.document.querySelector('#place-icon').value, selected.dataset.iconId);
+  assert.equal([...grid.querySelectorAll('button[data-icon-id]')].find(button => button.dataset.iconId === selected.dataset.iconId)?.getAttribute('aria-pressed'), 'true');
+  assert.equal(f.document.querySelector('#icon-chooser').hidden, true, 'Choosing an icon returns to the concise place form');
+  return selected.dataset.iconId;
+}
+
+test('the optional icon library can be filtered, searched and returned to the category default', async t => {
+  const f = await fixture(t); f.click('add-place');
+  const chooser = f.document.querySelector('#icon-chooser');
+  assert.equal(chooser.hidden, true);
+  f.click('choose-icon');
+  assert.equal(chooser.hidden, false);
+  const catalog = Array.from(f.window.READY_MAP_ICONS.icons);
+  const grid = f.document.querySelector('#icon-picker-grid');
+  const renderedIds = () => [...grid.querySelectorAll('button[data-icon-id]')].map(button => button.dataset.iconId).filter(Boolean);
+  assert.deepEqual(new Set(renderedIds()), new Set(catalog.map(icon => icon.id)), 'All catalog choices are available');
+  const group = f.document.querySelector('#icon-group');
+  group.value = 'business'; group.dispatchEvent(new f.window.Event('change'));
+  assert.deepEqual(new Set(renderedIds()), new Set(catalog.filter(icon => icon.sheet === 'business').map(icon => icon.id)));
+  const target = catalog.find(icon => icon.sheet === 'business' && icon.label === 'Pharmacy');
+  assert.ok(target);
+  const search = f.document.querySelector('#icon-search');
+  search.value = target.label; search.dispatchEvent(new f.window.Event('input'));
+  assert.deepEqual(renderedIds(), [target.id]);
+  grid.querySelector(`button[data-icon-id="${target.id}"]`).click();
+  const form = f.document.querySelector('#place-form');
+  assert.equal(form.elements.namedItem('iconId').value, target.id);
+  assert.equal(form.elements.namedItem('category').value, 'business', 'An icon can suggest the category while it is still blank');
+  assert.match(f.document.querySelector('#selected-icon').textContent, /Pharmacy/);
+  f.click('choose-icon');
+  const defaultIcon = f.document.querySelector('#default-icon');
+  assert.ok(defaultIcon, 'The visitor can return to a category icon');
+  defaultIcon.click();
+  assert.equal(form.elements.namedItem('iconId').value, '');
+  assert.equal(form.elements.namedItem('category').value, 'business');
+});
+
+test('a pin can be placed from the expanded map and completed with an icon', async t => {
+  const f = await fixture(t); f.click('load-map'); f.click('expand-map');
+  const layout = f.document.querySelector('.map-layout'), form = f.document.querySelector('#place-form');
+  assert.equal(f.document.querySelector('#add-map-pin').hidden, false);
+  f.click('add-map-pin');
+  assert.equal(f.document.querySelector('#add-map-pin').getAttribute('aria-pressed'), 'true');
+  assert.equal(f.document.querySelector('#map-position-prompt').hidden, false);
+  assert.equal(f.document.querySelector('#place-dialog').open, false, 'Choose the position before opening a fresh place form');
+  assert.equal(layout.classList.contains('is-expanded'), true);
+  f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.47123, 153.48234) });
+  assert.equal(f.document.querySelector('#place-dialog').open, true);
+  assert.equal(layout.classList.contains('is-expanded'), true, 'The editor stays with the expanded map');
+  assert.ok(layout.contains(f.document.querySelector('#place-dialog')), 'The expanded map owns its editor');
+  assert.equal(f.document.querySelector('#add-map-pin').getAttribute('aria-pressed'), 'false');
+  assert.equal(Number(form.elements.namedItem('latitude').value), -27.47123);
+  assert.equal(Number(form.elements.namedItem('longitude').value), 153.48234);
+  pickIcon(f);
+  f.document.dispatchEvent(new f.window.KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  assert.equal(layout.classList.contains('is-expanded'), true, 'Escape in an open editor does not dismiss its background map');
+  f.click('close-place-dialog');
+  assert.equal(f.document.querySelector('#place-dialog').open, false);
+  assert.equal(layout.classList.contains('is-expanded'), true);
+});
+
+test('cancelling a new drop leaves the map in place without opening an empty editor', async t => {
+  const f = await fixture(t); f.click('load-map'); f.click('expand-map');
+  f.click('add-map-pin'); f.click('cancel-position');
+  assert.equal(f.document.querySelector('#place-dialog').open, false);
+  assert.equal(f.document.querySelector('.map-layout').classList.contains('is-expanded'), true);
+  assert.equal(f.document.querySelector('#map-position-prompt').hidden, true);
+  assert.equal(f.document.querySelector('#add-map-pin').getAttribute('aria-pressed'), 'false');
+  f.click('add-map-pin'); f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.46, 153.48) });
+  const form = f.document.querySelector('#place-form');
+  form.elements.namedItem('name').value = 'Fictional unfinished place';
+  const iconId = pickIcon(f);
+  f.click('choose-on-map');
+  assert.equal(f.document.querySelector('#place-dialog').open, false);
+  f.click('cancel-position');
+  assert.equal(f.document.querySelector('#place-dialog').open, true, 'Cancelling a replacement position returns to the existing form');
+  assert.equal(form.elements.namedItem('name').value, 'Fictional unfinished place');
+  assert.equal(form.elements.namedItem('iconId').value, iconId);
+  assert.equal(Number(form.elements.namedItem('latitude').value), -27.46);
+  assert.equal(Number(form.elements.namedItem('longitude').value), 153.48);
+});
+
+test('icon choices stay with device drafts and restore without granting publication permission', async t => {
+  const f = await fixture(t); f.click('load-map'); f.click('add-map-pin');
+  f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.465, 153.481) });
+  const form = f.document.querySelector('#place-form');
+  form.elements.namedItem('name').value = 'Fictional drafted pin';
+  form.elements.namedItem('category').value = 'beach';
+  form.elements.namedItem('category').dispatchEvent(new f.window.Event('change'));
+  const iconId = pickIcon(f);
+  form.elements.namedItem('publicationConsent').checked = true;
+  f.click('save-draft');
+  const saved = JSON.parse(f.window.localStorage.getItem('ready-setco-place-draft-v1'));
+  assert.equal(saved.suggestion.iconId, iconId);
+  assert.equal(saved.suggestion.publicationConsent, false);
+  f.click('close-place-dialog'); f.click('add-map-pin');
+  f.maps[0].fire('click', { latlng: f.window.L.latLng(-27.48, 153.49) });
+  assert.equal(form.elements.namedItem('iconId').value, '', 'A fresh pin starts with the category default rather than the previous explicit icon');
+  assert.equal(f.document.querySelector('#default-icon').getAttribute('aria-pressed'), 'true');
+  f.click('restore-draft');
+  assert.equal(form.elements.namedItem('name').value, 'Fictional drafted pin');
+  assert.equal(form.elements.namedItem('iconId').value, iconId);
+  assert.equal(Number(form.elements.namedItem('latitude').value), -27.465);
+  assert.equal(form.elements.namedItem('publicationConsent').checked, false);
+  assert.ok(f.calls.every(call => call.method === 'GET'), 'Saving and restoring a device draft never submits it');
+});
 
 test('map tiles load only by choice and preserve flag-free provider attribution', async t => {
   const f = await fixture(t);
@@ -67,10 +192,11 @@ test('map tiles load only by choice and preserve flag-free provider attribution'
   assert.equal(f.maps.length, 1);
   assert.equal(f.document.querySelector('#map-toolbar').hidden, false);
   assert.ok(f.document.querySelectorAll('.leaflet-tile').length > 0);
-  assert.ok([...f.document.querySelectorAll('.leaflet-tile')].every(tile => tile.src.startsWith('https://tile.openstreetmap.org/')));
+  assert.ok([...f.document.querySelectorAll('.leaflet-tile')].every(tile => tile.src.includes('LatestStateProgram_AllUsers')));
   const attribution = f.document.querySelector('.leaflet-control-attribution');
   assert.match(attribution.textContent, /Leaflet/);
-  assert.match(attribution.textContent, /OpenStreetMap contributors/);
+  assert.match(attribution.textContent, /Queensland/);
+  assert.equal(f.document.querySelector('#map-satellite').getAttribute('aria-pressed'), 'true');
   assert.equal(attribution.querySelector('.leaflet-attribution-flag'), null);
   assert.equal(attribution.querySelector('svg'), null);
   assert.equal(f.positionRequests.length, 0);
@@ -82,6 +208,7 @@ test('switching road and aerial layers keeps the same view and a single backgrou
   const map = f.maps[0];
   map.setView([-27.472, 153.488], 15, { animate: false });
   const centre = map.getCenter(), zoom = map.getZoom();
+  f.click('map-road');
   f.click('map-satellite');
   assert.equal(f.document.querySelector('#map-satellite').getAttribute('aria-pressed'), 'true');
   assert.equal(f.document.querySelector('#map-road').getAttribute('aria-pressed'), 'false');
@@ -94,6 +221,24 @@ test('switching road and aerial layers keeps the same view and a single backgrou
   assert.equal(f.document.querySelectorAll('.leaflet-tile-pane > .leaflet-layer').length, 1);
   assert.match(f.document.querySelector('.leaflet-control-attribution').textContent, /OpenStreetMap contributors/);
   assert.equal(f.document.querySelectorAll('.leaflet-attribution-flag').length, 0);
+});
+
+test('the island fills its opening frame and refits on expand without resetting a chosen view', async t => {
+  const f = await fixture(t); f.click('load-map');
+  // OpenStreetMap island relation 5911994, checked 20 November 2026.
+  const map = f.maps[0], north = [-27.3884944,153.5471706], south = [-27.7406646,153.3931919];
+  const usedHeight = () => Math.abs(map.latLngToContainerPoint(north).y-map.latLngToContainerPoint(south).y);
+  assert.ok(map.getBounds().contains(north) && map.getBounds().contains(south), 'Both island ends stay in frame');
+  assert.ok(usedHeight() > f.size.height*.94, 'The opening view uses nearly the full map height');
+  f.size.height=780; f.click('expand-map');
+  await new Promise(resolve => f.window.requestAnimationFrame(resolve));
+  assert.ok(usedHeight() > f.size.height*.94, 'The overview fits the expanded height rather than staying small');
+  map.setView([-27.43,153.53],16,{animate:false});
+  const centre=map.getCenter(),zoom=map.getZoom();
+  f.size.height=480; f.click('expand-map');
+  await new Promise(resolve => f.window.requestAnimationFrame(resolve));
+  assert.ok(map.distance(map.getCenter(),centre)<2, 'A chosen centre stays within one screen pixel after resize');
+  assert.equal(map.getZoom(),zoom, 'A chosen view is preserved');
 });
 
 test('viewing GPS is explicit, shows accuracy and leaves place forms, drafts and API payloads unchanged', async t => {

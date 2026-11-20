@@ -11,6 +11,7 @@ This is the first durable place-record foundation for Ready SETCO's local map. I
 - Each correction names the published place and the version it changes. An organiser cannot silently publish a stale correction over a newer record.
 - Archived places disappear from public output while the private register retains their previous versions, submitted evidence and decision history.
 - Public GeoJSON and private register exports provide portable records. The same SQL and transactional interface run on Cloudflare D1 and local SQLite.
+- Add a pin works within the map, including full-screen view. The place editor offers 48 labelled GenAI icons across community/sports, business/services and facilities/public services. An optional validated `iconId` follows the existing review, correction and export history; older places use a category icon without changing their stored records.
 
 No real places are seeded by the migration. Test places are fictional and exist only in isolated tests.
 
@@ -65,6 +66,10 @@ The existing production organiser access remains closed until its real identity 
 
 Checked 20 November 2026. The road layer uses OpenStreetMap's public tile service with contributor attribution. Leaflet's default attribution prefix is replaced with a plain Leaflet link, retaining the upstream licence and provider credits without the flag SVG.
 
+The opening background is satellite / aerial. The island overview uses tighter display bounds and a continuous zoom fit so Straddie fills the available map height, with a small edge margin. Search and place-record bounds stay broader. Changing between padded and full-screen views refits an untouched overview to the available frame; a visitor's own pan, GPS position or selected-place view is preserved.
+
+The display frame includes the northern and southern ends of [OpenStreetMap island relation 5911994](https://www.openstreetmap.org/relation/5911994), checked 20 November 2026. Its reported boundary box is south −27.7406646, north −27.3884944, west 153.3931919, east 153.5471706. This is a display reference, not a survey boundary or a change to record permissions.
+
 The satellite / aerial option uses Queensland Government's [Latest State Program public basemap service](https://www.data.qld.gov.au/dataset/queensland-imagery-latest-state-program-public-basemap-service). The official catalogue identifies the public service as CC BY 4.0. Its [service metadata](https://spatial-img.information.qld.gov.au/arcgis/rest/services/Basemaps/LatestStateProgram_AllUsers/ImageServer?f=pjson) describes EPSG:3857, cached tiles through level 20, older aerial photography and Planet satellite fallback. Retain the State of Queensland and Planet / Geoplex credits and links to full source information. Do not represent the imagery as live or uniformly current. Bounded sample checks at Dunwich, Point Lookout and central Straddie returned nonblank imagery and catalogue records for Redland 2022 aerial capture (24 July–12 September 2022). This is evidence for those samples, not a uniform date claim for every map location.
 
 Find me requests device location only on a click, uses it in memory for the map view, and does not modify place-form coordinates, drafts or the register. Clear my location and Hide map remove the temporary marker; callbacks from an earlier request are ignored after clearing or hiding. Viewing an area requests background tiles for that area from the selected provider. The existing separate Use my location action inside Add a place remains the deliberate way to populate a proposed facility location.
@@ -77,6 +82,7 @@ Public display permission is recorded separately from reuse licensing. This buil
 
 ## Deliberate extension points
 
+- The separate community photo, panorama and 360-photo collection follows [the media pathway](COMMUNITY-MEDIA-PATHWAY.md), grounded in Luke's existing Gumpi ferry-terminal and Ballow Road Sand & Screen photo maps. Permanent media retention requires approval; verified membership and media stewardship can support the review workflow. Media storage is a separate later task.
 - Stable place IDs and versioned source records can connect future asset identifiers, equipment registers and noticeboard publishers.
 - A later geometry layer can add lines, areas and relationships while preserving point IDs and existing revisions.
 - Surveying, scans, images and digital twins can refer to a place/version through separately governed attachments and provenance. They are not implemented by this schema.

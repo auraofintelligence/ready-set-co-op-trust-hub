@@ -2,10 +2,12 @@ import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { generateMapIcons } from './generate-map-icons.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 const major = Number(process.versions.node.split('.')[0]);
 if (major < 24) throw new Error('Ready SETCO operations requires Node.js 24 or newer.');
+await generateMapIcons({ check: true });
 
 const sourceFiles = [];
 for (const directory of ['scripts', 'cloudflare']) {
@@ -14,7 +16,7 @@ for (const directory of ['scripts', 'cloudflare']) {
     if (entry.isFile() && /\.mjs$/.test(entry.name)) sourceFiles.push(path.join(root, directory, entry.name));
   }
 }
-for (const name of ['join.js', 'manage.js', 'operations-config.js', 'script.js', 'map.js', 'reading.js', 'translation.js']) {
+for (const name of ['join.js', 'manage.js', 'operations-config.js', 'script.js', 'map.js', 'map-icons.js', 'reading.js', 'translation.js']) {
   await readFile(path.join(root, name));
   sourceFiles.push(path.join(root, name));
 }

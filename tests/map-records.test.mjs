@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
 import { readFileSync } from 'node:fs';
-import { handleMapRequest } from '../cloudflare/map-records.mjs';
+import { runInNewContext } from 'node:vm';
+import { handleMapRequest, MAP_ICON_IDS } from '../cloudflare/map-records.mjs';
 import { createSqliteD1 } from '../scripts/sqlite-d1.mjs';
+import iconCatalog from '../assets/map-icons/catalog.json' with { type: 'json' };
 
 const NOW = '2026-11-19T10:00:00.000Z';
 const ACTOR = 'organiser@example.test';
@@ -56,6 +58,62 @@ test('canonical retries save no duplicate suggestion or audit and reject changed
   assert.equal((await f.call('/api/map/suggestions', { ...data, name: 'Changed' })).status, 409);
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM map_suggestions').get().n, 1);
   assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM map_audit_events').get().n, 1);
+});
+
+test('the generated browser icon catalogue matches the backend allowlist and sheet positions', () => {
+  const browser = { window: {} };
+  runInNewContext(readFileSync(new URL('../map-icons.js', import.meta.url), 'utf8'), browser);
+  const publicCatalog = JSON.parse(JSON.stringify(browser.window.READY_MAP_ICONS));
+  assert.deepEqual(publicCatalog, iconCatalog);
+  assert.equal(MAP_ICON_IDS.length, 48); assert.equal(new Set(MAP_ICON_IDS).size, 48);
+  assert.deepEqual([...MAP_ICON_IDS], iconCatalog.icons.map(icon => icon.id));
+  for (const sheet of Object.keys(iconCatalog.sheets)) {
+    const positions = iconCatalog.icons.filter(icon => icon.sheet === sheet).map(icon => `${icon.row},${icon.column}`);
+    assert.equal(positions.length, 16); assert.equal(new Set(positions).size, 16);
+  }
+});
+
+test('selected map icons are allowlisted, persist through review and remain in portable revision history', async t => {
+  const f = fixture(t);
+  const data = point({ iconId: 'bus_stop' });
+  const id = await received(f, data);
+  assert.equal((await queue(f))[0].data.iconId, 'bus_stop');
+  assert.equal((await (await f.call('/api/map/places')).json()).features.length, 0);
+  const retry = await f.call('/api/map/suggestions', data); assert.equal(retry.status, 200);
+  assert.equal((await f.call('/api/map/suggestions', { ...data, iconId: 'ferry' })).status, 409);
+  const response = await decide(f, id); assert.equal(response.status, 200);
+  const first = (await response.json()).place; assert.equal(first.properties.iconId, 'bus_stop');
+  const correction = point({ placeId: first.id, baseVersion: 1, iconId: 'public_service' });
+  const correctionId = await received(f, correction);
+  assert.equal((await decide(f, correctionId)).status, 200);
+  const publicData = await (await f.call('/api/map/export')).json();
+  assert.equal(publicData.features[0].id, first.id);
+  assert.equal(publicData.features[0].properties.iconId, 'public_service');
+  assert.equal(publicData.features[0].properties.version, 2);
+  const privateData = await (await f.call('/api/admin/map/export', undefined, ACTOR)).json();
+  assert.deepEqual(privateData.revisions.map(revision => revision.data.iconId), ['bus_stop', 'public_service']);
+  assert.equal(privateData.suggestions.find(row => row.id === id).data.iconId, 'bus_stop');
+});
+
+test('legacy map payloads omit icons and keep their original canonical retry shape', async t => {
+  const f = fixture(t); const data = point(); const id = await received(f, data);
+  const stored = f.sqlite.prepare('SELECT payload_json, data_json FROM map_suggestions WHERE id = ?').get(id);
+  assert.equal(Object.hasOwn(JSON.parse(stored.payload_json).data, 'iconId'), false);
+  assert.equal(Object.hasOwn(JSON.parse(stored.data_json), 'iconId'), false);
+  const response = await f.call('/api/map/suggestions', { ...data });
+  assert.equal(response.status, 200); assert.equal((await response.json()).duplicate, true);
+  await decide(f, id);
+  const publicData = await (await f.call('/api/map/export')).json();
+  assert.equal(Object.hasOwn(publicData.features[0].properties, 'iconId'), false);
+});
+
+test('all catalogue icons can be saved while unknown or malformed icon IDs are rejected', async t => {
+  const f = fixture(t);
+  for (const iconId of MAP_ICON_IDS) assert.equal((await f.call('/api/map/suggestions', point({ iconId }))).status, 201, iconId);
+  for (const iconId of ['unknown', '', null, 1, {}, '<img src=x onerror=alert(1)>', 'BUS_STOP']) {
+    assert.equal((await f.call('/api/map/suggestions', point({ iconId }))).status, 400, JSON.stringify(iconId));
+  }
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM map_suggestions').get().n, 48);
 });
 
 test('no receipt is returned when an atomic suggestion audit fails', async t => {
