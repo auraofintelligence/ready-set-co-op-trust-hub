@@ -1,4 +1,235 @@
-# Ready SETCO
+# Ready SET Co-op | Learn. Work. Build together.
+
+**Ready Sustainable Employment and Training Cooperative**
+
+Ready SET Co-op (also styled Ready SETCO in the website and earlier documents) is a proposed member-owned cooperative starting on Minjerribah / North Stradbroke Island, Queensland. It brings together local skills, employment, training, volunteer coordination, shared resources and the practical support needed to turn community ideas into useful, sustainable services.
+
+It is a proposed **minimum viable community for a fair go in the age of superintelligence**: start with the people, capabilities, equipment and coordination that a community needs, then repeat the useful foundations in other places with locally chosen priorities and peer relationships. The long-term direction is Joyful Responsible Abundance, not a centrally imposed community programme.
+
+**Current status:** public information and participation software implemented; cooperative formation, member admission, employment arrangements and service handovers require separate decisions. Strange But True is the initial sole trader operator.
+
+**Documentation reviewed: 25 November 2026.**
+
+## Two public entry points, one repository
+
+| Site | Role |
+| --- | --- |
+| [Ready SET Co-op on Cloudflare](https://ready-setco.auraofintelligence.workers.dev/index.html) | Current public participation service, with same-origin Worker API, dedicated D1 register and reviewed public place data |
+| [Ready SET Co-op Trust Hub on GitHub Pages](https://auraofintelligence.github.io/ready-set-co-op-trust-hub/) | Public project information, source-linked research and the same rebuilt public interface; operational requests point to the Cloudflare API |
+
+Both sites are maintained from this repository. The 19 November 2026 rebuild supersedes the earlier property-led front door without erasing its history. The GitHub Pages edition is not a second operational database.
+
+The repository's original substantive build date remains 21 May 2026. The current operational rebuild began on 19 November, with map and contribution improvements on 20 November.
+
+## Who can help shape it?
+
+Local businesses, community organisations and community leaders, including clubs, cultural organisations, health services and their workers and volunteers, are invited to help form the cooperative. Residents, people seeking work or training, backpackers and visitors can connect through the activities that suit them.
+
+- Develop opportunities for locals and backpackers on equal terms, with properly agreed paid roles, mentoring and training.
+- Support year-round livelihoods through visitor experiences, guest services, events and local businesses.
+- Coordinate shared equipment, skills, information and community projects without requiring everyone to join the same programme.
+- Recognise voluntary human contribution separately from paid employment.
+- Invite prospective members to choose the rules, priorities, primary activities and responsibilities of the cooperative together.
+
+The site is not a recruitment agency advertising confirmed vacancies, a registered training organisation, a guarantee of working-holiday visa eligibility or an already registered cooperative.
+
+## Public site guide
+
+The rebuilt experience has 12 current public pages, three earlier research pages and one protected organiser page.
+
+| Page | Purpose |
+| --- | --- |
+| [Home](https://ready-setco.auraofintelligence.workers.dev/index.html) | Local invitation, learning, work, shared services and founding participation |
+| [Events & experiences](https://ready-setco.auraofintelligence.workers.dev/events.html) | Proposed AI conferences, music, outdoor cinema, visitor experiences and guest services |
+| [Training & work](https://ready-setco.auraofintelligence.workers.dev/jobs.html) | AI and digital confidence, practical training, mentors, paid work and voluntary C-Hours |
+| [Notices, news & media](https://ready-setco.auraofintelligence.workers.dev/media-assets.html) | Noticeboard first project, checked information, stories, media skills and disruption/recovery support |
+| [Grants](https://ready-setco.auraofintelligence.workers.dev/grant-roadmap.html) | Project readiness, evidence, scope, budget, applicant and delivery planning |
+| [Permissions & support](https://ready-setco.auraofintelligence.workers.dev/boundaries.html) | Consent, permissions, responsibilities, compliance and practical safeguards |
+| [Map](https://ready-setco.auraofintelligence.workers.dev/map.html) | Find useful places, submit quick pins or detailed observations, suggest corrections and export public records |
+| [Members & decisions](https://ready-setco.auraofintelligence.workers.dev/members.html) | Formation, member choice, decision records and future operational handover |
+| [About](https://ready-setco.auraofintelligence.workers.dev/about.html) | Repeatable community foundations, the Missing Middle and longer-term stewardship |
+| [Take part](https://ready-setco.auraofintelligence.workers.dev/join.html) | Durable expressions of interest, consent and submission receipts |
+| [Sources & connected work](https://ready-setco.auraofintelligence.workers.dev/ecosystem-links.html) | Related public projects and research foundations |
+| [Site directory](https://ready-setco.auraofintelligence.workers.dev/site-map.html) | Website navigation, distinct from the geographic map |
+
+The earlier [Trust Ladder](https://ready-setco.auraofintelligence.workers.dev/trust-ladder.html), [Ballow Road](https://ready-setco.auraofintelligence.workers.dev/ballow-road.html) and [Horizon](https://ready-setco.auraofintelligence.workers.dev/horizon.html) pages preserve earlier research. They do not establish venue access, property ownership, a member-approved programme or installed infrastructure. The protected organiser page is not in the public reading tour.
+
+## Employment, learning and local capability
+
+The proposed starting areas include AI and digital literacy, conference/event operations, guest services, photography, interviewing, editing, local information checking, project administration, grant evidence, equipment stewardship and mentoring.
+
+Paid work needs a named legal employer or contractor, an agreed task, pay and conditions, suitable training and a responsible supervisor. The starting business is [Strange But True](https://auraofintelligence.github.io/strange-but-true/), operated by Luke Nathan Hayes (ABN 81 913 657 174, as published on the site). Future responsibilities may move to the cooperative only through an agreed and documented process.
+
+The [working holiday pathway](https://ready-setco.auraofintelligence.workers.dev/jobs.html#backpacker-work) leads to a distinct enquiry interest in the participation form. It is designed to help people explore lawful tourism, hospitality and guest-services work as roles develop. The page contains dated visa-transition guidance checked on 19 November 2026; verify the current Home Affairs requirements, actual employer, activity and location before relying on it. The site does not approve visa days or promise a job.
+
+### Voluntary C-Hours
+
+One verified C-Hour recognises one freely given human hour, with no monetary equivalent. Paid employment, financial investment, machine time/output and project outcomes have separate records.
+
+A future personal Aura of Intelligence or agent could help a person document a contribution and choose what to share. This website explains the proposed model but does not run a C-Hour ledger, automatic verification, personal AI agent or compulsory public timesheet. See [C-Hour Introduction](https://auraofintelligence.github.io/C-Hour-introduction/).
+
+## First proposed shared project: Straddie Noticeboard Network
+
+The [current Cloudflare Noticeboard Network](https://straddie-noticeboard-cloudflare.auraofintelligence.workers.dev/) is a separate implementation and the first proposed project for cooperative stewardship. Its current public service and publisher arrangements must be considered separately from Ready SET Co-op formation.
+
+The intended everyday network connects residents, businesses, clubs, community groups and visitors through useful local notices, events, service information, websites and shared screens. It incorporates the disruption and recovery principles of [Aura Disaster Resilience](https://auraofintelligence.github.io/aura-disaster-resilience/): preserve the original issuer, issue and checked times, expiry and the difference between current, cached and demonstration information. Official emergency authorities retain responsibility for emergency directions.
+
+[Minjerribah Screen & Media Network](https://auraofintelligence.github.io/minjerribah-screen-media-network/) is the current media-planning gateway; [Ready SET Co-op Hyperlocal Media](https://auraofintelligence.github.io/ready-set-co-op-hyperlocal-media/) provides complementary foundations. Media contributors can learn source checking, consent, interviews, photography, editing, captions and portrait/landscape production.
+
+A cooperative handover, publisher network and synchronisation of shared displays require agreed authority, participating organisations, equipment responsibilities, costs and operating procedures. The Trust Hub itself does not implement the noticeboard publishing/synchronisation service.
+
+## The community map
+
+The map is the first practical public observation layer in a much wider local-data architecture. It helps people find, add and correct places such as businesses, beaches, clubs, bus stops, seats, picnic facilities, toilets and drinking-water points.
+
+### Current map capabilities
+
+- Search and explore Minjerribah, Southern Moreton Bay Islands, Redlands or all recorded places.
+- Load map backgrounds only by choice. Start with a satellite/aerial view fitted closely to Straddie, with an alternative road-map layer and retained attribution.
+- Explicit Find me control displays temporary GPS position and accuracy without silently adding private location information to a submission.
+- Reversible expanded/full-screen browser view, optional place list, keyboard support and map navigation.
+- Directions open Google Maps for the selected public destination and chosen mode, without exporting the visitor's GPS origin. OpenStreetMap links are also available.
+- **Quick pin:** tap an empty map location, optionally add a name and send the pin for review without typing or completing a questionnaire.
+- **Detailed entry:** choose a category, optional icon, coordinates, source, observed date, useful description, access, accessibility, facilities and chosen public credit.
+- **48 labelled illustrated icons** across clubs/sports/culture, businesses/services and facilities/public services, with search, filters and a category default.
+- Suggest a correction to a published place, retain device drafts where supported and distinguish a saved receipt from an uncertain response.
+- Download published records as GeoJSON; keep private submissions and review history out of public output.
+
+Public mapping is a contribution and review workflow, not automatic publication. A successful submission returns a durable reference. The original report, chosen publication permission, source, review outcome and revision history are preserved. The system does not seed real places automatically or presume that previous map data is verified for this collection.
+
+### Map record model
+
+| Table | Role |
+| --- | --- |
+| `map_suggestions` | Original submissions, source and permission, review decision |
+| `map_places` | Stable public place identity and current published/archived version |
+| `map_revisions` | Append-only published and archived versions |
+| `map_audit_events` | Submission, publication, rejection and archive history |
+
+Private organiser decisions publish, reject, correct or archive public places. Version checks prevent a stale correction from silently replacing a newer record. The public export contains published information only; the private export preserves the complete record history for authorised stewardship.
+
+The road and aerial map layers are separate third-party backgrounds; their data and licence rights are not transferred by local ownership of the place register. Read [map data and portability](docs/MAP-DATA.md) and [map icon artwork](docs/MAP-ICON-ART.md).
+
+### From map to Sensorium
+
+The map is deliberately narrow and useful now, while preserving stable IDs, source dates, location precision, permissions and revision history that can later support shared equipment, notices, assets, scans, digital twins and the wider Web3 Sensorium.
+
+Personal and home information remains under the person's own authority. Public places do not give a community automatic access to private Auras. The larger architecture allows overlapping community spaces rather than imposing a rigid hierarchy.
+
+The [community media pathway](docs/COMMUNITY-MEDIA-PATHWAY.md) proposes separate consent-controlled photo, panorama and 360-degree media records, building on the Gumpi ferry terminal and Ballow Road evidence maps. Permanent storage and publication require approval; media metadata, private object storage and verified contributor roles are future work, not features of the current map. See [Sensorium growth constraints](docs/SENSORIUM-GROWTH.md).
+
+## Participation and formation register
+
+The Cloudflare service provides an expression-of-interest intake and a private human-review workspace. It is not a formal member register, workforce HR/payroll system or digital voting platform.
+
+The public form accepts an individual, local business, community organisation/leader or work/training enquiry, with relevant interests and optional context. An organisation representative confirms authority to enquire. The applicant separately agrees to contact by Strange But True and may opt in to future sharing with the registered cooperative.
+
+A server-confirmed receipt follows durable persistence; canonical retries reuse the reference instead of duplicating records. Submitting an expression of interest does not publish a map pin or confer membership, employment, partnership or funding rights.
+
+The organiser workspace at `manage.html` supports protected participant review, follow-up status and notes, audit history and portable export, alongside the private map review queue. The Worker independently verifies signed Cloudflare Access identity and restricts administrative writes. Missing production identity configuration fails closed. Whether the real production identity policy is now configured requires a separate account-level check; the repository documentation last describes it as locked pending verification.
+
+No public participant lookup or register export is provided. Do not collect passport scans, tax file numbers, banking details or other unnecessary sensitive records through public intake.
+
+## Handover from Strange But True
+
+The intended transition has four stages:
+
+1. Establish an initial SBT pilot with clear contracts, responsibilities and paid work arrangements.
+2. Recruit prospective founders and settle the cooperative design, including purpose, active membership, voting, governance, financial arrangements and delegated authority.
+3. Form and equip the cooperative through the appropriate legal and member decisions.
+4. Transfer specifically agreed services, assets, information and responsibilities, with authority, consent, costs, effective dates, training and maintenance arrangements recorded.
+
+Earlier research describes a proposed distributing cooperative. That is a consultation proposal, not a registered entity or a settled rulebook. Historical names and proposals remain evidence of development.
+
+Each handover retains the original operator, receiving legal entity, approved scope, consent, effective date and historical records. A software change cannot transfer an employment contract or statutory responsibility. See [launch and handover](docs/SBT-TO-SETCO-HANDOVER.md).
+
+## Technical architecture and portability
+
+| Component | Implementation |
+| --- | --- |
+| Public interface | Static HTML/CSS/JavaScript, shared shell, local Archivo fonts, vendored Leaflet and tide-mark artwork |
+| Cloudflare Worker | `cloudflare/worker.mjs`, shared HTTP API and protected asset routes |
+| Data adapters | `cloudflare/repository.mjs`, `cloudflare/map-records.mjs`, SQLite-compatible queries and transactions |
+| Persistent database | Dedicated D1 database `ready-setco-operations`, bound as `DB` |
+| Migrations | `0001_intake.sql`, `0002_operator_legal_name.sql`, `0003_map_records.sql` |
+| Local operation | Node.js 24+ native SQLite and loopback-only server using the same Worker interfaces |
+| Static deployment | Allowlisted `dist/` bundle built by `scripts/build.mjs`; private data, server source and local credentials excluded |
+| API configuration | `operations-config.js` selects the Cloudflare API for GitHub Pages and same-origin API for Cloudflare/local operation |
+| Tests | Node test runner, jsdom, interface, map controls/records, security, reading and translation checks |
+
+Core public API routes include `POST /api/intake`, `GET /api/health`, `GET /api/map/places`, `POST /api/map/suggestions` and `GET /api/map/export`. Participant administration and map reviews/exports remain under `/api/admin/*`.
+
+Cloudflare is the initial hosting and storage adapter. The same SQL migrations, standard HTTP interfaces, stable identifiers and export history support a later move to agreed local island servers. The documented 19 November portability rehearsal exercised local D1 export, native SQLite restoration and matching participant/map history and public GeoJSON. This is not proof of a completed live production backup or migration.
+
+Read [Cloudflare operations](docs/CLOUDFLARE-OPERATIONS.md) before changing infrastructure. Preserve the existing Worker and dedicated D1 database, not another project's database or identity policy.
+
+## Accessible design and maintenance
+
+Phone-first design uses readable body text, large touch targets, visible focus, safe-area spacing, reduced-motion preferences and the purple, blue, yellow and green tide identity.
+
+The 15 public-page reading sequence includes the three labelled earlier research pages. Larger-text/high-contrast and language controls appear on public pages. Larger-text mode preserves the content and forms, with 24px body text, larger headings and a single-column layout. Browser preferences can be selected with `?view=easy` or `?view=normal`.
+
+Optional browser read-aloud starts only on request and excludes form inputs, hidden material, dialogs and status messages. Browser translation and assistive tools support the public reading experience; neither adds an autonomous AI assistant.
+
+Maintainers should read [AGENTS.md](AGENTS.md) and the [accepted rebuild brief](docs/REBUILD-BRIEF.md). Shared shell and footer helpers preserve scoped page content and the public reading sequence:
+
+- `scripts/refresh-shell.mjs`: navigation, metadata, footer and favicon references.
+- `scripts/refresh-public-details.mjs`: public page sequence and visible Strange but True colour markup.
+- `scripts/check-site.mjs`: page links, anchors, images, headings and map navigation.
+- `scripts/generate-map-icons.mjs`: preparation of the labelled map icon library.
+
+### Run and check locally
+
+Use Node.js 24 or newer.
+
+```sh
+npm ci
+npm run check
+npm test
+npm start
+```
+
+The local server binds to http://127.0.0.1:8792 by default and applies migrations to an ignored local SQLite database. It does not copy or modify production D1. A temporary local administrative token is printed at startup and must not be used for production or saved in source. Use an isolated test-data directory for rehearsals.
+
+```sh
+npm run build
+node scripts/verify-portability.mjs
+```
+
+The build prepares the public asset bundle; the portability script performs a local fictional-data rehearsal. For authorised deployment and migrations, use the existing configuration and follow [Cloudflare operations](docs/CLOUDFLARE-OPERATIONS.md). Do not create a replacement production database simply to follow older initial-setup instructions: the current `wrangler.jsonc` already specifies the dedicated database binding.
+
+## Current and connected project foundations
+
+| Project | Role |
+| --- | --- |
+| [Strange But True](https://auraofintelligence.github.io/strange-but-true/) | Starting legal operator, service development and project doorway |
+| [Straddie Noticeboard Network](https://straddie-noticeboard-cloudflare.auraofintelligence.workers.dev/) | First proposed shared project, distinct operational platform |
+| [Point Lookout Fishing Club digital clubhouse](https://plfc-clubhouse.auraofintelligence.workers.dev/) | Example of a separate community club platform with its own committee authority |
+| [Minjerribah Screen & Media Network](https://auraofintelligence.github.io/minjerribah-screen-media-network/) | Media skills and creative collaboration |
+| [Ready SET Co-op Cultural Intelligence Node](https://auraofintelligence.github.io/ready-set-co-op-cultural-intelligence-node/) | Proposed local compute, cultural collaboration and training context |
+| [Installing the Missing Middle](https://auraofintelligence.github.io/installing-the-missing-middle/) | Locally stewarded productive infrastructure, training, financing and ownership |
+| [Mutual Futures](https://auraofintelligence.github.io/mutual-futures/) | Shared ownership, business succession, mentoring and productive renewal |
+| [Stradbroke Grants Lab](https://auraofintelligence.github.io/stradbroke-grants-lab/) and [Straddie Tenders Lab](https://auraofintelligence.github.io/straddie-tenders-lab/) | Funding, procurement, evidence and project readiness |
+| [Aura Disaster Resilience](https://auraofintelligence.github.io/aura-disaster-resilience/) | Community information, disruption, resilience and recovery planning |
+| [UNGA81 contribution](https://auraofintelligence.github.io/UNGA81-Luke-Hayes/) | Wider independent research into locally shaped participation and Joyful Responsible Abundance |
+
+These connections describe research, implementation lineage or potential cooperation. They do not establish outside approval or partnership.
+
+## Further development and decisions
+
+- Verify live intake, approved test receipts and signed-out/authorised organiser access against the real Cloudflare deployment.
+- Establish the founding group and agree legal registration, primary activity, membership, employer/contract arrangements, insurance, safety, training and financial responsibilities.
+- Agree which services and assets may transfer from SBT, especially the proposed Noticeboard first project, with consent and a documented decision.
+- Develop community map stewardship, place verification and media approval policies, then separately implement the proposed media, C-Hour and wider Sensorium integrations when authorised.
+- Rehearse backups, exports and restores with the authorised production environment before a future local hosting cutover.
+
+The current release does not run payroll, verify accredited training, admit cooperative members, approve visa days, transfer employment, collect payments, administer cooperative votes or replace legal review.
+
+## Licence and historical links
+
+Original project material is available under the [Strange But True Public Source Licence](LICENCE.md), not an open-source licence. Non-commercial use is permitted subject to its attribution and other terms. Commercial and institutional rights remain reserved as stated in the licence. Third-party fonts, libraries, imagery and map data retain their respective rights.
+
+The earlier automated organisation relationship block is retained below for historical discovery. Current operational links and role descriptions above take precedence over older prototype destinations; an evidenced relationship is not a commitment.
 
 <!-- github-organisation:start -->
 
@@ -58,70 +289,3 @@ Each link below reflects an evidenced family, lineage or direct connection. This
 - [Redlands_draft_ES2026-2031](https://github.com/auraofintelligence/Redlands_draft_ES2026-2031) - [public page](https://auraofintelligence.github.io/Redlands_draft_ES2026-2031/) - shared community programme.
 
 <!-- github-organisation:end -->
-
-## Current public service
-
-Ready SETCO is being developed as a **minimum viable community for a fair go in the age of superintelligence**. A fractal pattern describes repeatable foundations with locally chosen services and peer relationships.
-
-The current public service is [Ready SETCO on Cloudflare](https://ready-setco.auraofintelligence.workers.dev/). Its 19 November 2026 rebuild replaces the earlier property-led Trust Hub front door while retaining original build history and clearly marked earlier research.
-
-Read [the accepted rebuild brief](docs/REBUILD-BRIEF.md) for scope and original sources, and [AGENTS.md](AGENTS.md) before changing the site.
-
-## Public pages
-
-- index.html: useful local entry points and the minimum viable community.
-- events.html: proposed events, experiences and guest support.
-- jobs.html: training, paid work and the C-Hours section.
-- media-assets.html: notices, news, screen media and the noticeboard first build with embedded resilience.
-- grant-roadmap.html: project preparation and grant evidence.
-- boundaries.html: compliance support, consent and practical responsibilities.
-- map.html: find, add and correct public places and facilities; opt-in map background, chosen GPS or map position, simple source details, review and portable map data. Private self/home information stays outside this intake. No real places are seeded automatically.
-- members.html: participation, local decisions and formal handover.
-- about.html: the fractal pattern and future Missing Middle stewardship.
-- join.html: durable expressions of interest, separate from formal membership.
-- ecosystem-links.html: current connected projects and sources.
-- site-map.html: site directory, distinct from the geographic map.
-
-The earlier trust-ladder.html, ballow-road.html and horizon.html remain as labelled research. They do not establish a confirmed property, adopted cooperative programme or operating installation.
-
-## Design and maintenance
-
-The phone-first design keeps Map in the main menu and a mobile quick-navigation bar. It uses local Archivo fonts, the purple/blue/yellow/green tide mark, readable text, visible focus, reduced-motion preferences and safe-area spacing.
-
-The [shared shell helper](scripts/refresh-shell.mjs) applies navigation, footer, metadata and favicon references to the root HTML pages. It preserves page content and scoped styles. Run it after adding or renaming a page, then run the project checks. The [public details helper](scripts/refresh-public-details.mjs) updates only the footer page tour and visible Strange but True colour markup after content edits. Its [shared sequence](scripts/public-page-details.mjs) includes all 15 public pages, with earlier research labelled separately; the private organiser page stays outside the tour.
-
-The [site checker](scripts/check-site.mjs) checks all root pages, internal links and anchors, images, headings and geographic map navigation. The form and private API have their own integration tests.
-
-Every public page starts with larger-text/high-contrast and language controls. The larger-text view uses 24px body text, larger headings and the same content and forms in one column while preserving the purple, blue, yellow and green identity; it saves only the chosen view on that browser. A link ending in `?view=easy` selects that view, and `?view=normal` restores the standard view. Optional read aloud starts only on request and excludes forms, hidden material, dialogs and status messages. Reading and translation checks use a silent voice stub rather than playing audio.
-
-The noticeboard publishing/synchronisation service and C-Hour personal-agent/ledger remain separate proposed builds. Production organiser access stays locked until its identity configuration is completed and verified.
-
-The public map and its private review queue use a separate place register alongside the participation register. Read [map records and portability](docs/MAP-DATA.md) for the implemented API, source and permission history, export and local-server migration. [Sensorium growth constraints](docs/SENSORIUM-GROWTH.md) records the larger direction while keeping the everyday app small and simple.
-
-## Participation and operational handover (19 November 2026)
-
-Ready Sustainable Employment and Training Cooperative is the current preferred
-name. Historic research also uses Straddie Employment and Training Company.
-Strange But True remains the initial sole trader operator; cooperative formation,
-formal admission and transfer of services require their own decisions.
-
-- `join.html`: public expressions of interest, separate contact and future handover consent, and a server-confirmed receipt.
-- `manage.html`: private organiser review, stages and follow-up notes, with audit history and a portable export.
-- `cloudflare/`: Cloudflare Worker API and portable SQLite/D1 repository.
-- `migrations/`: versioned database schema retaining the original operator and consent.
-- [Launch and handover plan](docs/SBT-TO-SETCO-HANDOVER.md).
-- [Cloudflare deployment and local hosting](docs/CLOUDFLARE-OPERATIONS.md).
-
-The operational build uses Cloudflare Workers and its own D1 database. Existing
-GitHub Pages remains a public project site; its participation links should point
-to the verified Cloudflare service once deployed. Configure `operations-config.js`
-with the verified API origin only if the form is also served from GitHub Pages.
-An empty API origin uses the same host, including local development.
-
-Use Node.js 24 or newer: `npm install`, `npm run check`, `npm test`, then
-`npm start` for the local SQLite-backed build. `npm run build` produces a public
-asset bundle without the server source, private records or local credentials.
-
-This release provides intake and private human review. It does not run payroll,
-admit cooperative members, approve visa days, transfer employment, collect money
-or replace a registered training organisation or legal review.
