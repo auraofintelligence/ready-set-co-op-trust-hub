@@ -1,16 +1,66 @@
 <!DOCTYPE html><html lang="en-AU"><head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><meta name="robots" content="noindex,nofollow">
-  <title>Participant register | Ready SETCO</title>
-  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="operations.css">
-  <script src="operations-config.js" defer=""></script><script src="manage.js" defer=""></script>
+  <title>Organiser workspace | ready SET Co-op</title>
+  <link rel="stylesheet" href="styles.css"><link rel="stylesheet" href="operations.css"><link rel="stylesheet" href="governance-workspace.css">
+  <script src="operations-config.js" defer=""></script><script src="governance-workspace.js" defer=""></script><script src="manage.js" defer=""></script>
 <meta name="theme-color" content="#101020"><link rel="icon" href="assets/ready-setco-tide.ico?v=20261119" sizes="16x16 32x32 48x48"><link rel="icon" type="image/png" sizes="32x32" href="assets/ready-setco-tide-32.png?v=20261119"><link rel="icon" type="image/png" sizes="192x192" href="assets/ready-setco-tide-192.png?v=20261119"><link rel="apple-touch-icon" sizes="180x180" href="assets/ready-setco-tide-apple-180.png?v=20261119"></head><body>
   <a class="skip-link" href="#main">Skip to content</a>
   <header class="site-header"><nav class="nav" aria-label="Main navigation"><a class="brand-mark" href="index.html"><span class="brand-ready">Ready</span><span><span class="brand-set">S.E.T.</span> <span class="brand-coop">Co-op</span></span></a><div class="nav-links"><a href="join.html">Public sign-on</a><a href="index.html">Trust Hub</a><a href="/cdn-cgi/access/logout">Sign out</a></div></nav></header>
   <main id="main">
-    <section class="section operations-hero"><p class="eyebrow">Organiser workspace · Private records</p><h1>Follow up. Agree the next step.</h1><p class="hero-lede">Review people and organisations interested in local work and cooperative formation. Strange But True operates this register during the pilot.</p></section>
+    <section class="section operations-hero"><p class="eyebrow">Organiser workspace · Private records</p><h1>Build the cooperative together.</h1><p class="hero-lede">Prepare the rules, organise founding work and preserve decisions with their evidence. Follow up with people interested in local work and review community map contributions. Strange But True operates this workspace during the pilot.</p><nav class="gov-links" aria-label="Organiser areas"><a href="#governance">Formation &amp; governance</a><a href="#register-title">Expressions of interest</a><a href="#map-review">Map review</a><a href="formation.html">Public formation guide</a></nav></section>
     <div class="section review-layout">
       <section id="local-login" class="operations-card" hidden=""><h2>Local development sign-in</h2><p>The local server prints an organiser token for this session.</p><form id="local-login-form" class="operations-form"><label>Session token<input type="password" name="token" autocomplete="off" required=""></label><button class="button secondary">Unlock local register</button></form></section>
       <div id="review-status" class="operations-status" role="status" aria-live="polite" hidden=""></div>
+      <section id="governance" class="operations-card governance-workspace" aria-labelledby="governance-title">
+        <p class="eyebrow">Founding work &amp; local stewardship</p><h2 id="governance-title">Formation &amp; governance</h2>
+        <p class="gov-intro">Keep the founding group's work together, from the first shared purpose to rules, meetings and ongoing responsibilities. Each cooperative workspace has its own records, evidence references and saved history. Start with Straddie, then reuse the approach with each community's own choices.</p>
+        <div class="gov-links"><a href="formation.html">Formation guide</a><a href="cooperative-law.html">Queensland law &amp; model rules</a><a href="governance.html">Running a cooperative</a></div>
+        <p id="gov-status" class="operations-status gov-status" role="status" aria-live="polite" tabindex="-1">Sign in with your authorised organiser account to load saved governance work.</p>
+        <noscript><p class="operations-notice">The private workspace needs JavaScript to load and save records. The public formation and governance guides remain available through the links above.</p></noscript>
+        <fieldset id="gov-controls" class="gov-controls" hidden="">
+          <div class="gov-toolbar"><label>Cooperative workspace<select id="gov-workspace-select"><option value="">Choose a cooperative workspace</option></select></label><button class="button secondary" type="button" id="gov-reload">Reload saved work</button></div>
+          <div id="gov-workspace-pages" class="gov-pagination" hidden=""><button class="button secondary" type="button" id="gov-workspaces-prev">Previous workspaces</button><span id="gov-workspace-page">Page 1</span><button class="button secondary" type="button" id="gov-workspaces-next">More workspaces</button></div>
+          <p id="gov-no-workspaces" class="gov-empty" hidden="">No cooperative workspaces have been created yet. Create one when the founding group is ready to keep its work here.</p>
+          <details id="gov-create-section"><summary>Create a cooperative workspace</summary><p class="gov-help">Give the local project its own name and place. Creating a workspace records preparation; registration and member admission each need their own evidence. Authorised organisers of this service can access these workspaces.</p>
+            <form id="gov-create-workspace" class="gov-form"><div class="gov-fields">
+              <label>Proposed cooperative / project name<input name="name" maxlength="160" required="" autocomplete="off"></label><label>Community or locality<input name="locality" maxlength="160" required="" autocomplete="off"></label>
+              <label>Jurisdiction<select name="jurisdiction" required=""></select></label><label>Cooperative structure<select name="cooperativeType" required=""></select></label>
+              <label class="gov-wide">Local purpose<textarea name="purpose" maxlength="2000" rows="3" placeholder="The need this community wants to meet and the first useful services."></textarea></label>
+            </div><p class="gov-help">Queensland is the legal guidance currently provided here. A community in another jurisdiction needs a locally checked formation process.</p><p id="gov-create-dirty" class="gov-dirty" hidden="">The new workspace details have not been saved.</p><div class="gov-actions"><button class="button primary" type="submit">Create and save workspace</button></div></form>
+          </details>
+          <div id="gov-active-workspace" hidden="">
+            <div id="gov-workspace-summary" class="gov-workspace-summary"></div>
+            <details id="gov-workspace-settings"><summary>Cooperative details &amp; formation stage</summary><p class="gov-help">Update the local purpose and actual formation stage as the evidence develops. Use the registrar's certificate or register entry when recording registration.</p>
+              <form id="gov-workspace-form" class="gov-form"><div class="gov-fields">
+                <label>Cooperative / project name<input name="name" maxlength="160" required=""></label><label>Community or locality<input name="locality" maxlength="160" required=""></label>
+                <label>Jurisdiction<select name="jurisdiction" required=""></select></label><label>Cooperative structure<select name="cooperativeType" required=""></select></label>
+                <label class="gov-wide">Local purpose<textarea name="purpose" maxlength="2000" rows="3"></textarea></label><label>Formation stage<select name="stage" required=""></select></label>
+                <label>Registration date<input type="date" name="registrationDate"></label><label class="gov-wide">Registration evidence reference<input name="registrationRef" maxlength="600" placeholder="Registrar, certificate or register entry reference"></label>
+              </div><p id="gov-workspace-dirty" class="gov-dirty" hidden="">Cooperative details have unsaved changes.</p><div class="gov-actions"><button class="button primary" type="submit">Save cooperative details</button></div></form>
+            </details>
+            <div class="gov-section-heading"><h3>Your working areas</h3><p>Choose a topic to prepare a draft, assign responsibility, record evidence or read earlier saved versions. Only an authorised human process can admit members, approve rules or transfer obligations.</p></div>
+            <details><summary>Choose a working area</summary><div id="gov-modules" class="gov-modules" aria-label="Governance working areas"></div></details>
+            <div class="gov-record-layout">
+              <section class="gov-record-browser" aria-labelledby="gov-current-module"><h3 id="gov-current-module">Formation actions</h3>
+                <div class="gov-filter"><label>Working area<select id="gov-kind"></select></label><label>Record status<select id="gov-record-status-filter"></select></label><label>Search this page<input id="gov-record-search" type="search" maxlength="160" placeholder="Title, owner or notes"></label><button id="gov-create-record" class="button primary" type="button">Add a record</button></div>
+                <p id="gov-record-count" class="gov-record-count" aria-live="polite"></p><ul id="gov-record-list" class="gov-record-list"></ul><p id="gov-empty-records" class="gov-empty" hidden="">No records in this selection. Add a record to begin.</p>
+                <div class="gov-pagination"><button id="gov-record-prev" class="button secondary" type="button">Previous</button><span id="gov-record-page">Page 1</span><button id="gov-record-next" class="button secondary" type="button">Next</button></div>
+              </section>
+              <div><p id="gov-module-help" class="gov-help"></p>
+                <section id="gov-editor" class="gov-record-editor" aria-labelledby="gov-editor-title" hidden=""><h3 id="gov-editor-title">New record</h3><p id="gov-record-help" class="gov-help"></p><p id="gov-saved-meta" class="gov-saved-meta"></p>
+                  <form id="gov-record-form" class="gov-form"><div class="gov-fields"><label class="gov-wide">Record title<input name="title" maxlength="180" required=""></label><label>Record status<select name="status" required=""></select></label><label>Responsible person / role<input name="owner" maxlength="160"></label><label>Due / review date<input name="dueDate" type="date"></label><label>Source reference<input name="sourceRef" maxlength="600" placeholder="Law, model rule, policy or source"></label><label class="gov-wide">Evidence reference<input name="evidenceRef" maxlength="600" aria-describedby="gov-evidence-hint"><span id="gov-evidence-hint" class="gov-help">Use a private document, signed minute or receipt reference when evidence is available.</span></label></div>
+                    <fieldset><legend>Details for this working area</legend><div id="gov-detail-fields" class="gov-fields"></div></fieldset>
+                    <label>Working notes / supporting context<textarea name="body" maxlength="4000" rows="5"></textarea></label><p class="gov-help">Use references to controlled documents. Keep identity documents, banking credentials and sensitive personal files in their appropriate private systems.</p><p id="gov-record-dirty" class="gov-dirty" hidden="">This record has unsaved changes.</p>
+                    <div class="gov-actions"><button class="button primary" type="submit">Save record</button><button class="button secondary" type="button" id="gov-record-close">Close record</button><button class="button secondary" type="button" id="gov-record-archive" hidden="">Archive record</button></div>
+                  </form><details id="gov-history-section" hidden=""><summary>Saved versions &amp; responsible organisers</summary><ul id="gov-history-list" class="gov-history"></ul></details>
+                </section>
+              </div>
+            </div>
+            <details id="gov-template-section"><summary>Start with a formation checklist</summary><p class="gov-help">Add twelve draft actions to this cooperative workspace. Each action can then be assigned, dated and adapted. Existing records with the same checklist title are retained.</p><ol id="gov-template-list" class="gov-template-list"></ol><button class="button secondary" type="button" id="gov-template-add">Add missing checklist actions</button></details>
+            <details id="gov-exports"><summary>Private exports &amp; document packs</summary><p class="gov-help">A full export includes this cooperative's records and saved history. Document packs contain saved, unarchived records for review, discussion or printing. Unsaved edits are excluded.</p><div class="gov-form"><label>Document pack<select id="gov-pack-selection"><option value="meeting">Meetings and resolutions</option><option value="rules">Draft rulebook clauses</option><option value="handover">Service handover and shared assets</option><option value="all">All current working records</option></select></label><div class="gov-actions"><button class="button secondary" id="gov-pack-download" type="button">Download document pack</button><button class="button secondary" id="gov-pack-print" type="button">Print document pack</button><button class="button secondary" id="gov-export" type="button">Download complete private workspace</button></div></div></details>
+          </div>
+        </fieldset>
+      </section>
       <section class="operations-card" aria-labelledby="register-title"><h2 id="register-title">Expressions of interest</h2>
         <form id="review-filter" class="review-controls"><label>Name, email or organisation<input name="search" type="search" maxlength="120"></label><label>Stage<select name="status"><option value="">All stages</option><option value="interest">Interest received</option><option value="contacted">Contacted</option><option value="pilot_partner">Pilot partner agreed</option><option value="founding_interest">Interested in founding</option><option value="withdrawn">Withdrawn</option></select></label><button class="button secondary">Find records</button></form>
         <p id="review-count" class="review-count">Loading records…</p>
@@ -35,6 +85,9 @@
   <div class="hero-actions"><button class="button secondary" id="export-map-register" type="button">Download private map register</button><a class="button secondary" href="map.html">View public map</a></div>
 </section></div>
   </main><footer class="site-footer"><p>Ready SETCO · Participant and formation register</p><div class="footer-links"><a href="join.html">Public sign-on</a><a href="index.html">Trust Hub</a></div></footer>
+
+
+
 
 
 </body></html>

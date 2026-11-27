@@ -20,10 +20,14 @@
     if (options.body) headers.set('Content-Type', 'application/json');
     const response = await fetch(`${apiBase}${path}`, { ...options, headers, credentials: 'same-origin', cache: 'no-store' });
     const value = await response.json().catch(() => null);
-    if (!response.ok || !value) throw new Error(value?.error || (response.status === 401 ? 'Sign in with your authorised organiser account, then reload this page.' : 'The organiser service is unavailable. Please try again.'));
+    if (!response.ok || !value) {
+      const error = new Error(value?.error || (response.status === 401 ? 'Sign in with your authorised organiser account, then reload this page.' : 'The organiser service is unavailable. Please try again.'));
+      error.status = response.status; error.code = value?.code; throw error;
+    }
     return value;
   }
-  function cell(text, tag = 'td') { const element = document.createElement(tag); element.textContent = text || '—'; return element; }
+  const governance = window.ReadySetGovernance?.init({ request });
+  function cell(text, tag = 'td') { const element = document.createElement(tag); element.textContent = text || 'Not provided'; return element; }
   function summary(label, value) { document.querySelector('#participant-summary').append(cell(label, 'dt'), cell(value, 'dd')); }
   function openRecord(record) {
     selected = record; const detail = document.querySelector('#participant-detail');
@@ -188,7 +192,8 @@
   }
   if (local) {
     document.querySelector('#local-login').hidden = false;
-    document.querySelector('#local-login-form').addEventListener('submit', event => { event.preventDefault(); token = event.target.elements.namedItem('token').value; event.target.reset(); document.querySelector('#local-login').hidden = true; load(); loadMapQueue(); loadPublishedPlaces(); });
+    document.querySelector('#local-login-form').addEventListener('submit', event => { event.preventDefault(); token = event.target.elements.namedItem('token').value; event.target.reset(); document.querySelector('#local-login').hidden = true; load(); loadMapQueue(); loadPublishedPlaces(); governance?.load(); });
     document.querySelector('#review-count').textContent = 'Enter the local session token to load records.';
-  } else { load(); loadMapQueue(); loadPublishedPlaces(); }
+  } else { load(); loadMapQueue(); loadPublishedPlaces(); governance?.load(); }
 })();
+

@@ -8,7 +8,7 @@ It is a proposed **minimum viable community for a fair go in the age of superint
 
 **Current status:** public information and participation software implemented; cooperative formation, member admission, employment arrangements and service handovers require separate decisions. Strange But True is the initial sole trader operator.
 
-**Documentation reviewed: 25 November 2026.**
+**Documentation reviewed: 27 November 2026.**
 
 ## Two public entry points, one repository
 
@@ -35,7 +35,7 @@ The site is not a recruitment agency advertising confirmed vacancies, a register
 
 ## Public site guide
 
-The rebuilt experience has 12 current public pages, three earlier research pages and one protected organiser page.
+The experience has 17 current public pages, three earlier research pages and one protected organiser page. The formation and governance extension adds five public pages and a durable private workspace within the existing organiser page.
 
 | Page | Purpose |
 | --- | --- |
@@ -47,6 +47,11 @@ The rebuilt experience has 12 current public pages, three earlier research pages
 | [Permissions & support](https://ready-setco.auraofintelligence.workers.dev/boundaries.html) | Consent, permissions, responsibilities, compliance and practical safeguards |
 | [Map](https://ready-setco.auraofintelligence.workers.dev/map.html) | Find useful places, submit quick pins or detailed observations, suggest corrections and export public records |
 | [Members & decisions](https://ready-setco.auraofintelligence.workers.dev/members.html) | Formation, member choice, decision records and future operational handover |
+| [Formation & governance](https://ready-setco.auraofintelligence.workers.dev/formation.html) | Twelve-step formation pathway and structure comparison |
+| [Queensland law & rules](https://ready-setco.auraofintelligence.workers.dev/cooperative-law.html) | Current legal sources, official model rules, disclosure, voting and reporting |
+| [Running the cooperative](https://ready-setco.auraofintelligence.workers.dev/governance.html) | Membership, authority, decisions, finance and service handover |
+| [Formation planning tools](https://ready-setco.auraofintelligence.workers.dev/formation-planner.html) | Device drafts, first-year budget scenarios and seven downloadable preparation workbooks |
+| [Other communities](https://ready-setco.auraofintelligence.workers.dev/cooperative-network.html) | Locally chosen replication and the proposed Missing Middle network |
 | [About](https://ready-setco.auraofintelligence.workers.dev/about.html) | Repeatable community foundations, the Missing Middle and longer-term stewardship |
 | [Take part](https://ready-setco.auraofintelligence.workers.dev/join.html) | Durable expressions of interest, consent and submission receipts |
 | [Sources & connected work](https://ready-setco.auraofintelligence.workers.dev/ecosystem-links.html) | Related public projects and research foundations |
@@ -130,6 +135,28 @@ The organiser workspace at `manage.html` supports protected participant review, 
 
 No public participant lookup or register export is provided. Do not collect passport scans, tax file numbers, banking details or other unnecessary sensitive records through public intake.
 
+## Formation and governance hub
+
+The 27 November extension implements Luke's direction: Straddie is the first ready SET Co-op pilot, with reusable foundations for up to 3,000 potential Missing Middle sites. This is the intended scale of a proposed network, not evidence of registered cooperatives, funded installations or a single national ownership structure. Each community chooses its own purpose, membership, governance and projects. A physical site, legal entity and shared service are distinct.
+
+The five public pages provide a twelve-step formation pathway, the three cooperative configurations, Queensland legal and model-rule references, ongoing governance guidance, and a community replication approach. The public planner stores nothing until the visitor chooses to save on their device. It supports validated JSON import/export, a discussion brief, seven blank preparation workbooks and a first-year calculator that separates capital from trading income. It makes no network requests and does not create an organiser record. Other jurisdictions are explicitly marked for local review.
+
+The existing protected `manage.html#governance` now has multiple formation workspaces, eleven typed record areas, reusable formation actions, revision history, actor attribution, optimistic version checks, private JSON exports and printable document packs. It records evidence and human decisions; it does not register an entity, run a legal ballot, automatically admit a member, grant an office holder access, collect money or execute a handover.
+
+The new `/api/admin/governance/*` routes inherit the existing verified Cloudflare Access identity and same-origin rules. Apply `0004_governance.sql` to the existing dedicated database before deployment. No participants, memberships or legal statuses are seeded. Missing identity configuration remains closed; a missing migration returns a clear setup response to an authenticated organiser.
+
+All current authorised administrators can access all workspaces in this deployment. Workspace separation prevents mixing records and exports; it is not a finished tenant-permission system for thousands of independent communities. Independent deployments and a later scoped authorisation layer remain distinct implementation choices. Read [the governance API and data model](docs/GOVERNANCE-API.md) and [the implementation matrix](docs/FORMATION-GOVERNANCE-HUB.md).
+
+Public source prompts live in `formation-data.js`; page content is maintained in `scripts/build-formation-pages.mjs`. After changing either source, regenerate and apply the shared navigation:
+
+```sh
+node scripts/build-formation-pages.mjs
+node scripts/refresh-shell.mjs
+npm run check
+npm test
+npm run build
+```
+
 ## Handover from Strange But True
 
 The intended transition has four stages:
@@ -151,7 +178,7 @@ Each handover retains the original operator, receiving legal entity, approved sc
 | Cloudflare Worker | `cloudflare/worker.mjs`, shared HTTP API and protected asset routes |
 | Data adapters | `cloudflare/repository.mjs`, `cloudflare/map-records.mjs`, SQLite-compatible queries and transactions |
 | Persistent database | Dedicated D1 database `ready-setco-operations`, bound as `DB` |
-| Migrations | `0001_intake.sql`, `0002_operator_legal_name.sql`, `0003_map_records.sql` |
+| Migrations | `0001_intake.sql`, `0002_operator_legal_name.sql`, `0003_map_records.sql`, `0004_governance.sql` |
 | Local operation | Node.js 24+ native SQLite and loopback-only server using the same Worker interfaces |
 | Static deployment | Allowlisted `dist/` bundle built by `scripts/build.mjs`; private data, server source and local credentials excluded |
 | API configuration | `operations-config.js` selects the Cloudflare API for GitHub Pages and same-origin API for Cloudflare/local operation |
@@ -167,7 +194,7 @@ Read [Cloudflare operations](docs/CLOUDFLARE-OPERATIONS.md) before changing infr
 
 Phone-first design uses readable body text, large touch targets, visible focus, safe-area spacing, reduced-motion preferences and the purple, blue, yellow and green tide identity.
 
-The 15 public-page reading sequence includes the three labelled earlier research pages. Larger-text/high-contrast and language controls appear on public pages. Larger-text mode preserves the content and forms, with 24px body text, larger headings and a single-column layout. Browser preferences can be selected with `?view=easy` or `?view=normal`.
+The 20 public-page reading sequence includes the three labelled earlier research pages. Larger-text/high-contrast and language controls appear on public pages. Larger-text mode preserves the content and forms, with 24px body text, larger headings and a single-column layout. Browser preferences can be selected with `?view=easy` or `?view=normal`.
 
 Optional browser read-aloud starts only on request and excludes form inputs, hidden material, dialogs and status messages. Browser translation and assistive tools support the public reading experience; neither adds an autonomous AI assistant.
 
@@ -289,3 +316,4 @@ Each link below reflects an evidenced family, lineage or direct connection. This
 - [Redlands_draft_ES2026-2031](https://github.com/auraofintelligence/Redlands_draft_ES2026-2031) - [public page](https://auraofintelligence.github.io/Redlands_draft_ES2026-2031/) - shared community programme.
 
 <!-- github-organisation:end -->
+

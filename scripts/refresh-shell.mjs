@@ -9,10 +9,10 @@ const origin = 'https://ready-setco.auraofintelligence.workers.dev';
 const navigation = [
   ['events.html', 'Events'], ['jobs.html', 'Training & work'],
   ['media-assets.html', 'Notices & media'], ['grant-roadmap.html', 'Grants'],
-  ['boundaries.html', 'Support'], ['map.html', 'Map'], ['members.html', 'Members'],
+  ['boundaries.html', 'Support'], ['map.html', 'Map'], ['members.html', 'Members'], ['formation.html', 'Form a co-op'],
 ];
 const legacy = new Set(['trust-ladder.html', 'ballow-road.html', 'horizon.html']);
-const brand = `<a class="brand-mark" href="index.html" aria-label="Ready SETCO home"><img class="brand-logo" src="assets/ready-setco-tide-192.png" width="192" height="192" alt=""><span class="brand-name">Ready <span class="set">SET</span>CO<span class="brand-subtitle">PEOPLE · SKILLS · POSSIBILITY</span></span></a>`;
+const brand = `<a class="brand-mark" href="index.html" aria-label="ready SET Co-op home"><img class="brand-logo" src="assets/ready-setco-tide-192.png" width="192" height="192" alt=""><span class="brand-name">ready <span class="set">SET</span> Co-op<span class="brand-subtitle">PEOPLE · SKILLS · POSSIBILITY</span></span></a>`;
 const current = (file, target) => file === target ? ' aria-current="page"' : '';
 function header(file) {
   return `<nav class="nav" aria-label="Main navigation">${brand}<button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links"><span class="menu-lines" aria-hidden="true"></span>Menu</button><div class="nav-links" id="nav-links">${navigation.map(([target, label]) => `<a href="${target}"${current(file, target)}>${label}</a>`).join('')}<a class="mobile-only" href="about.html"${current(file, 'about.html')}>About Ready SETCO</a><a class="nav-join" href="join.html"${current(file, 'join.html')}>Take part</a></div></nav>`;
@@ -20,7 +20,7 @@ function header(file) {
 function dock(file) {
   return `<nav class="mobile-dock" aria-label="Quick navigation"><a href="events.html"${current(file, 'events.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 2v6m8-6v6M4 11h16"/></svg>Events</a><a href="map.html"${current(file, 'map.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Zm6-2v16m6-14v16"/></svg>Map</a><a class="dock-join" href="join.html"${current(file, 'join.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m4-14v8m-4-4h8"/></svg>Take part</a></nav>`;
 }
-const footer = `<div class="footer-inner"><div class="footer-brand">${brand}<p>Ready Sustainable Employment and Training Cooperative.<br>A proposed local cooperative for skills, paid work and shared resources. Help shape it from the beginning.</p></div><div class="footer-links"><a href="about.html">About Ready SETCO</a><a href="members.html">Members & decisions</a><a href="boundaries.html">Permissions & support</a><a href="ecosystem-links.html">Sources & connected work</a><a href="site-map.html">Site directory</a><a href="mailto:sbt4183@gmail.com">Contact Luke</a></div></div><div class="footer-bottom"><span>Initially operated by Luke Hayes, trading as Strange But True · ABN 81 913 657 174.<br>Ready SETCO is still forming. Joining as a member or transferring services will require separate agreements.</span><a href="https://auraofintelligence.github.io/strange-but-true/">Strange But True</a></div>`;
+const footer = `<div class="footer-inner"><div class="footer-brand">${brand}<p>Ready Sustainable Employment and Training Cooperative.<br>A proposed local cooperative for skills, paid work and shared resources. Help shape it from the beginning.</p></div><div class="footer-links"><a href="about.html">About Ready SETCO</a><a href="members.html">Members & decisions</a><a href="formation.html">Formation & governance</a><a href="boundaries.html">Permissions & support</a><a href="ecosystem-links.html">Sources & connected work</a><a href="site-map.html">Site directory</a><a href="mailto:sbt4183@gmail.com">Contact Luke</a></div></div><div class="footer-bottom"><span>Initially operated by Luke Hayes, trading as Strange But True · ABN 81 913 657 174.<br>Ready SETCO is still forming. Joining as a member or transferring services will require separate agreements.</span><a href="https://auraofintelligence.github.io/strange-but-true/">Strange But True</a></div>`;
 
 let count = 0;
 for (const name of (await readdir(root)).filter(name => name.endsWith('.html'))) {
@@ -53,3 +53,4 @@ for (const name of (await readdir(root)).filter(name => name.endsWith('.html')))
   count++;
 }
 console.log(`Applied the shared mobile-first navigation, branding and footer to ${count} pages.`);
+

@@ -1,6 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { createRepository, PARTICIPANT_STATUSES } from './repository.mjs';
 import { handleMapRequest } from './map-records.mjs';
+import { handleGovernanceRequest } from './governance.mjs';
 
 const BODY_LIMIT = 12 * 1024;
 const CONSENT_VERSION = '2026-11-19';
@@ -279,6 +280,11 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
         if (api) {
           if (!env.DB?.prepare || !env.DB?.batch) fail(503, 'service_unavailable', 'The service is temporarily unavailable.');
           const repository = createRepository(env.DB);
+          if (url.pathname.startsWith('/api/admin/governance')) {
+            if (!['GET', 'HEAD'].includes(request.method)) requireSameOrigin(request, url, { required: true });
+            const response = await handleGovernanceRequest(request, env, { actor, now: now(), readJSON: () => readJSON(request) });
+            if (response) return secure(response, { api });
+          }
           if (url.pathname.startsWith('/api/map/') || url.pathname.startsWith('/api/admin/map/')) {
             if (url.pathname.startsWith('/api/admin/map/') && ['POST', 'PATCH'].includes(request.method)) {
               requireSameOrigin(request, url, { required: true });
@@ -339,3 +345,4 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
 }
 
 export default createWorker();
+

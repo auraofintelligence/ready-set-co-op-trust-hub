@@ -127,3 +127,16 @@ node scripts/verify-portability.mjs
 This explicit integration check requires Node.js 24 and local loopback networking for Cloudflare's local runtime. It creates a uniquely named ignored directory under `.local`, applies all migrations to an isolated local D1 store, records a fictional intake and review, and uses Wrangler's SQL export. It restores that export into native SQLite using the same adapter as the local server, compares the complete register and audit history, verifies that immutable history triggers still reject changes, and calls the shared Worker's administrative export API against the restored database. It does not open a browser, authenticate to Cloudflare, provision resources or read a real register.
 
 The 19 November 2026 rehearsal passed with migrations `0001_intake.sql` and `0002_operator_legal_name.sql`. This verifies local D1-to-SQLite portability; a future live-account export and production cutover still need their own checks. Wrangler's local export has no `--persist-to` option, so the rehearsal uses an isolated local configuration to keep its default state directory separate from ordinary local work.
+
+
+## Formation and governance extension, 27 November 2026
+
+The existing `manage.html` now includes private formation and governance workspaces. Apply `migrations/0004_governance.sql` to `ready-setco-operations` before deploying the extended Worker. It adds empty governance tables only; the participant and map tables retain their existing scope. Do not create another Worker, database or hosting project for this extension.
+
+New routes are under `/api/admin/governance/*` and use the existing Access audience and administrator allowlist. The current authorised administrators can access all workspaces on this deployment. Workspace IDs are not individual community access policies. See [GOVERNANCE-API.md](GOVERNANCE-API.md) for request schemas, immutable revision history, export limits and the further authorisation needed for separate community tenants.
+
+The existing participant export and map export do not include governance records. Each formation workspace has its own complete JSON export. A full D1/SQLite database backup includes all four governance tables and their revision histories. Retain access restrictions on every export.
+
+The public `formation-planner.html` uses optional browser-local storage and downloads only. It sends no draft to the server and does not change the cooperative's records. The other new public pages are `formation.html`, `cooperative-law.html`, `governance.html` and `cooperative-network.html`.
+
+Source implementation and local tests do not establish production deployment. Verify the final Cloudflare version, the applied migration and authorised/signed-out access before describing the private workspace as live.

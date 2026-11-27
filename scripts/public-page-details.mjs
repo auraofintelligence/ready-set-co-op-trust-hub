@@ -7,6 +7,11 @@ export const publicPageSequence = [
   ['boundaries.html', 'Compliance & support'],
   ['map.html', 'Local map'],
   ['members.html', 'Members & decisions'],
+  ['formation.html', 'Formation & governance'],
+  ['cooperative-law.html', 'Queensland law & rules'],
+  ['governance.html', 'Running the cooperative'],
+  ['formation-planner.html', 'Formation planning tools'],
+  ['cooperative-network.html', 'Cooperatives in other communities'],
   ['join.html', 'Take part'],
   ['about.html', 'About Ready SETCO'],
   ['ecosystem-links.html', 'Sources & connected work'],
@@ -32,7 +37,7 @@ export function pageJourney(file) {
   const previous = publicPageSequence[index - 1];
   const next = publicPageSequence[index + 1];
   const link = (entry, direction, label) => `<a class="page-journey-${direction}" href="${entry[0]}" rel="${direction === 'previous' ? 'prev' : 'next'}"><span>${label}</span><strong>${escape(entry[1])}</strong></a>`;
-  return `<nav class="page-journey" aria-label="Browse the website"><div class="page-journey-heading"><p>Page ${index + 1} of ${publicPageSequence.length} <span>· ${index > 11 ? 'Earlier research' : 'Main site'}</span></p><a href="site-map.html">See all pages</a></div><div class="page-journey-links">${previous ? link(previous, 'previous', 'Previous') : '<span class="page-journey-start"><span>You are at the beginning</span><strong>Welcome to Ready SETCO</strong></span>'}${next ? link(next, 'next', 'Next') : link(publicPageSequence[0], 'next', 'Back to the beginning')}</div></nav>`;
+  return `<nav class="page-journey" aria-label="Browse the website"><div class="page-journey-heading"><p>Page ${index + 1} of ${publicPageSequence.length} <span>· ${['trust-ladder.html', 'ballow-road.html', 'horizon.html'].includes(file) ? 'Earlier research' : 'Main site'}</span></p><a href="site-map.html">See all pages</a></div><div class="page-journey-links">${previous ? link(previous, 'previous', 'Previous') : '<span class="page-journey-start"><span>You are at the beginning</span><strong>Welcome to Ready SETCO</strong></span>'}${next ? link(next, 'next', 'Next') : link(publicPageSequence[0], 'next', 'Back to the beginning')}</div></nav>`;
 }
 
 export function readingPreferences() {
@@ -83,3 +88,4 @@ export function applyPublicDetails(doc, file) {
     node.replaceWith(fragment);
   }
 }
+
