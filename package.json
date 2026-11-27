@@ -5,11 +5,14 @@
   "type": "module",
   "description": "Ready SETCO participation intake and operations, initially operated by Strange But True",
   "license": "SEE LICENSE IN LICENCE.md",
+  "packageManager": "npm@11.19.1",
   "engines": {
     "node": ">=24.0.0"
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "build:cloudflare": "npm run check && npm test && npm run build",
+    "deploy": "node scripts/check-deploy-target.mjs && wrangler d1 migrations apply ready-setco-operations --remote && wrangler deploy --keep-vars",
     "test": "node --test --test-concurrency=1",
     "dev": "node --watch scripts/local-server.mjs",
     "start": "node scripts/local-server.mjs",
@@ -23,3 +26,4 @@
     "wrangler": "4.119.0"
   }
 }
+

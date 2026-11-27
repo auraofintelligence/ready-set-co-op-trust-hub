@@ -33,17 +33,13 @@ The Worker accepts this path only when the environment explicitly sets `LOCAL_DE
 
 Local SQLite and Cloudflare D1 are separate stores. Starting local operation neither downloads nor changes Cloudflare data. The local adapter implements D1 prepared statements and transactional batches so the same Worker and migrations can run on an island server later.
 
-## Cloudflare setup
+## Cloudflare deployment
 
 Use the existing authorised account, not a temporary preview account. The configured account ID is `8ec4bbe64bddc4086162119149e37ef8`. `wrangler.jsonc` is dedicated to Worker `ready-setco` and database `ready-setco-operations`; it does not share the P4A register or identity permissions.
 
-```powershell
-npx wrangler whoami
-npx wrangler login
-npx wrangler d1 create ready-setco-operations
-```
+The existing database ID is `da54bed9-19e4-4559-91a0-605661217183`, already recorded in `wrangler.jsonc`. Keep this service and database. For automatic deployment from GitHub, follow [Automatic deployment](AUTOMATIC-DEPLOYMENT.md), using a dedicated Ready SET Co-op build token with Worker deployment and D1 Edit permissions. The production commands are `npm run build:cloudflare` and `npm run deploy`.
 
-Retain the database ID returned by the completed creation. Replace `REPLACE_WITH_PROVISIONED_DATABASE_ID` in `wrangler.jsonc` with that exact ID. If creation was already attempted, list databases and reconcile its result before creating another. Never invent an ID or use another project's database.
+For an explicitly authorised manual release from an authenticated checkout, first confirm the active account with `npx wrangler whoami`. The following commands prepare and inspect the existing service:
 
 ```powershell
 npx wrangler d1 migrations apply ready-setco-operations --remote
@@ -55,7 +51,7 @@ Before publishing real intake, set the public origin allowlist to the exact HTTP
 
 ## Administrative access
 
-Create a **new Ready SETCO Cloudflare Access application** for the deployed hostname and these private paths:
+Retain the existing Ready SETCO Cloudflare Access application. If initial Access configuration has not yet been completed, configure an application for the deployed hostname and these private paths:
 
 - `/manage.html`
 - `/manage`

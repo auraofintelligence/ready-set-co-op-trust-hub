@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { randomUUID, randomInt } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -17,6 +17,7 @@ const waitFor = async (check, description, diagnostic = () => '') => {
 };
 
 test('participant and organiser interfaces persist, retry, review and export through the real local API', { timeout: 30000 }, async () => {
+  await mkdir(path.join(root, '.local'), { recursive: true });
   const dataDirectory = await mkdtemp(path.join(root, '.local', 'interface-test-'));
   const origin = `http://127.0.0.1:${randomInt(20000, 29000)}`;
   const child = spawn(process.execPath, ['scripts/local-server.mjs'], {
@@ -152,3 +153,4 @@ test('participant and organiser interfaces persist, retry, review and export thr
     if (!relative.startsWith('..') && path.basename(dataDirectory).startsWith('interface-test-')) await rm(dataDirectory, { recursive: true, force: true });
   }
 });
+

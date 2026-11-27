@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { readFile, mkdtemp, rm } from 'node:fs/promises';
+import { readFile, mkdir, mkdtemp, rm } from 'node:fs/promises';
 import { randomUUID, randomInt } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -19,6 +19,7 @@ async function waitFor(check, description, diagnostic = () => '') {
 // Local-server startup rebuilds the shared public bundle. Run the full suite
 // with --test-concurrency=1 so the two real interface servers build in sequence.
 test('map contributor and organiser interfaces retry, publish, correct and archive through real SQLite HTTP APIs', { timeout: 30000 }, async () => {
+  await mkdir(path.join(root, '.local'), { recursive: true });
   const dataDirectory = await mkdtemp(path.join(root, '.local', 'map-interface-test-'));
   const origin = `http://127.0.0.1:${randomInt(30000, 39000)}`;
   const child = spawn(process.execPath, ['scripts/local-server.mjs'], {
@@ -239,3 +240,4 @@ test('map contributor and organiser interfaces retry, publish, correct and archi
     if (path.dirname(resolved) === allowedParent && path.basename(resolved).startsWith('map-interface-test-')) await rm(resolved, { recursive: true, force: true });
   }
 });
+

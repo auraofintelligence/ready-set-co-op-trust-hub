@@ -19,6 +19,8 @@ It is a proposed **minimum viable community for a fair go in the age of superint
 
 Both sites are maintained from this repository. The 19 November 2026 rebuild supersedes the earlier property-led front door without erasing its history. The GitHub Pages edition is not a second operational database.
 
+For automatic updates of the existing Cloudflare Worker from `main`, follow [Automatic deployment](docs/AUTOMATIC-DEPLOYMENT.md). The repository provides `npm run build:cloudflare` for checks, tests and assets, and `npm run deploy` for guarded D1 migrations followed by deployment. The Cloudflare connection and its dedicated build token must be configured once in the dashboard.
+
 The repository's original substantive build date remains 21 May 2026. The current operational rebuild began on 19 November, with map and contribution improvements on 20 November.
 
 ## Who can help shape it?
