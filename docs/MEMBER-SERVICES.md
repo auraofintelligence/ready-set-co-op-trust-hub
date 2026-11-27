@@ -6,9 +6,9 @@ Implemented 27 November 2026 in the existing `ready-setco` Worker and `ready-set
 
 1. Open `/portal.html#setup`. Generate a private setup key in your own browser and copy it.
 2. In Cloudflare, open **Workers & Pages → ready-setco → Settings → Variables and Secrets → Add**. Choose **Secret**, name it **READY_AUTH_SECRET**, paste the key, then **Deploy**.
-3. Return to the setup page, select **Check setup**, enter your own account details and create a passkey. Save the recovery codes privately.
+3. Return to the setup page, select **Check setup**, enter your own account details, then choose and confirm a password. Save the recovery codes privately.
 
-Keep `READY_AUTH_SECRET` configured after setup. The database permanently closes the initial Webmaster claim when setup succeeds. The secret value never belongs in Git, a build variable, this README or chat. The setup page generates it only on an explicit click and does not store it in browser storage. If the page is lost before configuration or setup, generate a fresh key and replace the Worker secret before trying again. After setup, use your passkey or recovery codes, not the setup key, to sign in.
+Keep `READY_AUTH_SECRET` configured after setup. The database permanently closes the initial Webmaster claim when setup succeeds. The secret value never belongs in Git, a build variable, this README or chat. The setup page generates it only on an explicit click and does not store it in browser storage. If the runtime secret is already configured, the password update needs no additional Cloudflare setting. The setup authorisation key and account password are separate. After setup, sign in with your username and password, or choose an optional passkey. Keep recovery codes privately. Once password accounts exist, changing the runtime secret requires a controlled rewrap of the encrypted server setup; see [authentication operations](MEMBER-AUTH.md).
 
 This is a runtime secret for this Worker, separate from the existing Cloudflare build API token. No change to GitHub's selected-repository permissions is needed. The current dashboard path was verified against [Cloudflare's Worker secrets documentation](https://developers.cloudflare.com/workers/configuration/secrets/) on 27 November 2026.
 
@@ -33,7 +33,7 @@ The one configured `minjerribah` listing describes the proposed pilot and accept
 
 ### A person taking part
 
-Create a passkey account, save the profile and contact choices, then apply to an open group. The application retains its submitted name/contact snapshot, consent version and initial operator. An application can be reviewed, returned for more information, accepted for participation, declined or withdrawn. Repeating an identical submission with the same UUID does not create a duplicate. Reusing it with different data produces a conflict.
+Choose a username and password, save the profile and contact choices, then apply to an open group. The application retains its submitted name/contact snapshot, consent version and initial operator. An application can be reviewed, returned for more information, accepted for participation, declined or withdrawn. Repeating an identical submission with the same UUID does not create a duplicate. Reusing it with different data produces a conflict.
 
 Accepting participation grants access to that group's information. Withdrawing that accepted application, or changing its review away from acceptance, removes the participant grant in the same database transaction. Explicit committee roles are separate and are removed by the Webmaster.
 
@@ -81,7 +81,7 @@ List responses return `page`, `pageSize`, `total` and the named collection. The 
 
 ## Records, consent and portability
 
-Migration `0005_member_accounts.sql` adds passkeys, accounts, sessions, single-use authentication challenges, recovery links/codes, throttles and authentication audit. Migration `0006_member_services.sql` adds profiles, local-group listings, group roles, applications, bulletins and immutable service history. The original four migrations and the existing intake and map records are preserved.
+Migration `0005_member_accounts.sql` adds passkeys, accounts, sessions, single-use authentication challenges, recovery links/codes, throttles and authentication audit. Migration `0006_member_services.sql` adds profiles, local-group listings, group roles, applications, bulletins and immutable service history. Migration `0007_member_passwords.sql` adds password credentials, encrypted OPAQUE setup and temporary attempts, and records the authentication method on sessions. The original four migrations and the existing intake and map records are preserved.
 
 The initial operator stays Luke Hayes trading as Strange But True in application snapshots. Updating a contact choice does not erase earlier submitted evidence or silently transfer it to a different entity. Future cooperative sharing remains an explicit choice and still requires its real handover process. No public profile directory or public member export is provided.
 
@@ -89,6 +89,6 @@ Private exports contain personal information and should remain in authorised sto
 
 ## Verification and operating limits
 
-The test suite uses real SQLite migrations and Worker requests, including real P-256 WebAuthn signatures. It checks account claims and recovery, replay denial, same-origin protections, private-record isolation, stale writes, atomic audit rollback, consent withdrawal races, role revocation, admission evidence and lists spanning more than 100 groups. Browser-interface tests cover passkey cancellation, retained edits, safe text rendering, stable retry references and portal workflows.
+The test suite uses real SQLite migrations and Worker requests, including real OPAQUE password proofs and P-256 WebAuthn signatures. It checks account claims and recovery, replay denial, same-origin protections, private-record isolation, stale writes, atomic audit rollback, consent withdrawal races, role revocation, admission evidence and lists spanning more than 100 groups. Browser-interface tests cover the default password flow, explicit optional passkey selection, cancellation, retained edits, safe text rendering, stable retry references and portal workflows.
 
-The platform is a working pilot foundation, not a claim of a deployed or load-tested 3,000-site network. Payments, payroll, statutory ballots, file storage, verified-email delivery and automatic legal handover are not implemented by this member portal. Verify real passkey use and recovery-code custody with the operator before inviting participants. Subsequent improvements should follow actual group needs without closing the substantial public information.
+The platform is a working pilot foundation, not a claim of a deployed or load-tested 3,000-site network. Payments, payroll, statutory ballots, file storage, verified-email delivery and automatic legal handover are not implemented by this member portal. Verify real password sign-in and recovery-code custody with the operator before inviting participants. Subsequent improvements should follow actual group needs without closing the substantial public information.

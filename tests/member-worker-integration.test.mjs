@@ -6,6 +6,7 @@ import {randomBytes} from 'node:crypto';
 import {createWorker} from '../cloudflare/worker.mjs';
 import {createSqliteD1} from '../scripts/sqlite-d1.mjs';
 import {createTestPasskey} from './helpers/passkeys.mjs';
+import * as opaque from '@serenity-kit/opaque';
 
 const BASE='https://ready-setco.example',NOW='2026-11-27T09:00:00.000Z';
 async function okay(response,status=200){assert.equal(response.status,status,await response.clone().text());return response.json();}
@@ -54,4 +55,53 @@ test('native committee sessions see only linked governance and lose access immed
   await okay(await owner.request(`/api/webmaster/accounts/${account.accountId}`,'PATCH',{status:'disabled',expectedVersion:account.version}));
   assert.equal((await committee.request('/api/member/profile')).status,401);
   assert.equal((await okay(await committee.request('/api/auth/session'))).authenticated,false);
+});
+
+test('password accounts use the same private member and webmaster boundaries without requesting a passkey', async t => {
+  await opaque.ready;
+  const f=fixture(t), owner=f.client(), person=f.client(), visitor=f.client();
+  const password='A fictional long phrase for testing only';
+  async function enrolPassword(client, name, webmaster=false) {
+    const purpose=webmaster?'bootstrap':'register';
+    const start=opaque.client.startRegistration({password});
+    const issued=await okay(await client.request(`/api/auth/password/${purpose}/options`,'POST',{
+      username:name, displayName:`Fictional ${name}`, email:`${name}@example.test`,
+      consentAccount:true, consentVersion:'2026-11-27', registrationRequest:start.registrationRequest,
+      ...(webmaster?{bootstrapKey:f.env.READY_AUTH_SECRET}:{}),
+    }));
+    const complete=opaque.client.finishRegistration({password,clientRegistrationState:start.clientRegistrationState,
+      registrationResponse:issued.registrationResponse,keyStretching:'memory-constrained'});
+    return okay(await client.request(`/api/auth/password/${purpose}/verify`,'POST',{
+      ceremonyId:issued.ceremonyId,registrationRecord:complete.registrationRecord,
+    }));
+  }
+  const shell=await visitor.request('/portal.html');
+  assert.match(shell.headers.get('Content-Security-Policy'),/'wasm-unsafe-eval'/);
+  assert.doesNotMatch(shell.headers.get('Content-Security-Policy'),/(?:^|\s)'unsafe-eval'/);
+  assert.match(shell.headers.get('Content-Security-Policy'),/worker-src 'self'/);
+  const admin=await enrolPassword(owner,'password.owner',true);
+  const member=await enrolPassword(person,'password.person');
+  assert.equal(admin.identity.authentication,'password');
+  assert.equal(member.identity.authentication,'password');
+  assert.equal(f.sqlite.prepare('SELECT COUNT(*) AS n FROM member_passkeys').get().n,0);
+  const session=await okay(await person.request('/api/auth/session'));
+  assert.equal(session.identity.accountId,member.identity.accountId);
+  assert.equal(session.identity.authentication,'password');
+  assert.equal(session.identity.hasPassword,true);
+  await okay(await owner.request('/api/admin/participants'));
+  await okay(await owner.request('/api/webmaster/accounts'));
+  assert.equal((await person.request('/api/admin/participants')).status,403);
+  assert.equal((await person.request('/api/webmaster/accounts')).status,403);
+  assert.equal((await visitor.request('/api/member/profile')).status,401);
+  await okay(await person.request('/api/member/profile','PATCH',{
+    displayName:'Password participant',email:'password.person@example.test',phone:'',organisation:'',
+    locality:'Fictional',about:'Private test',interests:['training'],consentContact:true,
+    consentFutureHandover:false,expectedVersion:0,
+  }));
+  const mine=await person.request('/api/member/export');
+  assert.equal(mine.status,200);
+  assert.doesNotMatch(await mine.text(),/password\.owner|registration_record|server_setup|token_hash/);
+  await okay(await person.request('/api/auth/logout','POST',{}));
+  assert.equal((await person.request('/api/member/profile')).status,401);
+  assert.ok(f.sessions.every(mode=>mode==='first-primary'));
 });

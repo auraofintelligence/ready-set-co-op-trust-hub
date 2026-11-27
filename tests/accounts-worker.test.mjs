@@ -12,7 +12,7 @@ const NOW = '2026-11-27T10:00:00.000Z';
 const consent = { consentAccount: true, consentVersion: '2026-11-27' };
 function fixture(t, { migrate = true, configured = true } = {}) {
   const sqlite = new DatabaseSync(':memory:'); sqlite.exec('PRAGMA foreign_keys=ON');
-  if (migrate) sqlite.exec(readFileSync(new URL('../migrations/0005_member_accounts.sql', import.meta.url), 'utf8'));
+  if (migrate) for (const name of ['0005_member_accounts.sql', '0007_member_passwords.sql']) sqlite.exec(readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8'));
   t.after(() => sqlite.close());
   const env = { DB: createSqliteD1(sqlite), ...(configured ? { READY_AUTH_SECRET: randomBytes(32).toString('hex') } : {}) };
   let now = NOW;

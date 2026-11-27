@@ -25,7 +25,7 @@ function json(value, status = 200, headers = {}) {
   return new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json; charset=utf-8', ...headers } });
 }
 
-function secure(response, { api = false, privatePage = false, origin, allowLocation = false } = {}) {
+function secure(response, { api = false, privatePage = false, passwordCrypto = false, origin, allowLocation = false } = {}) {
   const result = new Response(response.body, response);
   result.headers.set('X-Content-Type-Options', 'nosniff');
   result.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
@@ -36,7 +36,7 @@ function secure(response, { api = false, privatePage = false, origin, allowLocat
     result.headers.set('Pragma', 'no-cache');
     result.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
     result.headers.set('Content-Security-Policy', api ? "default-src 'none'; frame-ancestors 'none'" :
-      "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+      "default-src 'self'; script-src 'self'" + (passwordCrypto ? " 'wasm-unsafe-eval'" : '') + "; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   }
   if (origin) {
     result.headers.set('Access-Control-Allow-Origin', origin);
@@ -364,7 +364,7 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
         if (assetUrl.pathname === '/portal') assetUrl.pathname = '/portal.html';
         if (assetUrl.pathname === '/manage') assetUrl.pathname = '/manage.html';
         const assetRequest = assetUrl.href === url.href ? request : new Request(assetUrl, request);
-        return secure(await env.ASSETS.fetch(assetRequest), { privatePage:privatePage||portalPage, allowLocation: url.pathname === '/map.html' });
+        return secure(await env.ASSETS.fetch(assetRequest), { privatePage:privatePage||portalPage, passwordCrypto:portalPage, allowLocation: url.pathname === '/map.html' });
       } catch (error) {
         const known = error instanceof HttpError;
         const status = known ? error.status : 503;

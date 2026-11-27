@@ -1,6 +1,6 @@
 # Automatic deployment of the existing Cloudflare service
 
-Verified 27 November 2026: pushes to `main` now trigger the existing Cloudflare Worker automatically. The first successful automatic release deployed commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e`; all five public hub pages were checked live. See the [release evidence](../README.md#automatic-cloudflare-deployment). The later member extension adds native passkeys as an alternative to Access. One-time owner activation and an authenticated production workflow check remain separate from automatic deployment; see [member services](MEMBER-SERVICES.md).
+Verified 27 November 2026: pushes to `main` now trigger the existing Cloudflare Worker automatically. The first successful automatic release deployed commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e`; all five public hub pages were checked live. See the [release evidence](../README.md#automatic-cloudflare-deployment). The later member extension adds native username/password access with optional passkeys. Cloudflare Access remains an optional existing operator route. One-time owner activation and an authenticated production workflow check remain separate from automatic deployment; see [member services](MEMBER-SERVICES.md).
 
 ## One-time dashboard settings
 

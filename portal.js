@@ -8,6 +8,8 @@
   const state = { identity: null, profile: null, sites: [], groups: [], applications: [], committeeSites: [], accounts: [], accountTotal: 0, accountPage: 1, accountSearch: '', selectedAccount: null, selectedApplication: null, selectedSite: null, selectedGroup: '', selectedCommittee: '', selectedPost: null, roleAssignment: null, allSites: [], recoveryCodes: [], recoveryUsername: '', token: '', authMode: '', busy: false, profileDirty: false };
   const retries = new Map();
   const controls = new Map();
+  const passwordTasks = new Map();
+  let passwordWorker = null, passwordRequest = 0, authRevision = 0;
 
   function node(tag, text, className) {
     const element = document.createElement(tag);
@@ -18,6 +20,77 @@
   function field(form, name) { return form.elements.namedItem(name); }
   function value(form, name) { return field(form, name)?.value?.trim() || ''; }
   function checked(form, name) { return field(form, name)?.checked === true; }
+  function readPassword(form, name = 'password', confirm = false) {
+    const password = field(form, name).value.normalize('NFC');
+    const length = Array.from(password).length;
+    if (length < (confirm ? 15 : 1) || length > 128) throw new Error(confirm ? 'Choose a password with 15 to 128 characters.' : 'Enter your password, up to 128 characters.');
+    if (confirm && password !== field(form, 'confirmPassword').value.normalize('NFC')) throw new Error('The two passwords do not match. Check them and try again.');
+    return password;
+  }
+  function clearPasswords(form) { form.querySelectorAll('[data-account-password]').forEach(input => { input.value = ''; }); }
+  function checkAuthRevision(revision) { if (revision !== authRevision) throw new Error('Sign-in was cancelled. Please try again.'); }
+  function stopPasswordWorker(message = 'Password sign-in was interrupted. Please try again.') {
+    passwordWorker?.terminate(); passwordWorker = null;
+    for (const pending of passwordTasks.values()) { clearTimeout(pending.timer); pending.reject(new Error(message)); }
+    passwordTasks.clear();
+  }
+  function passwordTask(method, params) {
+    return new Promise((resolve, reject) => {
+      try {
+        if (!passwordWorker) {
+          passwordWorker = new Worker('/password-crypto-worker.js', { type: 'module' });
+          passwordWorker.addEventListener('message', event => {
+            const reply = event.data, pending = passwordTasks.get(reply?.id);
+            if (!pending) return;
+            clearTimeout(pending.timer); passwordTasks.delete(reply.id);
+            if (reply.ok === true) pending.resolve(reply.result);
+            else { const error = new Error(reply.error?.message || 'Password sign-in could not be completed. Please try again.'); error.code = reply.error?.code; pending.reject(error); }
+          });
+          passwordWorker.addEventListener('error', event => { event.preventDefault?.(); stopPasswordWorker('Password support did not load. Refresh this page and try again.'); });
+          passwordWorker.addEventListener('messageerror', () => stopPasswordWorker());
+        }
+        const id = String(++passwordRequest);
+        const timer = setTimeout(() => stopPasswordWorker('The password check took too long. Please try again.'), 60000);
+        passwordTasks.set(id, { resolve, reject, timer });
+        passwordWorker.postMessage({ id, method, params });
+      } catch { stopPasswordWorker('Password support did not load. Refresh this page and try again.'); reject(new Error('Password support did not load. Refresh this page and try again.')); }
+    });
+  }
+  async function passwordExchange(purpose, data, password, registration = false) {
+    if (state.passwordAvailable === false) throw new Error('Password access is being updated. Try again shortly.');
+    let stateId;
+    const method = registration ? 'registration' : 'login', revision = authRevision;
+    try {
+      const started = await passwordTask(`${method}.start`, { password }); stateId = started.stateId;
+      checkAuthRevision(revision);
+      const issued = await api(`/api/auth/password/${purpose}/options`, { method: 'POST', data: { ...data, ...(registration ? { registrationRequest: started.registrationRequest } : { startLoginRequest: started.startLoginRequest }) } });
+      checkAuthRevision(revision);
+      const finished = await passwordTask(`${method}.finish`, { stateId, ...(registration ? { registrationResponse: issued.registrationResponse } : { loginResponse: issued.loginResponse }) }); stateId = undefined;
+      checkAuthRevision(revision);
+      const result = await api(`/api/auth/password/${purpose}/verify`, { method: 'POST', data: { ceremonyId: issued.ceremonyId, ...(registration ? { registrationRecord: finished.registrationRecord } : { finishLoginRequest: finished.finishLoginRequest }) } });
+      checkAuthRevision(revision); return result;
+    } finally { if (stateId && passwordWorker && revision === authRevision) await passwordTask('cancel', { stateId }).catch(() => {}); }
+  }
+  async function withPassword(form, action, { confirm = false, name = 'password' } = {}) {
+    const password = readPassword(form, name, confirm);
+    try { return await action(password); } finally { clearPasswords(form); }
+  }
+  function updateAuthMethods() {
+    for (const [id, prefix, passwordLabel, passkeyLabel] of [['portal-register', 'register', 'Create my account', 'Create account with a passkey'], ['portal-recover', 'recover', 'Recover my account', 'Recover with a passkey'], ['portal-activate', 'activate', 'Set password and continue', 'Continue with a passkey']]) {
+      const form = $(id), passkey = checked(form, 'usePasskey');
+      $(`${prefix}-passwords`).hidden = passkey;
+      for (const name of ['password', 'confirmPassword']) { field(form, name).required = !passkey; if (passkey) field(form, name).value = ''; }
+      form.querySelector('[type="submit"]').textContent = passkey ? passkeyLabel : passwordLabel;
+    }
+  }
+  function updateSecurityAuth() {
+    const hasPassword = state.identity?.hasPassword === true;
+    $('portal-password-title').textContent = hasPassword ? 'Change your password' : 'Add a password';
+    $('portal-current-password-label').hidden = !hasPassword; field($('portal-password'), 'currentPassword').required = hasPassword;
+    $('portal-reauth-form').hidden = !hasPassword; field($('portal-reauth-form'), 'password').required = hasPassword;
+    $('portal-reauth-passkey-only').hidden = hasPassword;
+    $('portal-recovery-password').hidden = !hasPassword; field($('portal-recovery-password'), 'password').required = hasPassword;
+  }
   function date(value) {
     if (!value) return 'Not recorded';
     const result = new Date(value);
@@ -96,11 +169,12 @@
     }
   }
   function clearPrivate() {
+    authRevision++; stopPasswordWorker();
     state.identity = null; state.profile = null; state.sites = []; state.groups = []; state.applications = []; state.committeeSites = []; state.accounts = []; state.allSites = []; state.selectedAccount = null; state.selectedApplication = null; state.selectedSite = null; state.selectedGroup = ''; state.selectedCommittee = ''; state.selectedPost = null; state.roleAssignment = null; state.profileDirty = false; state.resubmission = null; state.accountEvents = []; state.reviewApplications = []; state.committeePosts = []; state.groupPosts = []; retries.clear();
     $('portal-signed-in').hidden = true; $('portal-reauth').hidden = true; document.querySelectorAll('[data-page-more]').forEach(control => control.remove());
     $('tab-committee').hidden = true; $('tab-webmaster').hidden = true;
     for (const id of ['portal-application-list', 'portal-groups-list', 'portal-post-list', 'portal-review-list', 'portal-committee-posts', 'portal-account-list', 'portal-account-roles', 'portal-audit-list', 'portal-passkey-list']) $(id).replaceChildren();
-    for (const id of ['portal-profile', 'portal-application', 'portal-review', 'portal-post', 'portal-account-state', 'portal-role', 'portal-invite', 'portal-site', 'portal-add-passkey']) $(id).reset();
+    for (const id of ['portal-profile', 'portal-application', 'portal-review', 'portal-post', 'portal-account-state', 'portal-role', 'portal-invite', 'portal-site', 'portal-add-passkey', 'portal-password', 'portal-reauth-form', 'portal-recovery-password']) $(id).reset();
     for (const id of ['portal-group-content', 'portal-committee-content', 'portal-account-editor', 'portal-review-editor', 'portal-private-link']) $(id).hidden = true;
     $('portal-private-link-value').value = ''; $('portal-account-name').textContent = ''; $('portal-account-label').textContent = '';
     for (const id of ['portal-group-name', 'portal-group-role', 'portal-group-membership', 'portal-review-applicant', 'portal-review-statement', 'portal-account-info', 'account-editor-title', 'portal-profile-meta', 'portal-private-link-help']) $(id).textContent = '';
@@ -113,7 +187,7 @@
     try { body = await response.json(); } catch { body = {}; }
     if (!response.ok) {
       const error = new Error(body.error || 'The server could not complete this request.'); error.status = response.status; error.code = body.code;
-      if (response.status === 401 && state.identity && !path.startsWith('/api/auth/login')) clearPrivate();
+      if (response.status === 401 && state.identity && !path.startsWith('/api/auth/login') && !/^\/api\/auth\/password\/(?:login|reauth|recovery-codes)\//.test(path)) clearPrivate();
       throw error;
     }
     return body;
@@ -126,7 +200,7 @@
       let message = error.message || 'The request could not be completed.';
       if (error.name === 'NotAllowedError' || error.code === 'ERROR_CEREMONY_ABORTED') message = 'The passkey step was cancelled or timed out. Nothing has been changed. You can try again.';
       else if (error.name === 'TypeError') message = 'The server did not confirm this request. Your form is still here. Check your connection before trying again.';
-      else if (error.code === 'reauthentication_required') { $('portal-reauth').hidden = false; message = 'Confirm it is you with your passkey, then repeat the action. Your form edits are still here.'; }
+      else if (error.code === 'reauthentication_required') { updateSecurityAuth(); $('portal-reauth').hidden = false; message = 'Confirm it is you above, then repeat the action. Your form edits are still here.'; }
       else if (error.status === 409) message += ' Your unsaved text is still here. Reload the latest record before trying again.';
       setStatus(message, 'error');
     } finally { setBusy(false); }
@@ -164,16 +238,20 @@
   async function ceremony(purpose, data) {
     const webauthn = window.SimpleWebAuthnBrowser;
     if (!webauthn?.startRegistration || !webauthn?.startAuthentication) throw new Error('Passkey support did not load. Refresh this page in a current browser on the Cloudflare site.');
-    const issued = await api(`/api/auth/${purpose}/options`, { method: 'POST', data });
+    const revision = authRevision, issued = await api(`/api/auth/${purpose}/options`, { method: 'POST', data });
+    checkAuthRevision(revision);
     const response = ['login', 'recovery-codes'].includes(purpose)
       ? await webauthn.startAuthentication({ optionsJSON: issued.options })
       : await webauthn.startRegistration({ optionsJSON: issued.options });
-    return api(`/api/auth/${purpose}/verify`, { method: 'POST', data: { ceremonyId: issued.ceremonyId, response } });
+    checkAuthRevision(revision);
+    const result = await api(`/api/auth/${purpose}/verify`, { method: 'POST', data: { ceremonyId: issued.ceremonyId, response } });
+    checkAuthRevision(revision); return result;
   }
   async function signedIn(result) {
     state.identity = result.identity; state.authMode = ''; state.token = ''; $('portal-unavailable').hidden = true; $('portal-signed-out').hidden = true;
     $('portal-signed-in').hidden = false; $('portal-account-name').textContent = state.identity.displayName; $('portal-account-label').textContent = `@${state.identity.username}${state.identity.webmaster ? ' · Webmaster' : ' · Private account'}`;
-    for (const id of ['portal-login', 'portal-register', 'portal-bootstrap', 'portal-recover', 'portal-activate']) $(id).reset();
+    for (const id of ['portal-login', 'portal-passkey-login', 'portal-register', 'portal-bootstrap', 'portal-recover', 'portal-activate']) $(id).reset();
+    updateAuthMethods(); updateSecurityAuth();
     showRecovery(result.recoveryCodes, state.identity.username);
     await loadMemberData(); selectPanel('profile');
   }
@@ -181,6 +259,7 @@
     $('portal-unavailable').hidden = true;
     const result = await api('/api/auth/session');
     state.authConfigured = result.authConfigured === true;
+    state.passwordAvailable = result.passwordAvailable !== false;
     if (!result.authConfigured) {
       clearPrivate();
       if (state.authMode === 'setup' && result.setupComplete !== true) { $('portal-signed-out').hidden = false; $('portal-setup-help').hidden = false; setStatus('Complete the one-time Cloudflare setting below, then create your webmaster account.'); }
@@ -190,7 +269,7 @@
     if (result.authenticated && result.identity) { await signedIn(result); setStatus('Your private portal is ready.'); return; }
     clearPrivate();
     if (state.authMode === 'setup' && (result.setupComplete === true || !result.bootstrapAvailable)) { state.authMode = ''; showAuth(); setStatus('The first webmaster account has already been established. Sign in to continue.'); }
-    else { if (state.authMode === 'setup') { $('portal-setup-help').hidden = true; setStatus('Cloudflare account setup is ready. Keep the setup key below, complete your details and create your passkey.', 'success'); } else setStatus(state.authMode ? 'Complete the private account step below.' : 'Sign in or create an account to continue.'); }
+    else { if (state.authMode === 'setup') { $('portal-setup-help').hidden = true; setStatus('Cloudflare account setup is ready. Keep the setup key below, complete your details and choose your own password.', 'success'); } else setStatus(state.authMode ? 'Complete the private account step below.' : 'Sign in or create an account to continue.'); }
   }
   function profileData() {
     const form = $('portal-profile');
@@ -403,11 +482,13 @@
   }
   async function loadPasskeys() {
     const result = await api('/api/auth/passkeys'); const list = $('portal-passkey-list'); list.replaceChildren();
+    if (state.identity && typeof result.hasPassword === 'boolean') state.identity.hasPassword = result.hasPassword;
+    updateSecurityAuth();
     const passkeys = result.passkeys || [];
-    if (!passkeys.length) { empty(list, 'No passkeys were returned for this account.'); return; }
+    if (!passkeys.length) { empty(list, 'You have not added any optional passkeys.'); return; }
     for (const key of passkeys) {
       const card = record(key.name || 'Passkey'); card.append(node('p', `Added ${date(key.createdAt)}${key.lastUsedAt ? ` · Last used ${date(key.lastUsedAt)}` : ''}`, 'portal-hint'));
-      if (passkeys.length > 1) card.append(button('Remove this passkey', () => run(async () => { await api(`/api/auth/passkeys/${encodeURIComponent(key.id)}`, { method: 'DELETE', data: {} }); clearPrivate(); clearRecovery(); }, 'The passkey has been removed and your sessions have been signed out. Use a remaining passkey to sign in.')));
+      if (passkeys.length > 1 || state.identity?.hasPassword) card.append(button('Remove this passkey', () => run(async () => { await api(`/api/auth/passkeys/${encodeURIComponent(key.id)}`, { method: 'DELETE', data: {} }); clearPrivate(); clearRecovery(); }, 'The passkey has been removed and your sessions have been signed out. Sign in with your password or a remaining passkey.')));
       list.append(card);
     }
   }
@@ -431,20 +512,40 @@
     if (event.key === 'Home') next = 0; if (event.key === 'End') next = tabs.length - 1;
     if (next !== undefined) { event.preventDefault(); tabs[next].focus(); tabs[next].click(); }
   });
-  for (const control of document.querySelectorAll('[data-auth-cancel]')) control.addEventListener('click', () => { state.authMode = ''; state.token = ''; history.replaceState(null, '', location.pathname + location.search); showAuth(); });
-  listenForm('portal-login', form => { const data = { username: value(form, 'username') }; run(async () => { await signedIn(await ceremony('login', data)); }, 'Signed in. Your private portal is ready.'); });
+  for (const control of document.querySelectorAll('[data-auth-cancel]')) control.addEventListener('click', () => { state.authMode = ''; state.token = ''; authRevision++; stopPasswordWorker(); for (const id of ['portal-bootstrap', 'portal-activate']) $(id).reset(); updateAuthMethods(); history.replaceState(null, '', location.pathname + location.search); showAuth(); });
+  for (const id of ['portal-register', 'portal-recover', 'portal-activate']) field($(id), 'usePasskey').addEventListener('change', updateAuthMethods);
+  listenForm('portal-login', form => { const data = { username: value(form, 'username') }; run(() => withPassword(form, async password => signedIn(await passwordExchange('login', data, password))), 'Signed in. Your private portal is ready.'); });
+  listenForm('portal-passkey-login', form => { const data = { username: value(form, 'username') }; run(async () => { await signedIn(await ceremony('login', data)); }, 'Signed in. Your private portal is ready.'); });
   for (const [id, purpose] of [['portal-register', 'register'], ['portal-bootstrap', 'bootstrap']]) listenForm(id, form => {
     const data = { username: value(form, 'username'), displayName: value(form, 'displayName'), email: value(form, 'email'), consentAccount: checked(form, 'consent'), consentVersion: CONSENT_VERSION };
     if (purpose === 'bootstrap') data.bootstrapKey = field(form, 'bootstrapKey').value;
-    run(async () => { await signedIn(await ceremony(purpose, data)); }, 'Your account is ready. Save your recovery codes privately.');
+    run(async () => {
+      if (purpose === 'register' && checked(form, 'usePasskey')) return signedIn(await ceremony(purpose, data));
+      await withPassword(form, async password => {
+        if (purpose === 'bootstrap' && password === data.bootstrapKey.normalize('NFC')) throw new Error('Choose your own password, separate from the one-time setup authorisation key.');
+        await signedIn(await passwordExchange(purpose, data, password, true));
+      }, { confirm: true });
+    }, 'Your account is ready. Save your recovery codes privately.');
   });
-  listenForm('portal-recover', form => { const data = { username: value(form, 'username'), recoveryCode: value(form, 'recoveryCode') }; run(async () => { await signedIn(await ceremony('recover', data)); }, 'Your account has been recovered with a new passkey. Save the new recovery codes.'); });
-  listenForm('portal-activate', () => run(async () => {
+  listenForm('portal-recover', form => {
+    const data = { username: value(form, 'username'), recoveryCode: value(form, 'recoveryCode') }, passkey = checked(form, 'usePasskey');
+    run(() => passkey ? ceremony('recover', data).then(signedIn) : withPassword(form, async password => signedIn(await passwordExchange('recover', data, password, true)), { confirm: true }), passkey ? 'Your account has been recovered with a new passkey. Save the new recovery codes.' : 'Your account has been recovered with your new password. Save the new recovery codes.');
+  });
+  listenForm('portal-activate', form => run(async () => {
     if (!state.token) throw new Error('Open the complete private account link supplied by your organiser.');
-    const result = await ceremony(state.authMode === 'recover' ? 'recover' : 'activate', { token: state.token, ...(state.authMode === 'recover' ? {} : { consentAccount: checked($('portal-activate'), 'consent'), consentVersion: CONSENT_VERSION }) }); await signedIn(result);
-  }, 'Your passkey is ready. Save your recovery codes privately.'));
-  $('portal-reauth-button').addEventListener('click', () => run(async () => { const result = await ceremony('login', { username: state.identity.username }); state.identity = result.identity; $('portal-reauth').hidden = true; }, 'Identity confirmed. You can now repeat your account action.'));
-  $('portal-renew-codes').addEventListener('click', () => run(async () => { const result = await ceremony('recovery-codes', {}); state.identity = result.identity; showRecovery(result.recoveryCodes, state.identity.username); }, 'Your old recovery codes have been replaced. Save the new codes privately.'));
+    if (checked(form, 'usePasskey')) return signedIn(await ceremony(state.authMode === 'recover' ? 'recover' : 'activate', { token: state.token, ...(state.authMode === 'recover' ? {} : { consentAccount: checked(form, 'consent'), consentVersion: CONSENT_VERSION }) }));
+    await withPassword(form, async password => {
+      const result = await passwordExchange(state.authMode === 'recover' ? 'recover' : 'activate', { token: state.token, ...(state.authMode === 'recover' ? {} : { consentAccount: checked(form, 'consent'), consentVersion: CONSENT_VERSION }) }, password, true); await signedIn(result);
+    }, { confirm: true });
+  }, checked(form, 'usePasskey') ? 'Your passkey is ready. Save your recovery codes privately.' : 'Your password is ready. Save your recovery codes privately.'));
+  listenForm('portal-reauth-form', form => run(() => withPassword(form, async password => { const result = await passwordExchange('reauth', {}, password); state.identity = result.identity; updateSecurityAuth(); $('portal-reauth').hidden = true; }), 'Identity confirmed. You can now repeat your account action.'));
+  $('portal-reauth-button').addEventListener('click', () => run(async () => { const result = await ceremony('login', { username: state.identity.username }); state.identity = result.identity; updateSecurityAuth(); $('portal-reauth').hidden = true; }, 'Identity confirmed. You can now repeat your account action.'));
+  listenForm('portal-recovery-password', form => run(() => withPassword(form, async password => { const result = await passwordExchange('recovery-codes', {}, password); state.identity = result.identity; updateSecurityAuth(); showRecovery(result.recoveryCodes, state.identity.username); }), 'Your old recovery codes have been replaced. Save the new codes privately.'));
+  $('portal-renew-codes-passkey').addEventListener('click', () => run(async () => { const result = await ceremony('recovery-codes', {}); state.identity = result.identity; updateSecurityAuth(); showRecovery(result.recoveryCodes, state.identity.username); }, 'Your old recovery codes have been replaced. Save the new codes privately.'));
+  listenForm('portal-password', form => run(() => withPassword(form, async password => {
+    if (state.identity.hasPassword) { const result = await passwordExchange('reauth', {}, readPassword(form, 'currentPassword')); state.identity = result.identity; }
+    const result = await passwordExchange('change', {}, password, true); state.identity = result.identity; updateSecurityAuth(); $('portal-reauth').hidden = true; showRecovery(result.recoveryCodes, state.identity.username);
+  }, { confirm: true }), 'Your password has been saved. Save the new recovery codes privately.'));
   $('portal-generate-key').addEventListener('click', () => {
     if (state.busy || state.authMode !== 'setup') return;
     const key = [...crypto.getRandomValues(new Uint8Array(32))].map(byte => byte.toString(16).padStart(2, '0')).join('');
@@ -530,7 +631,7 @@
     await api('/api/auth/passkeys/verify', { method: 'POST', data: { ceremonyId: issued.ceremonyId, response } }); form.reset(); await loadPasskeys();
   }, 'The new passkey has been added.'));
   $('portal-revoke-sessions').addEventListener('click', () => run(async () => { await api('/api/auth/sessions/revoke', { method: 'POST', data: {} }); clearPrivate(); clearRecovery(); }, 'All your sessions have been signed out.'));
-  window.addEventListener('pagehide', () => { state.token = ''; state.authMode = ''; clearPrivate(); for (const id of ['portal-login', 'portal-register', 'portal-bootstrap', 'portal-recover', 'portal-activate']) $(id).reset(); });
+  window.addEventListener('pagehide', () => { state.token = ''; state.authMode = ''; clearPrivate(); for (const id of ['portal-login', 'portal-passkey-login', 'portal-register', 'portal-bootstrap', 'portal-recover', 'portal-activate']) $(id).reset(); updateAuthMethods(); });
   window.addEventListener('pageshow', event => { if (event.persisted) run(loadSession); });
   readFragment();
   if (location.hostname === 'auraofintelligence.github.io') {

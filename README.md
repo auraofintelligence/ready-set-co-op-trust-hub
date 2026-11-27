@@ -6,9 +6,9 @@ ready SET Co-op (Ready SETCO in earlier documents) is a proposed member-owned co
 
 It is a proposed **minimum viable community for a fair go in the age of superintelligence**: start with the people, capabilities, equipment and coordination that a community needs, then repeat the useful foundations in other places with locally chosen priorities and peer relationships. The long-term direction is Joyful Responsible Abundance, not a centrally imposed community programme.
 
-**Open information and private participation, 27 November 2026:** the five-page formation and governance hub remains open on the existing Cloudflare site. This repository now also contains a passkey member portal, durable personal profiles and applications, local group notices, committee permissions and Webmaster account controls. The directory contains 22 entries: the same 20 public information pages, the member portal and the protected organiser workspace. Automatic deployment from `main` updates the existing Worker and database.
+**Open information and private participation, 27 November 2026:** the five-page formation and governance hub remains open on the existing Cloudflare site. This repository also contains a member portal with username and password as the default, optional passkeys, durable personal profiles and applications, local group notices, committee permissions and Webmaster account controls. The directory contains 22 entries: the same 20 public information pages, the member portal and the protected organiser workspace. Automatic deployment from `main` updates the existing Worker and database.
 
-**Initial account activation:** native member access requires one private Worker secret, `READY_AUTH_SECRET`, and the owner's one-time setup at [the member portal](https://ready-setco.auraofintelligence.workers.dev/portal.html#setup). Setup creates the first Webmaster only after a verified passkey ceremony and permanently closes that bootstrap route. No credentials or member accounts are seeded. See [member access and operations](docs/MEMBER-SERVICES.md). A successful source deployment does not establish that the owner has completed activation.
+**Initial account activation:** native member access requires one private Worker runtime secret, `READY_AUTH_SECRET`, and the owner's one-time setup at [the member portal](https://ready-setco.auraofintelligence.workers.dev/portal.html#setup). The setup authorisation key and the owner's chosen account password are separate. Setup creates the first Webmaster and permanently closes that bootstrap route. A password manager, Microsoft or Google account, fingerprint and face scan are not required. No credentials or member accounts are seeded. See [member access and operations](docs/MEMBER-SERVICES.md). A successful source deployment does not establish that the owner has completed activation.
 
 Strange But True is the initial sole trader operator. ready SET Co-op remains proposed; cooperative formation, formal member admission, employment arrangements and service handovers require their actual decisions and agreements.
 
@@ -142,7 +142,7 @@ The [community media pathway](docs/COMMUNITY-MEDIA-PATHWAY.md) proposes separate
 
 | Area | Working implementation |
 | --- | --- |
-| Accounts | Passkey registration and sign-in, multiple passkeys, eight-hour private sessions, one-use recovery codes, manual invitations and recovery links, account disable and session revocation |
+| Accounts | Username and password registration and sign-in by default, optional passkeys, password changes, eight-hour private sessions, one-use recovery codes, manual invitations and recovery links, account disable and session revocation |
 | Personal records | Own profile, contact and future-handover consent, versioned updates and own-data export |
 | Participation | Apply to a published local group, track responses, supply requested information, withdraw, and read saved history |
 | Local groups | Private notices, meeting information and document links; committee authoring and archival |
@@ -150,7 +150,9 @@ The [community media pathway](docs/COMMUNITY-MEDIA-PATHWAY.md) proposes separate
 | Webmaster | Manage accounts, local group listings and scoped access; use existing intake, map review and formation tools |
 | Public information | The same substantial guides, law sources, planner and public participation form remain open without signing in |
 
-Device authentication uses the browser's passkey prompt. Biometric information and device PINs stay with the authenticator. Recovery and invitation links are prepared inside the authorised portal; this release does not send emails. Contact email is not treated as verified identity. Group access, software account status, an admission record and current legal/voting rights are separate concepts.
+People choose and type their own password. Passkeys are an explicit optional choice; visiting the page or choosing the normal password flow does not request device authentication. A browser may independently offer to save a password, but accepting that offer is not required. Recovery and invitation links are prepared inside the authorised portal; this release does not send emails. Contact email is not treated as verified identity. Group access, software account status, an admission record and current legal/voting rights are separate concepts.
+
+Password authentication uses the standard OPAQUE protocol with client-side Argon2id hardening. The server stores a password registration record, not the typed password. The existing runtime secret protects the server's persistent protocol setup in D1; there is no additional authentication service or manual secret to configure. See [authentication details and key rotation constraints](docs/MEMBER-AUTH.md) before moving or changing server credentials.
 
 Read [the service and API guide](docs/MEMBER-SERVICES.md) and [authentication details](docs/MEMBER-AUTH.md). Accounts are initially operated by Strange But True. Later sharing or transfer to a cooperative still needs the recorded consent and agreed handover process.
 
@@ -174,7 +176,7 @@ The five public pages provide a twelve-step formation pathway, the three coopera
 
 The protected `manage.html#governance` implementation includes multiple formation workspaces, eleven typed record areas, reusable formation actions, revision history, actor attribution, optimistic version checks, private JSON exports and printable document packs. It now accepts native Webmaster sessions and explicit committee assignments as well as the optional existing Access route. These tools record evidence and human decisions; they do not register an entity, run a legal ballot, automatically admit a member, grant an office holder access, collect money or execute a handover.
 
-The `/api/admin/governance/*` routes enforce the signed-in account's workspace scope and same-origin rules. Native committee roles are checked when reading workspaces and inside mutation transactions; a Webmaster or configured Access organiser retains global stewardship access. Automatic deployment applies unrecorded migrations, including `0004_governance.sql`, to the existing dedicated database before deploying the Worker. No participants, memberships or legal statuses are seeded. Migrations `0005_member_accounts.sql` and `0006_member_services.sql` add account and participation services. Only a public listing for the proposed Minjerribah pilot is seeded, with no legal status, member or decision. Account activation and production authenticated verification remain distinct from deployment.
+The `/api/admin/governance/*` routes enforce the signed-in account's workspace scope and same-origin rules. Native committee roles are checked when reading workspaces and inside mutation transactions; a Webmaster or configured Access organiser retains global stewardship access. Automatic deployment applies unrecorded migrations, including `0004_governance.sql`, to the existing dedicated database before deploying the Worker. No participants, memberships or legal statuses are seeded. Migrations `0005_member_accounts.sql` and `0006_member_services.sql` add account and participation services; `0007_member_passwords.sql` adds password authentication to the same accounts. Only a public listing for the proposed Minjerribah pilot is seeded, with no legal status, member or decision. Account activation and production authenticated verification remain distinct from deployment.
 
 Native committee access is assigned per local group and extends to that group's linked governance workspace. Participants can read their own records and notices from groups they are allowed to access. Webmasters and configured legacy Access organisers remain trusted global operators. Pagination and scoped queries support growth without treating the proposed 3,000-site network as an already deployed or load-tested installation. Separate community deployments and data custody remain available choices. Read [the governance API and data model](docs/GOVERNANCE-API.md) and [the implementation matrix](docs/FORMATION-GOVERNANCE-HUB.md).
 
@@ -209,10 +211,10 @@ Each handover retains the original operator, receiving legal entity, approved sc
 | Formation pages and tools | `scripts/build-formation-pages.mjs` maintains the five pages; `formation-data.js`, `formation.js` and `formation.css` hold the public guidance, planner and presentation |
 | Private organiser interface | `manage.html`, `manage.js` and `governance-workspace.js` / `.css`; production access awaits configuration |
 | Cloudflare Worker | `cloudflare/worker.mjs`, shared HTTP API and protected asset routes |
-| Member accounts and services | `cloudflare/accounts.mjs`, `cloudflare/member-services.mjs`, `portal.html/js/css`, migrations `0005` and `0006`; passkeys, sessions, recovery, profiles, applications, local roles and notices |
+| Member accounts and services | `cloudflare/accounts.mjs`, `cloudflare/member-services.mjs`, `portal.html/js/css`, migrations `0005` through `0007`; passwords, optional passkeys, sessions, recovery, profiles, applications, local roles and notices |
 | Records and private governance | `cloudflare/repository.mjs`, `cloudflare/map-records.mjs` and `cloudflare/governance.mjs`, using SQLite-compatible queries and transactions |
 | Persistent database | Dedicated D1 database `ready-setco-operations`, bound as `DB` |
-| Migrations | `migrations/0001_intake.sql` through `0004_governance.sql`, tracked by Wrangler |
+| Migrations | `migrations/0001_intake.sql` through `0007_member_passwords.sql`, tracked by Wrangler |
 | Local operation | Node.js 24+ native SQLite and loopback-only server using the same Worker interfaces |
 | Static deployment | Allowlisted `dist/` bundle built by `scripts/build.mjs`; private data, server source and local credentials excluded |
 | Production deployment | `wrangler.jsonc`, `scripts/check-deploy-target.mjs` and the `build:cloudflare` / `deploy` package scripts |
@@ -307,7 +309,7 @@ These connections describe research, implementation lineage or potential coopera
 
 ## Further development and decisions
 
-- Activate the first native Webmaster with the one private Worker secret, then verify real passkey sign-in, recovery-code custody, account revocation, member applications and scoped committee access. Cloudflare Access remains optional.
+- Activate the first native Webmaster with the one private Worker secret and a separately chosen password, then verify sign-in, recovery-code custody, account revocation, member applications and scoped committee access. Passkeys and Cloudflare Access remain optional.
 - Confirm the live governance schema and complete an approved live intake/receipt check; retain the distinction between a successful public deployment and verified private operations.
 - Establish the founding group and agree legal registration, primary activity, membership, employer/contract arrangements, insurance, safety, training and financial responsibilities.
 - Agree which services and assets may transfer from SBT, especially the proposed Noticeboard first project, with consent and a documented decision.

@@ -3,6 +3,7 @@ import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { generateMapIcons } from './generate-map-icons.mjs';
 import { build } from 'esbuild';
+import { preparePasswordRuntime } from './prepare-password-runtime.mjs';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const publicNames = new Set(['robots.txt', 'sitemap.xml', 'site.webmanifest', 'LICENCE.md']);
@@ -56,6 +57,7 @@ export async function buildSite() {
   await mkdir(path.join(destination, 'vendor'), { recursive: true });
   await build({ entryPoints:[path.join(projectRoot,'node_modules/@simplewebauthn/browser/esm/index.js')], bundle:true, minify:true, format:'iife', globalName:'SimpleWebAuthnBrowser', target:['es2020'], outfile:path.join(destination,'vendor/simplewebauthn-browser.js'), legalComments:'eof' });
   await cp(path.join(projectRoot,'node_modules/@simplewebauthn/browser/LICENSE.md'),path.join(destination,'vendor/SimpleWebAuthn-LICENSE.md'));
+  await preparePasswordRuntime({ browserDirectory: path.join(destination, 'vendor') });
 
   const count = await countFiles(destination);
   console.log(`Built ${count} public files in dist. Private records and server files are excluded.`);

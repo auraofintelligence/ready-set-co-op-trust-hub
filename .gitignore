@@ -1,5 +1,6 @@
 .qa-*.png
 node_modules/
+cloudflare/vendor/
 dist/
 .wrangler/
 .local/
@@ -7,3 +8,4 @@ dist/
 .dev.vars.*
 .env
 .env.*
+

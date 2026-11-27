@@ -16,7 +16,7 @@ for (const directory of ['scripts', 'cloudflare']) {
     if (entry.isFile() && /\.mjs$/.test(entry.name)) sourceFiles.push(path.join(root, directory, entry.name));
   }
 }
-for (const name of ['join.js', 'manage.js', 'portal.js', 'operations-config.js', 'script.js', 'map.js', 'map-icons.js', 'reading.js', 'translation.js', 'formation-data.js', 'formation.js', 'governance-workspace.js']) {
+for (const name of ['join.js', 'manage.js', 'portal.js', 'password-crypto-worker.js', 'operations-config.js', 'script.js', 'map.js', 'map-icons.js', 'reading.js', 'translation.js', 'formation-data.js', 'formation.js', 'governance-workspace.js']) {
   await readFile(path.join(root, name));
   sourceFiles.push(path.join(root, name));
 }

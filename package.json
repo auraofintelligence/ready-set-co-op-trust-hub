@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
+    "prepare:password": "node scripts/prepare-password-runtime.mjs",
     "build:cloudflare": "npm run check && npm test && npm run build",
     "deploy": "node scripts/check-deploy-target.mjs && wrangler d1 migrations apply ready-setco-operations --remote && wrangler deploy --keep-vars",
     "test": "node --test --test-concurrency=1",
@@ -19,6 +20,7 @@
     "check": "node scripts/check.mjs"
   },
   "dependencies": {
+    "@serenity-kit/opaque": "1.1.0",
     "@simplewebauthn/browser": "14.0.0",
     "@simplewebauthn/server": "14.1.0",
     "jose": "^6.0.0"
@@ -26,6 +28,7 @@
   "devDependencies": {
     "esbuild": "0.28.1",
     "jsdom": "^26.1.0",
+    "miniflare": "5.20260801.0-alpha",
     "wrangler": "4.119.0"
   }
 }

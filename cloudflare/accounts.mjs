@@ -2,6 +2,7 @@ import {
   generateRegistrationOptions, verifyRegistrationResponse,
   generateAuthenticationOptions, verifyAuthenticationResponse,
 } from '@simplewebauthn/server';
+import { getPasswordRuntime } from './password-runtime.mjs';
 
 const CONSENT_VERSION = '2026-11-27';
 const SESSION_SECONDS = 8 * 60 * 60;
@@ -123,8 +124,8 @@ function mutation(request, origin) {
 }
 function trustedExternal(identity) { return identity?.webmaster === true && ['access', 'local'].includes(identity.authentication); }
 function requireNative(identity, now, recent = false) {
-  if (!identity || identity.authentication !== 'passkey' || identity.status !== 'active') fail(401, 'sign_in_required', 'Sign in to your account first.');
-  if (recent && (!identity.sessionCreatedAt || Date.parse(now) - Date.parse(identity.sessionCreatedAt) > CEREMONY_SECONDS * 1000)) fail(403, 'reauthentication_required', 'Sign in with your passkey again before changing account security.');
+  if (!identity || !['passkey', 'password'].includes(identity.authentication) || identity.status !== 'active') fail(401, 'sign_in_required', 'Sign in to your account first.');
+  if (recent && (!identity.sessionCreatedAt || Date.parse(now) - Date.parse(identity.sessionCreatedAt) > CEREMONY_SECONDS * 1000)) fail(403, 'reauthentication_required', 'Confirm your sign-in again before changing account security.');
 }
 function requireWebmaster(identity, now, recent = false) {
   if (!identity) fail(401, 'sign_in_required', 'Sign in to your account first.');
@@ -147,14 +148,14 @@ function rowIdentity(row, session = {}) {
   return { accountId: row.id, username: row.username, displayName: row.display_name, email: row.email,
     emailVerified: false, webmaster: row.webmaster === 1, status: row.status, version: row.version,
     createdAt: row.created_at, updatedAt: row.updated_at, lastLoginAt: row.last_login_at,
-    authVersion: row.auth_version, authentication: 'passkey', ...session };
+    authVersion: row.auth_version, authentication: row.session_authentication ?? 'passkey', hasPassword: Boolean(row.has_password), ...session };
 }
 export function publicAccount(value) {
   if (!value) return null;
   const v = value.id ? rowIdentity(value) : value;
   return { accountId: v.accountId, username: v.username, displayName: v.displayName, email: v.email,
     emailVerified: false, webmaster: Boolean(v.webmaster), status: v.status, version: v.version,
-    createdAt: v.createdAt, updatedAt: v.updatedAt, lastLoginAt: v.lastLoginAt ?? null, authentication: v.authentication ?? 'passkey' };
+    createdAt: v.createdAt, updatedAt: v.updatedAt, lastLoginAt: v.lastLoginAt ?? null, authentication: v.authentication ?? 'passkey', hasPassword: Boolean(v.hasPassword) };
 }
 export async function resolveAccountSession(request, env, { now } = {}) {
   let loc; try { loc = location(request, env); } catch { return null; }
@@ -162,7 +163,7 @@ export async function resolveAccountSession(request, env, { now } = {}) {
   if (!token || !TOKEN.test(token) || !secret(env) || !env.DB?.prepare) return null;
   try {
     const hash = await digest(token);
-    const row = await env.DB.prepare("SELECT a.*,s.created_at AS session_created_at FROM member_sessions s JOIN member_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.expires_at>? AND a.status='active' AND s.auth_version=a.auth_version")
+    const row = await env.DB.prepare("SELECT a.*,s.created_at AS session_created_at,s.authentication AS session_authentication,EXISTS(SELECT 1 FROM member_passwords p WHERE p.account_id=a.id AND p.revoked_at IS NULL) AS has_password FROM member_sessions s JOIN member_accounts a ON a.id=s.account_id WHERE s.token_hash=? AND s.expires_at>? AND a.status='active' AND s.auth_version=a.auth_version")
       .bind(hash, iso(now)).first();
     return row ? rowIdentity(row, { sessionHash: hash, sessionCreatedAt: row.session_created_at }) : null;
   } catch (error) { if (missingSchema(error)) return null; throw error; }
@@ -207,18 +208,23 @@ function codeStatements(db, accountId, codes, now, guard) {
   return codes.map(code => db.prepare('INSERT INTO member_recovery_codes(id,account_id,code_hash,created_at) SELECT ?,?,?,? WHERE ' + guard.sql)
     .bind(code.id, accountId, code.hash, now, ...guard.values));
 }
-function revokeStatements(db, id, now, guard, { passkeys = false, codes = false, links = false, sessions = false } = {}) {
+function revokeStatements(db, id, now, guard, { passkeys = false, passwords = false, codes = false, links = false, sessions = false } = {}) {
   const result = [];
   if (passkeys) result.push(db.prepare('UPDATE member_passkeys SET revoked_at=? WHERE account_id=? AND revoked_at IS NULL AND ' + guard.sql).bind(now, id, ...guard.values));
+  if (passwords) result.push(db.prepare('UPDATE member_passwords SET revoked_at=? WHERE account_id=? AND revoked_at IS NULL AND ' + guard.sql).bind(now, id, ...guard.values));
   if (codes) result.push(db.prepare('UPDATE member_recovery_codes SET revoked_at=? WHERE account_id=? AND used_at IS NULL AND revoked_at IS NULL AND ' + guard.sql).bind(now, id, ...guard.values));
   if (links) result.push(db.prepare('UPDATE member_auth_links SET revoked_at=? WHERE account_id=? AND redeemed_at IS NULL AND revoked_at IS NULL AND ' + guard.sql).bind(now, id, ...guard.values));
   if (sessions) result.push(db.prepare('DELETE FROM member_sessions WHERE account_id=? AND ' + guard.sql).bind(id, ...guard.values));
   return result;
 }
-async function makeSession(db, id, now, guard) {
+async function makeSession(db, id, now, guard, authentication = 'passkey') {
   const token = randomHex();
-  return { token, statement: db.prepare('INSERT INTO member_sessions(token_hash,account_id,auth_version,created_at,expires_at) SELECT ?,id,auth_version,?,? FROM member_accounts WHERE id=? AND ' + guard.sql)
-    .bind(await digest(token), now, after(now, SESSION_SECONDS), id, ...guard.values) };
+  return { token, statement: db.prepare('INSERT INTO member_sessions(token_hash,account_id,auth_version,created_at,expires_at,authentication) SELECT ?,id,auth_version,?,?,? FROM member_accounts WHERE id=? AND ' + guard.sql)
+    .bind(await digest(token), now, after(now, SESSION_SECONDS), authentication, id, ...guard.values) };
+}
+async function accountResponse(db, account, authentication = 'passkey') {
+  const hasPassword = Boolean(await db.prepare('SELECT id FROM member_passwords WHERE account_id=? AND revoked_at IS NULL').bind(account.id ?? account.accountId).first());
+  return { ...publicAccount(account), authentication, hasPassword };
 }
 function addPasskey(db, id, info, label, rpID, now, op, guard) {
   const transports = (info.credential.transports ?? []).filter(value => ['ble', 'cable', 'hybrid', 'internal', 'nfc', 'smart-card', 'usb'].includes(value));
@@ -324,9 +330,17 @@ async function verifyRegistration(request, env, identity, purpose, data, now, lo
   }
   const info = await registrationVerified(data, ceremony);
   if (await db.prepare('SELECT id FROM member_passkeys WHERE credential_id=?').bind(info.credential.id).first()) fail(409, 'passkey_exists', 'That passkey is already registered. Use another passkey.');
-  const op = crypto.randomUUID(); const cg = ceremonyGuard(ceremony.id, op); const ag = accountGuard(id, op);
-  const statements = [claimCeremony(db, ceremony, now, op)];
-  let accountIndex; const who = purpose === 'passkeys' ? actor(identity) : 'account:' + id;
+  return completeRegistration(env, identity, purpose, ceremony, now, loc, 'passkey', (op, guard) =>
+    addPasskey(db, id, info, payload.name ?? 'Passkey', ceremony.rp_id, now, op, guard));
+}
+async function completeRegistration(env, identity, purpose, ceremony, now, loc, authentication, credentialStatement) {
+  const db = env.DB, payload = ceremony.payload, id = ceremony.account_id;
+  const ownChange = purpose === 'passkeys' || purpose === 'change';
+  const op = crypto.randomUUID();
+  const cg = authentication === 'password' ? passwordCeremonyGuard(ceremony.id, op) : ceremonyGuard(ceremony.id, op);
+  const ag = accountGuard(id, op);
+  const statements = [authentication === 'password' ? claimPasswordCeremony(db, ceremony, now, op) : claimCeremony(db, ceremony, now, op)];
+  let accountIndex; const who = ownChange ? actor(identity) : 'account:' + id;
   if (purpose === 'register' || purpose === 'bootstrap') {
     accountIndex = statements.length;
     statements.push(db.prepare("INSERT INTO member_accounts(id,username,display_name,email,status,webmaster,consent_account,consent_version,created_at,updated_at,created_by,last_login_at,original_payload_json,last_operation_id) SELECT ?,?,?,?,'active',?,1,?,?,?,?,?,?,? WHERE " + cg.sql +
@@ -347,26 +361,26 @@ async function verifyRegistration(request, env, identity, purpose, data, now, lo
         .bind(now, op, payload.codeId, id, ...cg.values, ...recoveryState.values));
       gate = { sql: 'EXISTS (SELECT 1 FROM member_recovery_codes WHERE id=? AND claim_id=?)', values: [payload.codeId, op] };
     }
-    const security = purpose === 'passkeys' ? actorGuard(identity, now) : { sql: '1=1', values: [] };
+    const security = ownChange ? actorGuard(identity, now) : { sql: '1=1', values: [] };
     accountIndex = statements.length;
     statements.push(db.prepare("UPDATE member_accounts SET status='active',consent_account=1,consent_version=?,version=version+1,auth_version=auth_version+?,updated_at=?,last_login_at=?,last_operation_id=? WHERE id=? AND version=? AND auth_version=? AND status=? AND " + gate.sql + ' AND ' + security.sql +
       (purpose === 'passkeys' ? ' AND (SELECT COUNT(*) FROM member_passkeys WHERE account_id=? AND revoked_at IS NULL)<' + MAX_PASSKEYS : '') + ' RETURNING *')
       .bind(purpose === 'activate' ? payload.consentVersion : (await getAccount(db, id)).consent_version, Number(purpose !== 'passkeys'), now, now, op, id, payload.accountVersion, payload.authVersion,
         purpose === 'activate' ? 'invited' : 'active', ...gate.values, ...security.values, ...(purpose === 'passkeys' ? [id] : [])));
-    if (purpose === 'recover') statements.push(...revokeStatements(db, id, now, ag, { passkeys: true, sessions: true, codes: true, links: true }));
-    if (purpose === 'activate') statements.push(...revokeStatements(db, id, now, ag, { links: true, sessions: true, codes: true }));
+    if (purpose === 'recover') statements.push(...revokeStatements(db, id, now, ag, { passkeys: true, passwords: true, sessions: true, codes: true, links: true }));
+    if (purpose === 'change' || purpose === 'activate') statements.push(...revokeStatements(db, id, now, ag, { passwords: true, links: true, sessions: true, codes: true }));
   }
-  statements.push(addPasskey(db, id, info, payload.name ?? 'Passkey', ceremony.rp_id, now, op, ag));
+  statements.push(credentialStatement(op, ag));
   const codes = purpose === 'passkeys' ? [] : await recoveryCodes(env, id);
   statements.push(...codeStatements(db, id, codes, now, ag));
-  const session = purpose === 'passkeys' ? null : await makeSession(db, id, now, ag);
+  const session = purpose === 'passkeys' ? null : await makeSession(db, id, now, ag, authentication);
   if (session) statements.push(session.statement);
-  statements.push(audit(db, id, who, purpose === 'bootstrap' ? 'webmaster_bootstrapped' : purpose === 'passkeys' ? 'passkey_added' : 'account_' + purpose, now, {}, ag));
+  statements.push(audit(db, id, who, purpose === 'bootstrap' ? 'webmaster_bootstrapped' : purpose === 'passkeys' ? 'passkey_added' : purpose === 'change' ? 'password_changed' : 'account_' + purpose, now, { authentication }, ag));
   const result = await db.batch(statements);
   const account = rows(result[accountIndex])[0];
   if (!rows(result[0]).length) invalidCeremony();
   if (!account) conflict();
-  return json({ identity: publicAccount(account), ...(codes.length ? { recoveryCodes: codes.map(code => code.display) } : {}) }, 200,
+  return json({ identity: await accountResponse(db, account, purpose === 'passkeys' ? identity.authentication : authentication), ...(codes.length ? { recoveryCodes: codes.map(code => code.display) } : {}) }, 200,
     session ? { 'Set-Cookie': cookieHeader('session', session.token, loc.local, SESSION_SECONDS) } : {});
 }
 async function verifyAuthentication(request, env, identity, purpose, data, now, loc) {
@@ -407,8 +421,194 @@ async function verifyAuthentication(request, env, identity, purpose, data, now, 
   statements.push(audit(db, key.account_id, 'account:' + key.account_id, codes.length ? 'recovery_codes_replaced' : 'signed_in', now, {}, ag));
   const result = await db.batch(statements);
   if (!rows(result[0]).length || !rows(result[1]).length || !rows(result[2]).length) invalidCeremony();
-  return json({ identity: publicAccount(rows(result[2])[0]), ...(codes.length ? { recoveryCodes: codes.map(code => code.display) } : {}) },
+  return json({ identity: await accountResponse(db, rows(result[2])[0]), ...(codes.length ? { recoveryCodes: codes.map(code => code.display) } : {}) },
     200, { 'Set-Cookie': cookieHeader('session', session.token, loc.local, SESSION_SECONDS) });
+}
+function protocolValue(value, length) {
+  if (typeof value !== 'string' || value.length !== length || !/^[A-Za-z0-9_-]+$/.test(value)) {
+    fail(400, 'invalid_password_request', 'The password sign-in request was not valid. Try again.');
+  }
+  try {
+    const bytes = Uint8Array.from(atob(value.replaceAll('-', '+').replaceAll('_', '/')), c => c.charCodeAt(0));
+    if (base64url(bytes) !== value) throw new Error('Non-canonical protocol encoding');
+  } catch { fail(400, 'invalid_password_request', 'The password sign-in request was not valid. Try again.'); }
+  return value;
+}
+async function passwordBoxKey(env, purpose) {
+  const source = await crypto.subtle.importKey('raw', encoder.encode(requireSecret(env)), 'HKDF', false, ['deriveKey']);
+  return crypto.subtle.deriveKey({ name: 'HKDF', hash: 'SHA-256', salt: encoder.encode('ready-setco/password-storage/v1'), info: encoder.encode(purpose) }, source, { name: 'AES-GCM', length: 256 }, false, ['encrypt', 'decrypt']);
+}
+async function encryptPasswordValue(env, purpose, value, aad) {
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const encrypted = await crypto.subtle.encrypt({ name: 'AES-GCM', iv, additionalData: encoder.encode(aad), tagLength: 128 }, await passwordBoxKey(env, purpose), encoder.encode(value));
+  return 'v1.' + base64url(iv) + '.' + base64url(new Uint8Array(encrypted));
+}
+async function decryptPasswordValue(env, purpose, value, aad) {
+  if (typeof value !== 'string' || value.length > 1200 || !/^v1\.[A-Za-z0-9_-]{16}\.[A-Za-z0-9_-]+$/.test(value)) throw new Error('Invalid private password data');
+  const [, iv, ciphertext] = value.split('.');
+  const plaintext = await crypto.subtle.decrypt({ name: 'AES-GCM', iv: unbase64url(iv), additionalData: encoder.encode(aad), tagLength: 128 }, await passwordBoxKey(env, purpose), unbase64url(ciphertext));
+  return protocolValue(new TextDecoder('utf-8', { fatal: true }).decode(plaintext), 171);
+}
+async function passwordServerSetup(db, env, now, server) {
+  let row = await db.prepare('SELECT encrypted_setup FROM member_password_setup WHERE id=1').first();
+  if (!row) {
+    const created = protocolValue(server.createSetup(), 171);
+    const encrypted = await encryptPasswordValue(env, 'opaque-server-setup', created, 'ready-setco/password-setup/1');
+    await db.prepare('INSERT INTO member_password_setup(id,encrypted_setup,created_at) VALUES(1,?,?) ON CONFLICT(id) DO NOTHING').bind(encrypted, now).run();
+    // A concurrent request may have won. Always use the immutable stored winner.
+    row = await db.prepare('SELECT encrypted_setup FROM member_password_setup WHERE id=1').first();
+  }
+  try { return await decryptPasswordValue(env, 'opaque-server-setup', row?.encrypted_setup, 'ready-setco/password-setup/1'); }
+  catch { fail(503, 'password_key_unavailable', 'Password sign-in cannot read its private server key. The operator needs to restore the existing Cloudflare account secret.'); }
+}
+function passwordCeremonyAAD(ceremony) {
+  return JSON.stringify(['ready-setco/password-ceremony/v1', ceremony.id, ceremony.purpose, ceremony.origin, ceremony.account_id, ceremony.credential_id, ceremony.created_at, ceremony.expires_at]);
+}
+function passwordCeremonyGuard(id, op) { return { sql: 'EXISTS (SELECT 1 FROM member_password_ceremonies WHERE id=? AND claim_id=?)', values: [id, op] }; }
+function claimPasswordCeremony(db, ceremony, now, op) {
+  return db.prepare('UPDATE member_password_ceremonies SET consumed_at=?,claim_id=? WHERE id=? AND consumed_at IS NULL AND expires_at>? RETURNING id').bind(now, op, ceremony.id, now);
+}
+async function loadPasswordCeremony(request, env, purpose, data, now, loc) {
+  uuid(data.ceremonyId);
+  const binding = cookie(request, cookieName('password_ceremony', loc.local));
+  if (!binding || !TOKEN.test(binding)) invalidCeremony();
+  const row = await env.DB.prepare('SELECT * FROM member_password_ceremonies WHERE id=? AND purpose=? AND consumed_at IS NULL AND expires_at>? AND origin=?').bind(data.ceremonyId, purpose, now, loc.url.origin).first();
+  if (!row || !equal(row.binding_hash, await keyed(env, 'password-ceremony-binding', binding))) invalidCeremony();
+  return { ...row, payload: JSON.parse(row.payload_json) };
+}
+async function passwordRegistrationSubject(db, env, identity, purpose, data, now) {
+  let account = null, payload = {}, id;
+  if (purpose === 'register' || purpose === 'bootstrap') {
+    fields(data, ['registrationRequest', 'username', 'displayName', 'email', 'consentAccount', 'consentVersion', ...(purpose === 'bootstrap' ? ['bootstrapKey'] : [])]);
+    payload = registration(data); id = crypto.randomUUID();
+    if (purpose === 'bootstrap') {
+      const supplied = typeof data.bootstrapKey === 'string' ? data.bootstrapKey : '';
+      if (supplied.length > 128 || !equal(await keyed(env, 'bootstrap-check', supplied), await keyed(env, 'bootstrap-check', requireSecret(env)))) fail(403, 'setup_key_invalid', 'The private setup key was not accepted.');
+      if (await db.prepare('SELECT id FROM member_auth_bootstrap WHERE id=1').first()) fail(409, 'setup_closed', 'The initial webmaster has already been established.');
+    }
+    if (await db.prepare('SELECT id FROM member_accounts WHERE username=?').bind(payload.username).first()) fail(409, 'username_unavailable', 'Choose another username or sign in to the existing account.');
+  } else if (purpose === 'change') {
+    fields(data, ['registrationRequest']); requireNative(identity, now, true);
+    account = await getAccount(db, identity.accountId); id = account.id;
+    payload = { accountVersion: account.version, authVersion: account.auth_version, sessionHash: identity.sessionHash };
+  } else {
+    fields(data, ['registrationRequest', ...(purpose === 'activate' ? ['token', 'consentAccount', 'consentVersion'] : ['token', 'username', 'recoveryCode'])]);
+    if (purpose === 'activate' && (data.consentAccount !== true || data.consentVersion !== CONSENT_VERSION)) fail(400, 'account_consent_required', 'Read and accept the account privacy information before continuing.');
+    if (typeof data.token === 'string' && TOKEN.test(data.token)) {
+      if (data.username !== undefined || data.recoveryCode !== undefined) fail(400, 'invalid_fields', 'Use one recovery method at a time.');
+      const link = await db.prepare('SELECT * FROM member_auth_links WHERE token_hash=? AND purpose=? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>?')
+        .bind(await keyed(env, 'account-link', data.token), purpose === 'activate' ? 'activation' : 'recovery', now).first();
+      if (!link) fail(401, 'link_invalid', 'This private link has expired or has already been used.');
+      account = await getAccount(db, link.account_id); payload.linkId = link.id;
+    } else if (purpose === 'recover' && data.token === undefined && typeof data.recoveryCode === 'string') {
+      const name = username(data.username), code = data.recoveryCode.replace(/[\s-]/g, '').toUpperCase();
+      account = await db.prepare('SELECT * FROM member_accounts WHERE username=?').bind(name).first();
+      if (!account || !/^RSC[A-F0-9]{40}$/.test(code)) fail(401, 'recovery_invalid', 'The username and recovery code were not accepted.');
+      const saved = await db.prepare('SELECT id FROM member_recovery_codes WHERE account_id=? AND code_hash=? AND used_at IS NULL AND revoked_at IS NULL')
+        .bind(account.id, await keyed(env, 'recovery-code', account.id + '/' + code)).first();
+      if (!saved) fail(401, 'recovery_invalid', 'The username and recovery code were not accepted.');
+      payload.codeId = saved.id;
+    } else fail(401, 'link_invalid', 'Use a valid private link or recovery code.');
+    if (account.status !== (purpose === 'activate' ? 'invited' : 'active')) fail(401, 'account_unavailable', 'This account cannot use this link or recovery code.');
+    id = account.id; payload.accountVersion = account.version; payload.authVersion = account.auth_version;
+    if (purpose === 'activate') payload.consentVersion = CONSENT_VERSION;
+  }
+  return { id, payload };
+}
+async function createPasswordOptions(request, env, identity, purpose, data, now, loc) {
+  const db = env.DB, login = ['login', 'reauth', 'recovery-codes'].includes(purpose);
+  const protocol = protocolValue(login ? data.startLoginRequest : data.registrationRequest, login ? 128 : 43);
+  await throttle(db, request, env, now, 'password-' + purpose + '-options', typeof data.username === 'string' ? data.username.trim().toLowerCase().slice(0, 40) : identity?.accountId ?? '');
+  let id = null, payload = {}, password = null, registrationResponse, loginResponse, serverLoginState;
+  let userIdentifier;
+  if (login) {
+    fields(data, ['username', 'startLoginRequest']);
+    let name;
+    if (purpose !== 'login') {
+      requireNative(identity, now);
+      if (data.username !== undefined && username(data.username) !== identity.username) fail(403, 'account_mismatch', 'Confirm the password for the account currently signed in.');
+      name = identity.username;
+    } else name = username(data.username);
+    const account = await db.prepare("SELECT * FROM member_accounts WHERE username=? AND status='active'").bind(name).first();
+    if (account) {
+      id = account.id; password = await db.prepare('SELECT * FROM member_passwords WHERE account_id=? AND revoked_at IS NULL').bind(id).first();
+      payload = { accountVersion: account.version, authVersion: account.auth_version, ...(purpose === 'login' ? {} : { sessionHash: identity.sessionHash }) };
+    }
+    userIdentifier = id ?? await keyed(env, 'opaque-unknown-user', name);
+  } else {
+    ({ id, payload } = await passwordRegistrationSubject(db, env, identity, purpose, data, now));
+    userIdentifier = id;
+  }
+  const { server } = await getPasswordRuntime();
+  const serverSetup = await passwordServerSetup(db, env, now, server);
+  try {
+    if (login) ({ loginResponse, serverLoginState } = server.startLogin({ serverSetup, userIdentifier,
+      registrationRecord: password ? protocolValue(password.registration_record, 256) : null, startLoginRequest: protocol }));
+    else ({ registrationResponse } = server.createRegistrationResponse({ serverSetup, userIdentifier, registrationRequest: protocol }));
+  } catch { fail(400, 'invalid_password_request', 'The password sign-in request was not valid. Try again.'); }
+  const binding = randomHex();
+  const ceremony = { id: crypto.randomUUID(), purpose, origin: loc.url.origin, account_id: id, credential_id: password?.id ?? null, created_at: now, expires_at: after(now, CEREMONY_SECONDS) };
+  const encryptedState = login ? await encryptPasswordValue(env, 'opaque-login-state', protocolValue(serverLoginState, 171), passwordCeremonyAAD(ceremony)) : null;
+  await cleanup(db, now);
+  await db.batch([
+    db.prepare('DELETE FROM member_password_ceremonies WHERE id IN (SELECT id FROM member_password_ceremonies WHERE expires_at<=? LIMIT 100)').bind(now),
+    db.prepare('INSERT INTO member_password_ceremonies(id,purpose,binding_hash,origin,account_id,credential_id,encrypted_login_state,payload_json,created_at,expires_at) VALUES(?,?,?,?,?,?,?,?,?,?)')
+      .bind(ceremony.id, purpose, await keyed(env, 'password-ceremony-binding', binding), ceremony.origin, id, ceremony.credential_id, encryptedState, JSON.stringify(payload), now, ceremony.expires_at),
+  ]);
+  return json({ ceremonyId: ceremony.id, ...(login ? { loginResponse: protocolValue(loginResponse, 427) } : { registrationResponse: protocolValue(registrationResponse, 86) }) }, 200,
+    { 'Set-Cookie': cookieHeader('password_ceremony', binding, loc.local, CEREMONY_SECONDS) });
+}
+async function verifyPasswordRegistration(request, env, identity, purpose, data, now, loc) {
+  fields(data, ['ceremonyId', 'registrationRecord']); const record = protocolValue(data.registrationRecord, 256);
+  const ceremony = await loadPasswordCeremony(request, env, purpose, data, now, loc), id = ceremony.account_id;
+  if (purpose === 'change') {
+    requireNative(identity, now, true);
+    if (identity.accountId !== id || identity.sessionHash !== ceremony.payload.sessionHash) invalidCeremony();
+  }
+  return completeRegistration(env, identity, purpose, ceremony, now, loc, 'password', (op, guard) =>
+    env.DB.prepare('INSERT INTO member_passwords(id,account_id,registration_record,created_at,last_operation_id) SELECT ?,?,?,?,? WHERE ' + guard.sql)
+      .bind(crypto.randomUUID(), id, record, now, op, ...guard.values));
+}
+async function verifyPasswordLogin(request, env, identity, purpose, data, now, loc) {
+  fields(data, ['ceremonyId', 'finishLoginRequest']); const finishLoginRequest = protocolValue(data.finishLoginRequest, 86);
+  const db = env.DB, ceremony = await loadPasswordCeremony(request, env, purpose, data, now, loc), payload = ceremony.payload;
+  if (purpose !== 'login') {
+    requireNative(identity, now);
+    if (identity.accountId !== ceremony.account_id || identity.sessionHash !== payload.sessionHash) invalidCeremony();
+  }
+  let serverLoginState;
+  try { serverLoginState = await decryptPasswordValue(env, 'opaque-login-state', ceremony.encrypted_login_state, passwordCeremonyAAD(ceremony)); }
+  catch { invalidCeremony(); }
+  const { server } = await getPasswordRuntime();
+  let verified = false;
+  try { verified = typeof server.finishLogin({ serverLoginState, finishLoginRequest })?.sessionKey === 'string'; } catch { /* Wrong password proof is an ordinary failed sign-in. */ }
+  if (!verified || !ceremony.account_id || !ceremony.credential_id) {
+    await claimPasswordCeremony(db, ceremony, now, crypto.randomUUID()).run();
+    fail(401, 'password_invalid', 'The username and password were not accepted.');
+  }
+  const id = ceremony.account_id, op = crypto.randomUUID(), cg = passwordCeremonyGuard(ceremony.id, op), ag = accountGuard(id, op);
+  const security = purpose === 'login' ? { sql: '1=1', values: [] } : actorGuard(identity, now);
+  const rotate = purpose === 'recovery-codes';
+  const statements = [
+    claimPasswordCeremony(db, ceremony, now, op),
+    db.prepare("UPDATE member_accounts SET last_login_at=?,updated_at=?,last_operation_id=?,version=version+?,auth_version=auth_version+? WHERE id=? AND version=? AND auth_version=? AND status='active' AND " + cg.sql +
+      ' AND EXISTS(SELECT 1 FROM member_passwords WHERE id=? AND account_id=? AND revoked_at IS NULL) AND ' + security.sql + ' RETURNING *')
+      .bind(now, now, op, Number(rotate), Number(rotate), id, payload.accountVersion, payload.authVersion, ...cg.values, ceremony.credential_id, id, ...security.values),
+    db.prepare('UPDATE member_passwords SET last_used_at=?,last_operation_id=? WHERE id=? AND revoked_at IS NULL AND ' + ag.sql).bind(now, op, ceremony.credential_id, ...ag.values),
+  ];
+  const codes = rotate ? await recoveryCodes(env, id) : [];
+  if (rotate) {
+    statements.push(...revokeStatements(db, id, now, ag, { codes: true, sessions: true }));
+    statements.push(...codeStatements(db, id, codes, now, ag));
+  } else if (purpose === 'reauth') {
+    statements.push(db.prepare('DELETE FROM member_sessions WHERE token_hash=? AND ' + ag.sql).bind(identity.sessionHash, ...ag.values));
+  }
+  const session = await makeSession(db, id, now, ag, 'password'); statements.push(session.statement);
+  statements.push(audit(db, id, 'account:' + id, rotate ? 'recovery_codes_replaced' : purpose === 'reauth' ? 'identity_reconfirmed' : 'signed_in', now, { authentication: 'password' }, ag));
+  const result = await db.batch(statements), account = rows(result[1])[0];
+  if (!rows(result[0]).length || !account) invalidCeremony();
+  return json({ identity: await accountResponse(db, account, 'password'), ...(codes.length ? { recoveryCodes: codes.map(code => code.display) } : {}) }, 200,
+    { 'Set-Cookie': cookieHeader('session', session.token, loc.local, SESSION_SECONDS) });
 }
 function pagination(url) {
   const page = Number(url.searchParams.get('page') ?? 1); const pageSize = Number(url.searchParams.get('pageSize') ?? 25);
@@ -449,7 +649,7 @@ async function manageAccount(db, env, identity, accountId, operation, data, now)
     if (data.status !== undefined && !['active', 'disabled'].includes(data.status)) fail(400, 'invalid_status', 'An account may be active or disabled.');
     if (data.webmaster !== undefined && typeof data.webmaster !== 'boolean') fail(400, 'invalid_role', 'Choose whether this account is a webmaster.');
     const status = data.status ?? account.status; const webmaster = data.webmaster === undefined ? account.webmaster : Number(data.webmaster);
-    if (account.status === 'invited' && status !== 'invited') fail(400, 'activation_required', 'The invited person must activate their own account using a passkey.');
+    if (account.status === 'invited' && status !== 'invited') fail(400, 'activation_required', 'The invited person must activate their own account.');
     if (webmaster && status !== 'active' && !(account.webmaster && data.webmaster === undefined)) fail(400, 'active_account_required', 'Activate the account before assigning webmaster access.');
     const removingLast = account.status === 'active' && account.webmaster === 1 && (status !== 'active' || !webmaster);
     if (removingLast && !(await db.prepare("SELECT id FROM member_accounts WHERE status='active' AND webmaster=1 AND id<>? LIMIT 1").bind(accountId).first())) fail(409, 'last_webmaster', 'Keep at least one active webmaster.');
@@ -484,12 +684,13 @@ async function ownRevoke(db, identity, now, keyId = null) {
     const key = await db.prepare('SELECT id FROM member_passkeys WHERE id=? AND account_id=? AND revoked_at IS NULL').bind(keyId, identity.accountId).first();
     if (!key) fail(404, 'passkey_not_found', 'The passkey was not found.');
     const count = await db.prepare('SELECT COUNT(*) AS total FROM member_passkeys WHERE account_id=? AND revoked_at IS NULL').bind(identity.accountId).first();
-    if (count.total <= 1) fail(409, 'last_passkey', 'Add another passkey before removing this one.');
+    const password = await db.prepare('SELECT id FROM member_passwords WHERE account_id=? AND revoked_at IS NULL').bind(identity.accountId).first();
+    if (count.total <= 1 && !password) fail(409, 'last_passkey', 'Add a password or another passkey before removing your last sign-in method.');
   }
   const statements = [
     db.prepare('UPDATE member_accounts SET auth_version=auth_version+1,version=version+1,updated_at=?,last_operation_id=? WHERE id=? AND ' + security.sql +
-      (keyId ? ' AND (SELECT COUNT(*) FROM member_passkeys WHERE account_id=? AND revoked_at IS NULL)>1 AND EXISTS (SELECT 1 FROM member_passkeys WHERE id=? AND account_id=? AND revoked_at IS NULL)' : '') + ' RETURNING id')
-      .bind(now, op, identity.accountId, ...security.values, ...(keyId ? [identity.accountId, keyId, identity.accountId] : [])),
+      (keyId ? ' AND ((SELECT COUNT(*) FROM member_passkeys WHERE account_id=? AND revoked_at IS NULL)>1 OR EXISTS(SELECT 1 FROM member_passwords WHERE account_id=? AND revoked_at IS NULL)) AND EXISTS (SELECT 1 FROM member_passkeys WHERE id=? AND account_id=? AND revoked_at IS NULL)' : '') + ' RETURNING id')
+      .bind(now, op, identity.accountId, ...security.values, ...(keyId ? [identity.accountId, identity.accountId, keyId, identity.accountId] : [])),
   ];
   if (keyId) statements.push(db.prepare('UPDATE member_passkeys SET revoked_at=? WHERE id=? AND account_id=? AND revoked_at IS NULL AND ' + guard.sql).bind(now, keyId, identity.accountId, ...guard.values));
   statements.push(...revokeStatements(db, identity.accountId, now, guard, { sessions: true }));
@@ -508,15 +709,16 @@ export async function handleAccountRequest(request, env, { identity = null, now:
       try { setupComplete = Boolean(await db.prepare('SELECT id FROM member_auth_bootstrap WHERE id=1').first()); }
       catch (error) { if (!missingSchema(error)) throw error; schemaReady = false; }
       const configured = Boolean(secret(env)) && schemaReady;
+      const passwordReady = schemaReady && (await db.prepare("SELECT COUNT(*) AS total FROM sqlite_schema WHERE type='table' AND name IN ('member_password_setup','member_passwords','member_password_ceremonies')").first()).total === 3;
       return json({ authenticated: Boolean(identity), identity: publicAccount(identity), configured, authConfigured: configured,
-        setupComplete, bootstrapAvailable: configured && !setupComplete, schemaReady });
+        setupComplete, bootstrapAvailable: configured && !setupComplete, schemaReady, passwordAvailable: configured && passwordReady });
     }
     requireSecret(env);
     if (!['GET', 'HEAD'].includes(request.method)) mutation(request, loc.url.origin);
     const body = () => (readJSON ? readJSON() : readBody(request));
     if (pathname === '/api/auth/logout' && request.method === 'POST') {
       fields(await body(), []);
-      if (identity?.authentication === 'passkey') {
+      if (['passkey', 'password'].includes(identity?.authentication)) {
         const security = actorGuard(identity, now);
         await db.batch([
           audit(db, identity.accountId, actor(identity), 'signed_out', now, {}, security),
@@ -525,7 +727,14 @@ export async function handleAccountRequest(request, env, { identity = null, now:
       }
       return json({ ok: true }, 200, { 'Set-Cookie': cookieHeader('session', '', loc.local, 0) });
     }
-    let match = /^\/api\/auth\/(register|bootstrap|activate|recover|login|passkeys|recovery-codes)\/(options|verify)$/.exec(pathname);
+    let match = /^\/api\/auth\/password\/(register|bootstrap|activate|recover|change|login|reauth|recovery-codes)\/(options|verify)$/.exec(pathname);
+    if (match && request.method === 'POST') {
+      const data = await body(), purpose = match[1];
+      if (match[2] === 'options') return await createPasswordOptions(request, env, identity, purpose, data, now, loc);
+      await throttle(db, request, env, now, 'password-verify');
+      return await (['login', 'reauth', 'recovery-codes'].includes(purpose) ? verifyPasswordLogin : verifyPasswordRegistration)(request, env, identity, purpose, data, now, loc);
+    }
+    match = /^\/api\/auth\/(register|bootstrap|activate|recover|login|passkeys|recovery-codes)\/(options|verify)$/.exec(pathname);
     if (match && request.method === 'POST') {
       const data = await body(); const purpose = match[1];
       if (match[2] === 'options') return await createOptions(request, env, identity, purpose, data, now, loc);
@@ -540,7 +749,7 @@ export async function handleAccountRequest(request, env, { identity = null, now:
       ]);
       return json({ passkeys: rows(result[0]).map(row => ({ id: row.id, name: row.label, createdAt: row.created_at,
         lastUsedAt: row.last_used_at, deviceType: row.device_type, backedUp: Boolean(row.backed_up) })),
-      recoveryCodesRemaining: rows(result[1])[0].total });
+      recoveryCodesRemaining: rows(result[1])[0].total, hasPassword: Boolean(await db.prepare('SELECT id FROM member_passwords WHERE account_id=? AND revoked_at IS NULL').bind(identity.accountId).first()) });
     }
     match = /^\/api\/auth\/passkeys\/([0-9a-f-]+)$/.exec(pathname);
     if ((match && request.method === 'DELETE') || (pathname === '/api/auth/sessions/revoke' && request.method === 'POST')) {
@@ -582,7 +791,7 @@ export async function handleAccountRequest(request, env, { identity = null, now:
     return json({ error: 'This account endpoint was not found.', code: 'not_found' }, 404);
   } catch (error) {
     if (error instanceof AccountError) return json({ error: error.message, code: error.code }, error.status);
-    if (missingSchema(error)) return json({ error: 'Account sign-in needs database migration 0005_member_accounts.sql applied to the existing database.', code: 'account_migration_required' }, 503);
+    if (missingSchema(error)) return json({ error: 'Account sign-in needs the current account database migrations applied to the existing database.', code: 'account_migration_required' }, 503);
     if (/UNIQUE constraint failed:\s*member_accounts\.(?:username|id)/i.test(String(error?.message ?? error))) return json({ error: 'This username or account identifier is already in use. Sign in or choose another username.', code: 'account_exists' }, 409);
     if (/UNIQUE constraint failed:\s*member_(?:auth_bootstrap|passkeys)/i.test(String(error?.message ?? error))) return json({ error: 'This account request was already completed. Start a fresh sign-in.', code: 'account_conflict' }, 409);
     throw error;

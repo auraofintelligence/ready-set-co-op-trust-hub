@@ -2,6 +2,9 @@
   "name": "ready-setco",
   "account_id": "8ec4bbe64bddc4086162119149e37ef8",
   "main": "cloudflare/worker.mjs",
+  "alias": {
+    "@serenity-kit/opaque": "./cloudflare/vendor/opaque-worker.mjs"
+  },
   "compatibility_date": "2026-11-19",
   "workers_dev": true,
   "preview_urls": false,

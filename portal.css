@@ -20,6 +20,8 @@
 .portal-card-tinted { background: #f2eefb; border-color: #d7c9f0; }
 .portal-auth-grid { display: grid; gap: 1.25rem; align-items: start; }
 .portal-form { display: grid; gap: 1rem; margin-top: 1.25rem; }
+.portal-password-fields { display: grid; gap: 1rem; }
+.portal-security-section { border-top: 1px solid #dbe0ed; margin-top: 1.75rem; padding-top: 1.5rem; }
 .portal-form label, .portal-field, .portal-search label, .portal-message label { display: grid; gap: .35rem; font-weight: 600; min-width: 0; }
 .portal-page :is(input, select, textarea) { width: 100%; min-width: 0; min-height: 48px; padding: .65rem .8rem; border: 1px solid #8892a7; border-radius: .4rem; background: #fff; color: #1a2440; font-size: 1rem; }
 .portal-page textarea { resize: vertical; min-height: 8rem; }

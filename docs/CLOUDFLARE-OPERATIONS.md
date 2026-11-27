@@ -51,7 +51,7 @@ Before publishing real intake, set the public origin allowlist to the exact HTTP
 
 ## Administrative access
 
-Native Webmaster and committee access is now available through `portal.html`. The shortest setup uses one private runtime secret and the one-time owner passkey flow in [MEMBER-SERVICES.md](MEMBER-SERVICES.md#activate-the-existing-service). The Access instructions below are retained as an optional legacy operator route. Do not put the public portal or its registration endpoints behind an administrator-only Access policy.
+Native Webmaster and committee access is now available through `portal.html`. The shortest setup uses one private runtime secret and the one-time owner password setup in [MEMBER-SERVICES.md](MEMBER-SERVICES.md#activate-the-existing-service). The Access instructions below are retained as an optional legacy operator route. Do not put the public portal or its registration endpoints behind an administrator-only Access policy.
 
 
 Retain the existing Ready SETCO Cloudflare Access application. If initial Access configuration has not yet been completed, configure an application for the deployed hostname and these private paths:
@@ -143,6 +143,6 @@ Source implementation and local tests do not establish production deployment. Ve
 
 ## Member account extension, 27 November 2026
 
-Automatic deployment applies additive migrations `0005_member_accounts.sql` and `0006_member_services.sql` to this same database. The portal uses WebAuthn passkeys, opaque HttpOnly sessions, single-use recovery codes and audited local-group permissions. It needs `READY_AUTH_SECRET` as a Worker runtime secret; it does not need a new database, email provider, build token or Cloudflare Access configuration. The first Webmaster must complete the owner setup personally and save the recovery codes.
+Automatic deployment applies account migrations `0005_member_accounts.sql`, `0006_member_services.sql` and `0007_member_passwords.sql` to this same database. The portal defaults to username/password authentication through OPAQUE, with optional WebAuthn passkeys, opaque HttpOnly sessions, single-use recovery codes and audited local-group permissions. It needs `READY_AUTH_SECRET` as a Worker runtime secret; it does not need a new database, email provider, build token or Cloudflare Access configuration. The first Webmaster must complete the owner setup personally and save the recovery codes.
 
-The local server accepts `READY_AUTH_SECRET` from the process environment for isolated development. Keep it outside source. Existing local organiser-token tests remain supported. A future domain or host move needs a passkey relying-party continuity or verified re-enrolment plan in addition to data portability.
+The local server accepts `READY_AUTH_SECRET` from the process environment for isolated development. Keep it outside source. Existing local organiser-token tests remain supported. Preserve the encrypted password-protocol setup with the existing runtime secret when moving hosts. A future domain change also needs relying-party continuity or verified re-enrolment for people who opted into passkeys. Do not rotate `READY_AUTH_SECRET` after passwords are enrolled without rewrapping the stored OPAQUE setup. See [authentication operations](MEMBER-AUTH.md).

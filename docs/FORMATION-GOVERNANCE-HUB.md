@@ -21,7 +21,7 @@ The public experience introduces the local purpose first, then connects it to th
 | Private workspaces | Blank community creation, locality, jurisdiction, proposed structure and formation stage | Native committee accounts are scoped to assigned local groups; Webmasters and legacy Access organisers retain global stewardship |
 | Rules | Typed section, proposed text, rationale and model reference, with version history and document packs | No claim that a saved draft is approved or registered |
 | Meetings and decisions | Agenda, notice/date/location, chair, attendance count, quorum evidence, motion, votes, result and references | Records human processes; does not run a statutory ballot or collect signatures |
-| Membership | Prospective/applicant/admitted/exit evidence records and participation basis | No auto-admission from public EOI; member passkeys and applications are implemented separately, with no payment collection |
+| Membership | Prospective/applicant/admitted/exit evidence records and participation basis | No auto-admission from public EOI; member accounts and applications are implemented separately, with no payment collection |
 | Directors and roles | Appointment, term, delegation, conflicts and responsible person | Recording a role does not grant technical access or make a legal appointment |
 | Finance and reporting | Typed records for budgets, shares, fees, reserves, reporting, amounts and approval references | Maintained accounts/payroll and official reporting remain separate |
 | Service handover and assets | Original and receiving parties, scope, consent, acceptance, effective dates, ownership, custody and renewal | Contracts, property transfers and employment obligations require their actual agreements |
@@ -33,7 +33,7 @@ The public experience introduces the local purpose first, then connects it to th
 
 The Worker identity and database are unchanged: `ready-setco`, `ready-setco-operations`, existing `DB` and `ASSETS` bindings. Four empty governance tables are added by migration `0004_governance.sql`. Governance routes inherit authentication from `/api/admin/*` and reject cross-origin writes. The private interface remains inside `manage.html`.
 
-Member accounts and scoped committee permissions were added on 27 November through migrations `0005` and `0006`. A local group can link to a governance workspace; the server filters and protects that workspace for its assigned committee. Webmasters and legacy Access organisers remain global operators. This is a working pilot foundation, not evidence that 3,000 independent sites have been installed or load-tested. See [member services](MEMBER-SERVICES.md).
+Member accounts and scoped committee permissions were added on 27 November through migrations `0005` and `0006`. Migration `0007` makes passwords available as the default account method while retaining optional passkeys. A local group can link to a governance workspace; the server filters and protects that workspace for its assigned committee. Webmasters and legacy Access organisers remain global operators. This is a working pilot foundation, not evidence that 3,000 independent sites have been installed or load-tested. See [member services](MEMBER-SERVICES.md).
 
 The participant EOI and public map are preserved. Their original exports keep their original scope. A workspace's private JSON export includes its current records and revision history; full database backup includes all domains. The public planner stores only when requested and does not call the private API.
 
