@@ -12,7 +12,7 @@ import { getPasswordRuntime } from '../cloudflare/password-runtime.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 
-test('the pinned OPAQUE client completes a real registration and login against static WASM in workerd', { timeout: 30000 }, async t => {
+test('the pinned OPAQUE client completes a real registration and login with a one-character password against static WASM in workerd', { timeout: 30000 }, async t => {
   const { workerDirectory } = await preparePasswordRuntime();
   const fixturePath = path.join(workerDirectory, 'runtime-test.mjs');
   // This test-only service never touches D1, a real account, or the deployed Worker.
@@ -64,7 +64,7 @@ test('the pinned OPAQUE client completes a real registration and login against s
 
   await opaque.ready;
   assert.equal(typeof (await getPasswordRuntime()).server.startLogin, 'function');
-  const password = 'fictional violet river window 2026';
+  const password = 'a';
   const registration = opaque.client.startRegistration({ password });
   const registrationResponse = await send('register', { registrationRequest: registration.registrationRequest });
   assert.equal(registrationResponse.status, 200);
@@ -133,8 +133,11 @@ test('the dedicated password worker keeps secrets private and consumes each clie
 
   await opaque.ready;
   const serverSetup = opaque.server.createSetup(), userIdentifier = 'private-worker-test';
-  const password = 'cafe\u0301 violet river stable 2026';
-  assert.equal((await send('registration.start', { password: 'short' })).error.code, 'invalid_password');
+  const password = 'e\u0301';
+  assert.equal((await send('registration.start', { password: '' })).error.code, 'password_required');
+  assert.equal((await send('registration.start', { password: 'a'.repeat(129) })).error.code, 'password_too_long');
+  const maximum = await result('registration.start', { password: '\u{1f600}'.repeat(128) });
+  await result('cancel', { stateId: maximum.stateId });
   assert.equal((await send('constructor', {})).error.code, 'invalid_request');
   const registration = await result('registration.start', { password });
   assert.deepEqual(Object.keys(registration).sort(), ['registrationRequest', 'stateId']);

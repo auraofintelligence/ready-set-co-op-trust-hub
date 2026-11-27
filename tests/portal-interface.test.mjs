@@ -10,7 +10,7 @@ const html = readFileSync(new URL('../portal.html', import.meta.url), 'utf8');
 const script = readFileSync(new URL('../portal.js', import.meta.url), 'utf8');
 const BASE = 'https://ready-setco.example';
 const identity = { accountId: '1096c2bc-e190-4b00-82ba-6e03416e84cc', username: 'test.participant', displayName: 'Fictional Participant', email: 'fictional@example.test', webmaster: false, status: 'active', version: 1, hasPassword: true };
-const PASSWORD = 'Fictional long test password only.';
+const PASSWORD = 'a';
 const site = { id: 'minjerribah', name: 'Fictional island pilot', locality: 'Fictional locality', summary: 'Test group only.', applicationsOpen: true, published: true, version: 1 };
 const profile = { accountId: identity.accountId, displayName: identity.displayName, email: identity.email, phone: '', organisation: '', locality: '', about: '', interests: [], consentContact: true, consentFutureHandover: false, version: 1, updatedAt: '2026-11-27T10:00:00.000Z' };
 const clone = value => JSON.parse(JSON.stringify(value));
@@ -109,7 +109,7 @@ test('signed-out portal keeps private data unloaded and cancelled passkeys do no
   assert.equal(f.window.localStorage.length, 0); assert.equal(f.window.sessionStorage.length, 0);
 });
 
-test('registration defaults to a typed password with explicit consent and privately displayed recovery codes', async t => {
+test('registration accepts a simple one-character password with explicit consent and privately displayed recovery codes', async t => {
   const f = fixture(t, { signedIn: false }); await f.idle(); const form = f.$('portal-register');
   assert.equal(form.elements.consent.checked, false);
   for (const [name, val] of Object.entries({ username: 'new.participant', displayName: 'Fictional Participant', email: 'fictional@example.test', password: PASSWORD, confirmPassword: PASSWORD, consent: true })) f.set(form, name, val);
@@ -119,7 +119,7 @@ test('registration defaults to a typed password with explicit consent and privat
   assert.equal(options.options.credentials, 'same-origin'); assert.equal(options.options.cache, 'no-store');
   assert.equal(f.ceremonies.length, 0);
   assert.equal(f.passwordCalls[0].method, 'registration.start');
-  assert.equal(f.calls.some(call => JSON.stringify(call.body).includes(PASSWORD)), false);
+  assert.equal(f.calls.some(call => JSON.stringify(call.body).includes(JSON.stringify(PASSWORD))), false);
   assert.equal(f.$('portal-signed-in').hidden, false); assert.equal(f.$('portal-code-list').children.length, 8);
   assert.equal(f.downloads.length, 0, 'Recovery codes are downloaded only on request.');
   assert.equal(f.$('tab-webmaster').hidden, true); assert.equal(f.$('tab-committee').hidden, true);
@@ -144,7 +144,7 @@ test('activation token is removed from the URL and sent only with explicit accou
 
 test('typed password sign-in preserves spaces, normalises Unicode and never invokes a passkey prompt', async t => {
   const f = fixture(t, { signedIn: false }); await f.idle();
-  const form = f.$('portal-login'), password = '  cafe\u0301 fictional password  ';
+  const form = f.$('portal-login'), password = ' e\u0301 ';
   assert.equal(f.workers.length, 0, 'Password cryptography begins only after an explicit submit.');
   f.set(form, 'username', identity.username); f.set(form, 'password', password); f.submit(form); await f.idle();
   assert.equal(f.ceremonies.length, 0); assert.equal(f.$('portal-signed-in').hidden, false);
@@ -155,6 +155,48 @@ test('typed password sign-in preserves spaces, normalises Unicode and never invo
   assert.equal(f.calls.some(call => JSON.stringify(call.body).includes(password.normalize('NFC'))), false);
   assert.equal(form.elements.password.value, ''); assert.equal(f.workers[0].states.size, 0);
   assert.equal(f.window.localStorage.length, 0); assert.equal(f.window.sessionStorage.length, 0);
+});
+
+test('inline password controls reveal independent fields without submitting, moving focus or changing values', async t => {
+  const f = fixture(t, { signedIn: false }); await f.idle();
+  const inputs = [...f.window.document.querySelectorAll('[data-account-password]')];
+  for (const input of inputs) {
+    const toggle = input.closest('.portal-password-control').querySelector('[data-password-toggle]');
+    assert.equal(input.type, 'password'); assert.equal(input.labels.length, 1);
+    assert.equal(toggle.type, 'button'); assert.equal(toggle.getAttribute('aria-controls'), input.id);
+    assert.equal(toggle.getAttribute('aria-label'), 'Show password'); assert.equal(toggle.getAttribute('aria-pressed'), 'false');
+    assert.equal(toggle.querySelector('svg').getAttribute('aria-hidden'), 'true');
+  }
+  assert.equal(f.$('portal-bootstrap').elements.bootstrapKey.closest('.portal-password-control'), null);
+  assert.equal(f.$('portal-recover').elements.recoveryCode.closest('.portal-password-control'), null);
+  const form = f.$('portal-register'), password = form.elements.password, confirmation = form.elements.confirmPassword;
+  const first = password.closest('.portal-password-control').querySelector('button'), second = confirmation.closest('.portal-password-control').querySelector('button');
+  const requests = f.calls.length; let submissions = 0; form.addEventListener('submit', () => submissions++);
+  f.set(form, 'password', ' first value '); f.set(form, 'confirmPassword', 'second value');
+  first.focus(); first.click();
+  assert.equal(f.window.document.activeElement, first); assert.equal(password.type, 'text'); assert.equal(confirmation.type, 'password');
+  assert.equal(first.getAttribute('aria-label'), 'Hide password'); assert.equal(first.getAttribute('aria-pressed'), 'true');
+  second.click(); first.click();
+  assert.equal(password.type, 'password'); assert.equal(confirmation.type, 'text');
+  assert.equal(password.value, ' first value '); assert.equal(confirmation.value, 'second value');
+  assert.equal(password.autocomplete, 'new-password'); assert.equal(confirmation.autocomplete, 'new-password');
+  assert.equal(submissions, 0); assert.equal(f.calls.length, requests); assert.equal(f.workers.length, 0);
+  form.reset();
+  assert.equal(password.type, 'password'); assert.equal(confirmation.type, 'password'); assert.equal(confirmation.value, '');
+  assert.equal(second.getAttribute('aria-label'), 'Show password'); assert.equal(second.getAttribute('aria-pressed'), 'false');
+  assert.equal(f.window.localStorage.length, 0); assert.equal(f.window.sessionStorage.length, 0);
+});
+
+test('password reveal resets when changing portal views and signing out', async t => {
+  const f = fixture(t); await f.idle(); f.$('tab-security').click(); await f.idle();
+  const form = f.$('portal-password'), input = form.elements.currentPassword;
+  const toggle = input.closest('.portal-password-control').querySelector('button');
+  f.set(form, 'currentPassword', 'a'); toggle.click(); assert.equal(input.type, 'text');
+  f.$('tab-profile').click(); assert.equal(input.type, 'password'); assert.equal(input.value, 'a');
+  f.$('tab-security').click(); await f.idle(); assert.equal(toggle.getAttribute('aria-pressed'), 'false');
+  toggle.click(); assert.equal(input.type, 'text'); f.$('portal-logout').click(); await f.idle();
+  assert.equal(input.type, 'password'); assert.equal(input.value, ''); assert.equal(toggle.getAttribute('aria-label'), 'Show password');
+  assert.equal(f.$('portal-signed-in').hidden, true);
 });
 
 test('optional passkey registration happens only after selecting it explicitly', async t => {
@@ -188,7 +230,7 @@ test('activation and recovery use passkeys only after an explicit method choice'
   }
 });
 
-test('new passwords require matching confirmation and cannot reuse the setup authorisation key', async t => {
+test('bootstrap accepts a one-character password with matching confirmation and a separate setup authorisation key', async t => {
   const f = fixture(t, { signedIn: false, hash: '#setup' }); await f.idle(); const form = f.$('portal-bootstrap');
   const key = '1'.repeat(64);
   for (const [name, value] of Object.entries({ bootstrapKey: key, username: 'fictional.owner', displayName: 'Fictional Owner', email: 'owner@example.test', consent: true, password: PASSWORD, confirmPassword: 'Different fictional password' })) f.set(form, name, value);

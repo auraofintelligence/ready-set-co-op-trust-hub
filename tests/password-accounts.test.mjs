@@ -18,10 +18,10 @@ function fixture(t) {
   for (const name of ['0005_member_accounts.sql', '0007_member_passwords.sql']) sqlite.exec(readFileSync(new URL('../migrations/' + name, import.meta.url), 'utf8'));
   t.after(() => sqlite.close());
   const env = { DB: createSqliteD1(sqlite), READY_AUTH_SECRET: randomBytes(32).toString('hex') }; let now = NOW;
-  function client() {
+  function client(ip = '192.0.2.9') {
     const jar = new Map();
     return { jar, async request(path, { method = 'GET', data, origin = BASE, headers = {} } = {}) {
-      const request = new Request(BASE + path, { method, headers: { 'CF-Connecting-IP': '192.0.2.9', Cookie: [...jar].map(([k, v]) => k + '=' + v).join('; '),
+      const request = new Request(BASE + path, { method, headers: { 'CF-Connecting-IP': ip, Cookie: [...jar].map(([k, v]) => k + '=' + v).join('; '),
         ...(origin ? { Origin: origin } : {}), ...(data === undefined ? {} : { 'Content-Type': 'application/json' }), ...headers }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
       const identity = await resolveAccountSession(request, env, { now });
       const response = await handleAccountRequest(request, env, { identity, now });
@@ -89,6 +89,85 @@ test('unknown usernames and wrong passwords do not create sessions; server login
   assert.equal((await okay(await visitor.get('/api/auth/session'))).authenticated, false);
 });
 
+test('a one-character chosen password can bootstrap and sign in to the webmaster account', async t => {
+  const f = fixture(t), owner = f.client();
+  const created = await enrol(owner, 'short.password', { bootstrapKey: f.env.READY_AUTH_SECRET }, 'a');
+  assert.equal(created.identity.webmaster, true); assert.equal(created.identity.authentication, 'password');
+  await okay(await owner.post('/api/auth/logout'));
+  const signedIn = await login(owner, 'short.password', 'a');
+  assert.equal(signedIn.identity.accountId, created.identity.accountId); assert.equal(signedIn.identity.webmaster, true);
+});
+
+test('three wrong password starts share one account budget across routes, browsers and IPs without reaching verify', async t => {
+  const f = fixture(t), member = f.client('192.0.2.10'); await enrol(member, 'limited.member');
+  const visitor = f.client('192.0.2.11'), reauth = f.client('192.0.2.12'), recovery = f.client('192.0.2.13');
+  for (const client of [reauth, recovery]) client.jar.set('__Host-ready_session', member.jar.get('__Host-ready_session'));
+  assert.equal(await loginProof(visitor, '  LIMITED.Member  ', NEXT_PASSWORD), null);
+  assert.equal(await loginProof(reauth, undefined, NEXT_PASSWORD, 'reauth'), null);
+  assert.equal(await loginProof(recovery, 'limited.member', NEXT_PASSWORD, 'recovery-codes'), null);
+  assert.equal(count(f, 'member_password_ceremonies', "purpose IN ('login','reauth','recovery-codes') AND consumed_at IS NULL"), 3);
+  const started = opaqueClient.startLogin({ password: PASSWORD });
+  for (const [client, purpose] of [[f.client('192.0.2.14'), 'login'], [reauth, 'reauth'], [recovery, 'recovery-codes']]) {
+    const response = await client.post(`/api/auth/password/${purpose}/options`, { username: 'LIMITED.MEMBER', startLoginRequest: started.startLoginRequest });
+    assert.equal(response.headers.get('Retry-After'), '900');
+    assert.equal((await okay(response, 429)).code, 'too_many_attempts');
+  }
+  await okay(await visitor.post('/api/auth/password/login/options', { username: 'another.person', startLoginRequest: started.startLoginRequest }));
+  assert.equal(count(f, 'member_sessions'), 1);
+});
+
+test('concurrent password starts atomically admit at most three requests for the same username', async t => {
+  const f = fixture(t), started = opaqueClient.startLogin({ password: PASSWORD });
+  const responses = await Promise.all(Array.from({ length: 8 }, (_, index) => f.client('192.0.2.' + (20 + index)).post('/api/auth/password/login/options', {
+    username: index % 2 ? 'CONCURRENT.PERSON' : 'concurrent.person', startLoginRequest: started.startLoginRequest,
+  })));
+  assert.equal(responses.filter(response => response.status === 200).length, 3);
+  assert.equal(responses.filter(response => response.status === 429).length, 5);
+  assert.equal(count(f, 'member_password_ceremonies', "purpose='login'"), 3);
+});
+
+test('successful password sign-ins reset their attempt budget instead of locking out after three valid sign-ins', async t => {
+  const f = fixture(t), member = f.client(); await enrol(member, 'valid.signins');
+  for (let index = 0; index < 4; index++) await login(f.client(), 'valid.signins');
+  assert.equal(count(f, 'member_sessions'), 5);
+});
+
+test('password cooldown starts at the first attempt and does not reset at a fixed quarter-hour boundary', async t => {
+  const f = fixture(t), started = opaqueClient.startLogin({ password: PASSWORD }), person = f.client();
+  const attempt = () => person.post('/api/auth/password/login/options', { username: 'rolling.person', startLoginRequest: started.startLoginRequest });
+  f.setNow('2026-11-27T10:14:59.900Z');
+  for (let index = 0; index < 3; index++) await okay(await attempt());
+  const blocked = await attempt(); assert.equal(blocked.status, 429); assert.equal(blocked.headers.get('Retry-After'), '900');
+  f.setNow('2026-11-27T10:15:00.000Z'); assert.equal((await attempt()).status, 429);
+  f.setNow('2026-11-27T10:29:59.899Z');
+  const almost = await attempt(); assert.equal(almost.status, 429); assert.equal(almost.headers.get('Retry-After'), '1');
+  f.setNow('2026-11-27T10:29:59.900Z'); await okay(await attempt());
+});
+
+test('an older valid proof cannot clear reservations from a newer successful-reset generation', async t => {
+  const f = fixture(t); await enrol(f.client(), 'generation.person');
+  const first = f.client(), earlierPending = f.client();
+  const firstProof = await loginProof(first, 'generation.person'), olderProof = await loginProof(earlierPending, 'generation.person');
+  await okay(await first.post('/api/auth/password/login/verify', firstProof));
+  const started = opaqueClient.startLogin({ password: NEXT_PASSWORD });
+  for (let index = 0; index < 3; index++) await okay(await f.client().post('/api/auth/password/login/options', { username: 'generation.person', startLoginRequest: started.startLoginRequest }));
+  await okay(await earlierPending.post('/api/auth/password/login/verify', olderProof));
+  assert.equal((await f.client().post('/api/auth/password/login/options', { username: 'generation.person', startLoginRequest: started.startLoginRequest })).status, 429);
+});
+
+test('password attempt reset rolls back with a failed audit and occurs only when the sign-in transaction succeeds', async t => {
+  const f = fixture(t); await enrol(f.client(), 'atomic.limit');
+  const visitor = f.client(), proof = await loginProof(visitor, 'atomic.limit'), started = opaqueClient.startLogin({ password: PASSWORD });
+  const attempt = () => f.client().post('/api/auth/password/login/options', { username: 'atomic.limit', startLoginRequest: started.startLoginRequest });
+  await okay(await attempt()); await okay(await attempt());
+  f.sqlite.exec("CREATE TRIGGER reject_password_limit_audit BEFORE INSERT ON member_auth_audit BEGIN SELECT RAISE(ABORT,'fictional login audit outage'); END");
+  await assert.rejects(visitor.post('/api/auth/password/login/verify', proof), /fictional login audit outage/);
+  assert.equal((await attempt()).status, 429); assert.equal(count(f, 'member_sessions'), 1);
+  assert.equal(f.sqlite.prepare('SELECT consumed_at FROM member_password_ceremonies WHERE id=?').get(proof.ceremonyId).consumed_at, null);
+  f.sqlite.exec('DROP TRIGGER reject_password_limit_audit');
+  await okay(await visitor.post('/api/auth/password/login/verify', proof)); await okay(await attempt());
+});
+
 test('password endpoints reject malformed protocol values, extra password fields and cross-site mutations before account changes', async t => {
   const f = fixture(t), client = f.client();
   for (const registrationRequest of [null, 42, {}, [], '', 'a'.repeat(44), '_'.repeat(43), 'a+'.repeat(21) + 'a']) {
@@ -146,6 +225,8 @@ test('reauthentication remains on the current account and replaces its old sessi
   f.sqlite.prepare('UPDATE member_accounts SET version=version+1,auth_version=auth_version+1 WHERE id=?').run(account.identity.accountId);
   assert.equal((await pending.post('/api/auth/password/login/verify', proof)).status, 401);
   assert.equal((await okay(await pending.get('/api/auth/session'))).authenticated, false);
+  for (let index = 0; index < 2; index++) await okay(await f.client().post('/api/auth/password/login/options', { username: 'reauth.alice', startLoginRequest: started.startLoginRequest }));
+  assert.equal((await f.client().post('/api/auth/password/login/options', { username: 'reauth.alice', startLoginRequest: started.startLoginRequest })).status, 429);
 });
 
 test('password change requires recent sign-in, keeps optional passkeys and rotates sessions, links and recovery codes', async t => {
@@ -220,7 +301,7 @@ test('expired password ceremonies and account limits prevent account creation or
   const f = fixture(t), person = f.client(), proof = await registration(person, 'register', details('expired.person'));
   f.setNow('2026-11-27T10:06:00.000Z'); assert.equal((await person.post('/api/auth/password/register/verify', proof)).status, 401);
   const started = opaqueClient.startLogin({ password: PASSWORD });
-  for (let i = 0; i < 20; i++) await okay(await person.post('/api/auth/password/login/options', { username: 'limited.person', startLoginRequest: started.startLoginRequest }));
+  for (let i = 0; i < 3; i++) await okay(await person.post('/api/auth/password/login/options', { username: 'limited.person', startLoginRequest: started.startLoginRequest }));
   assert.equal((await person.post('/api/auth/password/login/options', { username: 'limited.person', startLoginRequest: started.startLoginRequest })).status, 429);
   const limits = JSON.stringify(f.sqlite.prepare('SELECT * FROM member_auth_limits').all()); assert.ok(!limits.includes('limited.person')); assert.ok(!limits.includes('192.0.2.9'));
   assert.equal(count(f, 'member_accounts'), 0);

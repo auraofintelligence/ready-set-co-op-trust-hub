@@ -21,6 +21,14 @@
 .portal-auth-grid { display: grid; gap: 1.25rem; align-items: start; }
 .portal-form { display: grid; gap: 1rem; margin-top: 1.25rem; }
 .portal-password-fields { display: grid; gap: 1rem; }
+.portal-password-field { display: grid; gap: .35rem; min-width: 0; }
+.portal-password-control { position: relative; min-width: 0; }
+.portal-page .portal-password-control input { padding-inline-end: 3.3rem; }
+.portal-page .portal-password-toggle { position: absolute; inset-inline-end: 2px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; min-height: 44px; padding: 0; display: grid; place-items: center; border: 0; border-radius: .3rem; background: transparent; color: #38235f; cursor: pointer; }
+.portal-password-toggle:hover, .portal-password-toggle[aria-pressed="true"] { background: #ede5fb; }
+.portal-password-toggle:focus-visible { outline: 3px solid #7334d4; outline-offset: 1px; }
+.portal-password-toggle .portal-eye-slash { display: none; }
+.portal-password-toggle[aria-pressed="true"] .portal-eye-slash { display: block; }
 .portal-security-section { border-top: 1px solid #dbe0ed; margin-top: 1.75rem; padding-top: 1.5rem; }
 .portal-form label, .portal-field, .portal-search label, .portal-message label { display: grid; gap: .35rem; font-weight: 600; min-width: 0; }
 .portal-page :is(input, select, textarea) { width: 100%; min-width: 0; min-height: 48px; padding: .65rem .8rem; border: 1px solid #8892a7; border-radius: .4rem; background: #fff; color: #1a2440; font-size: 1rem; }

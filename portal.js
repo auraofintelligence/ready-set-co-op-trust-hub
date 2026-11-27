@@ -23,11 +23,18 @@
   function readPassword(form, name = 'password', confirm = false) {
     const password = field(form, name).value.normalize('NFC');
     const length = Array.from(password).length;
-    if (length < (confirm ? 15 : 1) || length > 128) throw new Error(confirm ? 'Choose a password with 15 to 128 characters.' : 'Enter your password, up to 128 characters.');
+    if (!length) throw new Error('Enter a password.');
+    if (length > 128) throw new Error('Use no more than 128 characters.');
     if (confirm && password !== field(form, 'confirmPassword').value.normalize('NFC')) throw new Error('The two passwords do not match. Check them and try again.');
     return password;
   }
-  function clearPasswords(form) { form.querySelectorAll('[data-account-password]').forEach(input => { input.value = ''; }); }
+  function revealPassword(input, visible) {
+    input.type = visible ? 'text' : 'password';
+    const control = input.closest('.portal-password-control')?.querySelector('[data-password-toggle]');
+    if (control) { const label = visible ? 'Hide password' : 'Show password'; control.setAttribute('aria-label', label); control.setAttribute('aria-pressed', String(visible)); control.title = label; }
+  }
+  function hidePasswords(root = document) { root.querySelectorAll('[data-account-password]').forEach(input => revealPassword(input, false)); }
+  function clearPasswords(form) { form.querySelectorAll('[data-account-password]').forEach(input => { input.value = ''; revealPassword(input, false); }); }
   function checkAuthRevision(revision) { if (revision !== authRevision) throw new Error('Sign-in was cancelled. Please try again.'); }
   function stopPasswordWorker(message = 'Password sign-in was interrupted. Please try again.') {
     passwordWorker?.terminate(); passwordWorker = null;
@@ -76,6 +83,7 @@
     try { return await action(password); } finally { clearPasswords(form); }
   }
   function updateAuthMethods() {
+    hidePasswords();
     for (const [id, prefix, passwordLabel, passkeyLabel] of [['portal-register', 'register', 'Create my account', 'Create account with a passkey'], ['portal-recover', 'recover', 'Recover my account', 'Recover with a passkey'], ['portal-activate', 'activate', 'Set password and continue', 'Continue with a passkey']]) {
       const form = $(id), passkey = checked(form, 'usePasskey');
       $(`${prefix}-passwords`).hidden = passkey;
@@ -209,12 +217,14 @@
     const form = $(id); form.addEventListener('submit', event => { event.preventDefault(); if (!form.reportValidity() || state.busy) return; action(form); });
   }
   function selectPanel(name, focus = false) {
+    hidePasswords();
     for (const tab of document.querySelectorAll('[data-panel]')) {
       const selected = tab.dataset.panel === name; tab.setAttribute('aria-selected', String(selected)); tab.tabIndex = selected ? 0 : -1; $(`panel-${tab.dataset.panel}`).hidden = !selected;
       if (selected && focus) tab.focus();
     }
   }
   function showAuth() {
+    hidePasswords();
     $('portal-signed-out').hidden = !!state.identity;
     $('portal-auth-ordinary').hidden = ['setup', 'invite', 'recover'].includes(state.authMode);
     $('portal-setup').hidden = state.authMode !== 'setup';
@@ -493,6 +503,13 @@
     }
   }
 
+  for (const control of document.querySelectorAll('[data-password-toggle]')) control.addEventListener('click', () => {
+    if (state.busy) return;
+    const input = $(control.getAttribute('aria-controls'));
+    if (input?.matches('[data-account-password]')) revealPassword(input, input.type === 'password');
+  });
+  for (const form of document.querySelectorAll('form')) if (form.querySelector('[data-account-password]')) form.addEventListener('reset', () => hidePasswords(form));
+  for (const details of document.querySelectorAll('details')) if (details.querySelector('[data-account-password]')) details.addEventListener('toggle', () => { if (!details.open) hidePasswords(details); });
   for (const [interest, label] of Object.entries(INTERESTS)) {
     const container = node('label', undefined, 'portal-check'), input = node('input'); input.type = 'checkbox'; input.name = 'interests'; input.value = interest;
     container.append(input, node('span', label)); $('portal-interest-options').append(container);

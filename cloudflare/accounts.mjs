@@ -7,15 +7,17 @@ import { getPasswordRuntime } from './password-runtime.mjs';
 const CONSENT_VERSION = '2026-11-27';
 const SESSION_SECONDS = 8 * 60 * 60;
 const CEREMONY_SECONDS = 5 * 60;
+const PASSWORD_ATTEMPTS = 3;
+const PASSWORD_ATTEMPT_SECONDS = 15 * 60;
 const BODY_LIMIT = 12 * 1024;
 const MAX_PASSKEYS = 20;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const TOKEN = /^[0-9a-f]{64}$/;
 const encoder = new TextEncoder();
 class AccountError extends Error {
-  constructor(status, code, message) { super(message); this.status = status; this.code = code; }
+  constructor(status, code, message, headers = {}) { super(message); this.status = status; this.code = code; this.headers = headers; }
 }
-function fail(status, code, message) { throw new AccountError(status, code, message); }
+function fail(status, code, message, headers = {}) { throw new AccountError(status, code, message, headers); }
 function json(value, status = 200, headers = {}) {
   return new Response(JSON.stringify(value), { status, headers: {
     'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store, private',
@@ -183,6 +185,31 @@ async function throttle(db, request, env, now, label, subject = '') {
   }
   const result = await db.batch(statements);
   if (result.some((item, index) => rows(item)[0]?.hits > groups[index][1])) fail(429, 'too_many_attempts', 'There have been too many attempts. Wait 15 minutes before trying again.');
+}
+async function reservePasswordAttempt(db, env, now, name) {
+  const bucketHash = await keyed(env, 'password-attempts', name), stride = PASSWORD_ATTEMPTS + 1;
+  // This dedicated counter packs a generation and 0–3 starts. Retain a successful
+  // generation at zero so an older in-flight proof cannot clear a newer one.
+  const result = await db.batch([
+    db.prepare(`INSERT INTO member_auth_limits(bucket_hash,hits,expires_at) VALUES (?,1,?) ON CONFLICT(bucket_hash) DO UPDATE SET
+      hits=CASE WHEN expires_at<=? OR hits%${stride}=0 THEN hits-hits%${stride}+${stride + 1} ELSE hits+1 END,
+      expires_at=CASE WHEN expires_at<=? OR hits%${stride}=0 THEN excluded.expires_at ELSE expires_at END
+      WHERE expires_at<=? OR hits%${stride}<${PASSWORD_ATTEMPTS} RETURNING hits,expires_at`)
+      .bind(bucketHash, after(now, PASSWORD_ATTEMPT_SECONDS), now, now, now),
+    db.prepare('SELECT expires_at FROM member_auth_limits WHERE bucket_hash=?').bind(bucketHash),
+  ]);
+  const reservation = rows(result[0])[0];
+  if (!reservation) {
+    const seconds = Math.max(1, Math.ceil((Date.parse(rows(result[1])[0].expires_at) - Date.parse(now)) / 1000));
+    const minutes = Math.ceil(seconds / 60);
+    fail(429, 'too_many_attempts', 'Three password attempts have been used. Try again in ' + minutes + (minutes === 1 ? ' minute.' : ' minutes.'), { 'Retry-After': String(seconds) });
+  }
+  return { bucketHash, generation: Math.floor(reservation.hits / stride), expiresAt: reservation.expires_at };
+}
+function resetPasswordAttempts(db, attempt, guard) {
+  const stride = PASSWORD_ATTEMPTS + 1;
+  return db.prepare(`UPDATE member_auth_limits SET hits=hits-hits%${stride} WHERE bucket_hash=? AND hits-hits%${stride}=? AND expires_at=? AND ` + guard.sql)
+    .bind(attempt.bucketHash, attempt.generation * stride, attempt.expiresAt, ...guard.values);
 }
 async function cleanup(db, now) {
   await db.batch([
@@ -529,10 +556,12 @@ async function createPasswordOptions(request, env, identity, purpose, data, now,
       if (data.username !== undefined && username(data.username) !== identity.username) fail(403, 'account_mismatch', 'Confirm the password for the account currently signed in.');
       name = identity.username;
     } else name = username(data.username);
+    const passwordAttempt = await reservePasswordAttempt(db, env, now, name);
+    payload = { passwordAttempt };
     const account = await db.prepare("SELECT * FROM member_accounts WHERE username=? AND status='active'").bind(name).first();
     if (account) {
       id = account.id; password = await db.prepare('SELECT * FROM member_passwords WHERE account_id=? AND revoked_at IS NULL').bind(id).first();
-      payload = { accountVersion: account.version, authVersion: account.auth_version, ...(purpose === 'login' ? {} : { sessionHash: identity.sessionHash }) };
+      payload = { passwordAttempt, accountVersion: account.version, authVersion: account.auth_version, ...(purpose === 'login' ? {} : { sessionHash: identity.sessionHash }) };
     }
     userIdentifier = id ?? await keyed(env, 'opaque-unknown-user', name);
   } else {
@@ -604,6 +633,7 @@ async function verifyPasswordLogin(request, env, identity, purpose, data, now, l
     statements.push(db.prepare('DELETE FROM member_sessions WHERE token_hash=? AND ' + ag.sql).bind(identity.sessionHash, ...ag.values));
   }
   const session = await makeSession(db, id, now, ag, 'password'); statements.push(session.statement);
+  if (payload.passwordAttempt) statements.push(resetPasswordAttempts(db, payload.passwordAttempt, ag));
   statements.push(audit(db, id, 'account:' + id, rotate ? 'recovery_codes_replaced' : purpose === 'reauth' ? 'identity_reconfirmed' : 'signed_in', now, { authentication: 'password' }, ag));
   const result = await db.batch(statements), account = rows(result[1])[0];
   if (!rows(result[0]).length || !account) invalidCeremony();
@@ -790,7 +820,7 @@ export async function handleAccountRequest(request, env, { identity = null, now:
     }
     return json({ error: 'This account endpoint was not found.', code: 'not_found' }, 404);
   } catch (error) {
-    if (error instanceof AccountError) return json({ error: error.message, code: error.code }, error.status);
+    if (error instanceof AccountError) return json({ error: error.message, code: error.code }, error.status, error.headers);
     if (missingSchema(error)) return json({ error: 'Account sign-in needs the current account database migrations applied to the existing database.', code: 'account_migration_required' }, 503);
     if (/UNIQUE constraint failed:\s*member_accounts\.(?:username|id)/i.test(String(error?.message ?? error))) return json({ error: 'This username or account identifier is already in use. Sign in or choose another username.', code: 'account_exists' }, 409);
     if (/UNIQUE constraint failed:\s*member_(?:auth_bootstrap|passkeys)/i.test(String(error?.message ?? error))) return json({ error: 'This account request was already completed. Start a fresh sign-in.', code: 'account_conflict' }, 409);

@@ -19,12 +19,14 @@ function encoded(value, length) {
   return value;
 }
 
-function passwordValue(value, registration) {
-  if (typeof value !== 'string' || value.length > 1024) fail('invalid_password');
+function passwordValue(value) {
+  if (typeof value !== 'string') fail('invalid_password');
+  if (!value.length) fail('password_required');
+  if (value.length > 1024) fail('password_too_long');
   const password = value.normalize('NFC');
   const points = [...password];
-  if (points.length < (registration ? 15 : 1) || points.length > 128 ||
-      points.some(point => { const code = point.codePointAt(0); return code >= 0xd800 && code <= 0xdfff; })) {
+  if (points.length > 128) fail('password_too_long');
+  if (points.some(point => { const code = point.codePointAt(0); return code >= 0xd800 && code <= 0xdfff; })) {
     fail('invalid_password');
   }
   return password;
@@ -62,7 +64,7 @@ function take(stateId, kind) {
 
 const methods = {
   'registration.start'(params) {
-    const password = passwordValue(params.password, true);
+    const password = passwordValue(params.password);
     if (states.size >= maximumStates) fail('too_many_attempts');
     const result = client.startRegistration({ password });
     return { stateId: remember('registration', password, result.clientRegistrationState), registrationRequest: result.registrationRequest };
@@ -83,7 +85,7 @@ const methods = {
     }
   },
   'login.start'(params) {
-    const password = passwordValue(params.password, false);
+    const password = passwordValue(params.password);
     if (states.size >= maximumStates) fail('too_many_attempts');
     const result = client.startLogin({ password });
     return { stateId: remember('login', password, result.clientLoginState), startLoginRequest: result.startLoginRequest };
@@ -109,7 +111,9 @@ const methods = {
 };
 
 const messages = {
-  invalid_password: 'Use a password of 15 to 128 characters when creating an account.',
+  password_required: 'Enter a password.',
+  password_too_long: 'Use no more than 128 characters.',
+  invalid_password: 'This password contains unsupported text. Please enter it again.',
   too_many_attempts: 'Please finish or cancel the current sign-in attempt, then try again.',
   attempt_expired: 'This sign-in attempt has expired. Please try again.',
   invalid_request: 'This sign-in attempt could not be completed. Please try again.',
