@@ -10,7 +10,7 @@ Use the existing Cloudflare Worker **ready-setco** and its **ready-setco-operati
 
 The initial Webmaster has already been established on this service, as confirmed by Luke on 27 November 2026. Use the existing sign-in and administration view. The following setup steps are retained for a fresh installation and must not be repeated for the established account.
 
-1. Apply the repository migrations through the existing automatic deployment workflow. `0005_member_accounts.sql` adds the account schema; `0006_member_services.sql` adds participation services; `0007_member_passwords.sql` adds password credentials and protocol state. These migrations do not seed a person, password, passkey, cooperative or role.
+1. Apply the repository migrations through the existing automatic deployment workflow. `0005_member_accounts.sql` adds the account schema; `0006_member_services.sql` adds participation services; `0007_member_passwords.sql` adds password credentials and protocol state; `0008_committee_invitations.sql` adds committee invitation intent. These migrations do not seed a person, password, passkey, cooperative or role.
 2. Open **https://ready-setco.auraofintelligence.workers.dev/portal.html#setup**. Choose **Generate setup key**, then **Copy setup key**. This generates 32 random bytes in that browser and retains the value in the setup form. Keep the page open.
 3. In Cloudflare, open **Workers & Pages → ready-setco → Settings → Variables and Secrets → Add**. Choose **Secret**, name it **READY_AUTH_SECRET**, paste the copied value, then choose **Deploy**. Keep a private copy somewhere secure. Use the Worker runtime section, not **Builds → Variables and secrets**. If the runtime secret is already configured, keep it; the password update does not require a second key. Do not paste it into a GitHub file, issue, message or public URL.
 4. Return to the portal and choose **Check setup**. Supply a username, display name and contact email, choose and confirm your own password, and accept the account privacy information. The setup form retains the generated key for this step.
@@ -84,9 +84,19 @@ Recovery uses either a recovery code and username or a private recovery link exp
 
 Password changes, passkey additions and recovery preserve the account's saved consent fields. Only explicit registration or invitation activation records account consent; a security action does not imply a new participant choice or replace an earlier consent version.
 
-A webmaster can reserve an invited account and then prepare an activation link. Links are returned once and are not sent automatically. Activation links last 24 hours; recovery links last one hour. A new link revokes previous unused links for that account. The operator must verify the intended recipient through their established private process before manually sharing a link. Email alone is not verified by this software.
+A webmaster can reserve an invited participant account and then prepare an activation link. The dedicated **Committee invitations** workflow creates the reserved account, group-specific invitation intent and activation link together. Links are returned once and are not sent automatically. Activation links last 24 hours; recovery links last one hour. A new link revokes previous unused links for that account. The operator must verify the intended recipient through their established private process before manually sharing a link. Email alone is not verified by this software.
 
-The portal places private invitation and recovery tokens in a URL fragment, reads that fragment locally and removes it from the address bar. Tokens are submitted in JSON only when the person chooses to continue. They must not be copied into public posts or support tickets.
+The portal places private invitation and recovery tokens in a URL fragment, reads that fragment locally and removes it from the address bar. An invitation page then submits the token to the same-origin invitation-details endpoint in JSON to show the intended group and access. This lookup does not activate the account or start a credential prompt. Activation requires the person's explicit submission and consent. Recovery tokens are submitted only when the person chooses to continue. Tokens must not be copied into public posts or support tickets.
+
+### Committee invitation management
+
+The Webmaster's invitation register shows the invited person, username, local group, expiry and pending, expired, accepted or cancelled status. Search and pagination cover the full register. Fresh Webmaster authentication is required to create, renew, cancel or reopen an invitation. Each mutation checks the saved invitation version and the actor's current authority inside the database batch.
+
+Pending committee intent is separate from `member_site_roles`. A valid invitation allows the person to activate their reserved account with their own password, or an optional passkey. Only successful activation creates the intended committee role and its role-history event, marks the invitation accepted, issues the account session and completes the account audit. Those writes are atomic. Failed, cancelled or expired activation cannot grant committee access, and a committee invitation never grants global Webmaster access.
+
+Renewing a pending or expired invitation issues a fresh 24-hour link and invalidates the old link and an activation already started against it. Cancelling an unused invitation revokes its link and intent. **Reopen invitation** is a separate, explicit Webmaster action for a cancelled invitation; it retains the same reserved account and history and issues a new link. Accepted invitations cannot be renewed, cancelled or reopened as unused invitations. Later access changes use the account's group responsibilities.
+
+The generic account activation-link action follows the same pending committee invitation when one exists. It cannot silently revive a cancelled committee invitation: use the explicit reopen control. Revoking unused account links also cancels pending committee intent. For an already active account, use explicit group-role assignment rather than creating another account or issuing a new-account activation link.
 
 Invited accounts activate with their own chosen password by default and explicit account consent; passkey activation is optional. Existing active accounts may be disabled and later re-enabled. Keep at least one active webmaster: the server enforces that condition inside the update batch, including concurrent changes. Accounts can have up to 20 active passkeys. Passkeys are revoked rather than deleted, and removing the last active sign-in credential is refused. An account with an active password can remove its final passkey.
 
@@ -157,6 +167,7 @@ For these existing routes, options return `{ceremonyId,options}` and verificatio
 | `POST /api/auth/passkeys/verify` | Browser registration result | Updated `identity` |
 | `DELETE /api/auth/passkeys/:id` | `{}` | Passkey revoked, all sessions revoked, cookie cleared |
 | `POST /api/auth/sessions/revoke` | `{}` | All own sessions revoked, cookie cleared |
+| `POST /api/auth/invitation` | Private activation `token` | Intended display name, username, role, group and expiry for a valid unused invitation; no activation or credential prompt |
 | `POST /api/auth/recovery-codes/options` | `{}` | Passkey authentication ceremony |
 | `POST /api/auth/recovery-codes/verify` | Browser authentication result | New eight `recoveryCodes`, `identity`, replacement session |
 
@@ -176,8 +187,16 @@ All routes below require webmaster authority. Mutations recheck that authority i
 | `POST /api/webmaster/accounts/:id/revoke-links` | `expectedVersion` | `{account,ok:true}` |
 | `POST /api/webmaster/accounts/:id/revoke-sessions` | `expectedVersion` | `{account,ok:true}` |
 | `GET /api/webmaster/accounts/:id/history` | Pagination | `events`, `total`, `page`, `pageSize` |
+| `GET /api/webmaster/committee-invitations` | Optional `search`, pagination | `invitations`, `total`, `page`, `pageSize` |
+| `POST /api/webmaster/committee-invitations` | `id` UUID, `username`, `displayName`, `email`, `siteId` | `{invitation,account,token,purpose:"activation",expiresAt,sent:false}` |
+| `GET /api/webmaster/committee-invitations/:id` | None | `{invitation,account}` |
+| `POST /api/webmaster/committee-invitations/:id/renew` | `expectedVersion` | New private activation link for a pending or expired invitation |
+| `POST /api/webmaster/committee-invitations/:id/cancel` | `expectedVersion` | Cancelled unused invitation and associated account |
+| `POST /api/webmaster/committee-invitations/:id/reopen` | `expectedVersion` | New private activation link for an explicitly reopened cancelled invitation |
 
 An identical invitation reservation retry with the same UUID and original values returns the account's **current** version. A conflicting payload with the same UUID is rejected. This lets a client recover if reserving the account succeeded but preparing its private link did not.
+
+Committee invitation creation uses its UUID as a stable retry reference. An identical retry returns the existing invitation and account without recreating the account, repeating a role grant or returning a saved raw token. If the first response was lost, use the explicit renew control to obtain a replacement link. Reusing the UUID with different person or group details is rejected. Invitation list and detail responses never expose link tokens or token hashes.
 
 Changes require the exact saved version. Permission changes revoke sessions and unused links. An invited account cannot be marked active through a management patch. Only an active account may be granted webmaster access.
 
@@ -185,7 +204,7 @@ Errors use `{error,code}` with ordinary-language messages. Common statuses are 4
 
 ## Storage, audit and portability
 
-Migration `0007_member_passwords.sql` adds password credentials, encrypted persistent setup, short-lived password attempts and a session authentication-method column. Migration `0005_member_accounts.sql` adds nine tables: accounts, the permanent bootstrap singleton, passkeys, sessions, private links, recovery codes, short-lived ceremonies, request-limit buckets and account audit events. It adds indexes and origin/history protection triggers. Existing intake, map and governance records are preserved.
+Migration `0007_member_passwords.sql` adds password credentials, encrypted persistent setup, short-lived password attempts and a session authentication-method column. Migration `0005_member_accounts.sql` adds nine tables: accounts, the permanent bootstrap singleton, passkeys, sessions, private links, recovery codes, short-lived ceremonies, request-limit buckets and account audit events. It adds indexes and origin/history protection triggers. Migration `0008_committee_invitations.sql` adds versioned committee invitation intent, linked to the reserved account, local group and current activation link. Existing intake, map, governance, account and credential records are preserved.
 
 Account origins and usernames are immutable in this API. Account, passkey and audit records have no delete path. Disabled accounts and revoked passkeys retain their history. Account audit events are append-only and use the server-resolved actor, timestamp and action; they never contain setup keys, raw tokens, recovery codes or browser authenticator responses.
 
@@ -200,6 +219,8 @@ The server source, schema and API remain portable. A future hostname change stil
 Run `node --test tests/accounts-worker.test.mjs` for focused authentication checks. `tests/helpers/passkeys.mjs` creates test-only P-256 credentials and authentic WebAuthn registration/assertion structures; verification still uses the production library. Checks cover real signature validation, exact origins, browser binding, user verification, replay, bootstrap races, one-use links and codes, privilege/session revocation, idempotent invitations, version conflicts, preservation of a last webmaster/passkey and transactional rollback on audit failure.
 
 Use the broader repository checks and a Worker runtime build before deployment. The existing initial Webmaster has been established by the operator. Automated account tests use isolated fictional records; verification of private production actions uses the existing authorised account separately. Password tests use real OPAQUE registration and proofs, while the runtime test exercises static WebAssembly under workerd.
+
+Committee invitation checks cover Webmaster-only management, invalid groups, stable retries, status and pagination, private-token exclusion, acceptance by password and optional passkey, stale actors and versions, cancelled or replaced links, interrupted activation and transactional rollback. Public signup and generic participant invitations retain their separate behaviour.
 
 Primary implementation references:
 

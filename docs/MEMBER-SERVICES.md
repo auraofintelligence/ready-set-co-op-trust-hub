@@ -26,7 +26,7 @@ The source can deploy safely before this secret exists. It shows an account-setu
 | Account holder | Own profile, participation applications, response/history, recovery controls and own-data export |
 | Group participant | The above plus private notices and document links for that explicitly assigned group |
 | Group committee | Review that group's applications, publish/edit/archive its notices and manage its linked governance workspace |
-| Webmaster | Account invitations/recovery/disable, local-group listings and access assignments, all governance workspaces, existing intake review and public-map moderation |
+| Webmaster | Committee invitation register, account invitations/recovery/disable, local-group listings and access assignments, all governance workspaces, existing intake review and public-map moderation |
 | Configured legacy Access organiser | Trusted global operator access, retained for compatibility |
 
 The server checks roles. A hidden button is not an authorisation boundary. Role assignment is a technical permission and does not appoint a director, establish an employment role or confer voting rights. A governance `role` evidence record does not grant login access automatically.
@@ -45,7 +45,13 @@ Contact email is unverified contact information. It cannot be used alone to clai
 
 ### A committee
 
-The Webmaster assigns `committee` access to a named account for a specific group. That committee reviews applications and authors the group's private notices. Linking the group to a governance workspace gives its committee access to that workspace's records, history and export. Unlinked and other groups' workspaces remain inaccessible to them.
+The Webmaster manages new committee accounts from **Webmaster → Committee invitations**. Create an invitation using the person's name, contact email, username and local group, then share the generated private link through the agreed channel. The register shows pending, expired, accepted and cancelled invitations, with search and additional pages. An unused invitation can be renewed or cancelled; a cancelled invitation can be deliberately reopened with a new link. Each link lasts 24 hours, is shown only when issued and is not emailed automatically.
+
+The invited person sees the local group and committee access before accepting. They choose their own password by default, with an optional passkey available only if selected. Their committee role is created in the same database transaction as successful activation. Pending, expired and cancelled invitations grant no group access. Replacing or cancelling a link also invalidates an activation already started with it. An accepted invitation remains in the register as history; subsequent role changes are made through **Manage account → Group responsibilities**.
+
+For someone with an existing active account, the Webmaster assigns `committee` access through that account's group responsibilities. Do not create a duplicate account or use an invitation to reset their password. A committee invitation or portal role does not appoint a legal office holder or record cooperative admission.
+
+The committee reviews applications and authors the group's private notices. Linking the group to a governance workspace gives its committee access to that workspace's records, history and export. Unlinked and other groups' workspaces remain inaccessible to them.
 
 Group posts contain text and optional HTTPS document links. Document storage is not included: the linked document service still controls who can open it. An archived notice is removed from the participant feed while its saved history remains. Public site notices and the proposed shared-screen network are separate from these private group posts.
 
@@ -80,12 +86,17 @@ All writes require exact same-origin requests, JSON, an authenticated account wh
 | `/api/webmaster/sites/:siteId` | PATCH listing, application availability and optional governance workspace link |
 | `/api/webmaster/sites/:siteId/roles` | GET role assignments; PUT account ID, `participant`, `committee` or `none`, and `expectedVersion` |
 | `/api/webmaster/sites/:siteId/roles/:accountId` | GET a single role assignment, or `null` for a new assignment |
+| `/api/webmaster/committee-invitations` | Webmaster GET invitation register; POST a new committee invitation with its reserved account and private activation link |
+| `/api/webmaster/committee-invitations/:id` | Webmaster GET invitation and associated account |
+| `/api/webmaster/committee-invitations/:id/{renew,cancel,reopen}` | Webmaster POST `expectedVersion` to replace an unused link, cancel an unused invitation or reopen a cancelled invitation |
 
 List responses return `page`, `pageSize`, `total` and the named collection. The portal offers additional pages rather than silently treating the first page as the complete list. Profile/application field limits and review validation live in `cloudflare/member-services.mjs`. Account routes use their own bounded lists.
 
 ## Records, consent and portability
 
 Migration `0005_member_accounts.sql` adds passkeys, accounts, sessions, single-use authentication challenges, recovery links/codes, throttles and authentication audit. Migration `0006_member_services.sql` adds profiles, local-group listings, group roles, applications, bulletins and immutable service history. Migration `0007_member_passwords.sql` adds password credentials, encrypted OPAQUE setup and temporary attempts, and records the authentication method on sessions. The original four migrations and the existing intake and map records are preserved.
+
+Migration `0008_committee_invitations.sql` adds the pending committee invitation record. It stores the intended account and group separately from active group permissions. The existing automatic deployment applies this additive migration to the same database; no replacement database, account setup or runtime secret is required. Invitation changes appear in the account audit, and successful acceptance records the resulting group-role history.
 
 The initial operator stays Luke Hayes trading as Strange But True in application snapshots. Updating a contact choice does not erase earlier submitted evidence or silently transfer it to a different entity. Future cooperative sharing remains an explicit choice and still requires its real handover process. No public profile directory or public member export is provided.
 

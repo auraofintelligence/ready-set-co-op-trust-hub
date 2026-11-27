@@ -53,6 +53,7 @@ function fixture(t, { signedIn = true, account = identity, hash = '', override, 
     calls.push({ path: url.pathname, search: url.search, options, body });
     const custom = await override?.({ path: url.pathname, url, options, body, data, calls }); if (custom) return custom;
     if (url.pathname === '/api/auth/session') return json({ authenticated: data.authenticated, identity: data.authenticated ? { ...account, hasPassword: data.hasPassword } : null, authConfigured: true, passwordAvailable: true, bootstrapAvailable: true });
+    if (url.pathname === '/api/auth/invitation') return json({ invitation: { displayName: account.displayName, username: account.username, role: 'participant', siteId: null, siteName: null, expiresAt: '2026-11-29T10:00:00.000Z' } });
     const passwordRoute = /^\/api\/auth\/password\/([^/]+)\/(options|verify)$/.exec(url.pathname);
     if (passwordRoute) {
       const registration = ['register', 'bootstrap', 'activate', 'recover', 'change'].includes(passwordRoute[1]);
@@ -76,6 +77,7 @@ function fixture(t, { signedIn = true, account = identity, hash = '', override, 
     if (url.pathname === '/api/committee/sites') return json({ sites: account.webmaster ? data.sites : [], total: account.webmaster ? data.sites.length : 0, page: 1, pageSize: 50 });
     if (url.pathname === '/api/webmaster/sites') return json({ sites: data.sites, total: data.sites.length, page: 1, pageSize: 50 });
     if (url.pathname === '/api/webmaster/accounts') return json({ accounts: [account], total: 1, page: 1, pageSize: 25 });
+    if (url.pathname === '/api/webmaster/committee-invitations') return json({ invitations: [], total: 0, page: 1, pageSize: 25 });
     if (url.pathname === '/api/auth/passkeys') return json({ hasPassword: data.hasPassword, passkeys: [{ id: 'test-key', name: 'Fictional device', createdAt: '2026-11-27' }] });
     if (url.pathname === '/api/member/export') return json({ profile: data.profile, applications: data.applications });
     return json({ error: `Test route not configured: ${url.pathname}`, code: 'not_found' }, 404);
@@ -134,9 +136,11 @@ test('registration accepts a simple one-character password with explicit consent
   assert.equal(form.elements.usePasskey.checked, false);
 });
 
-test('activation token is removed from the URL and sent only with explicit account consent', async t => {
+test('activation token is removed from the URL, looks up invitation context privately and requires explicit account consent', async t => {
   const f = fixture(t, { signedIn: false, hash: '#invite=fictional-private-token' }); await f.idle();
   assert.equal(f.window.location.hash, ''); assert.equal(f.$('portal-activation').hidden, false);
+  assert.deepEqual(f.calls.find(call => call.path === '/api/auth/invitation').body, { token: 'fictional-private-token' });
+  assert.equal(f.calls.some(call => call.path.endsWith('/options')), false);
   assert.equal(f.$('portal-activate').elements.consent.checked, false);
   for (const [name, value] of Object.entries({ consent: true, password: PASSWORD, confirmPassword: PASSWORD })) f.set(f.$('portal-activate'), name, value);
   f.submit(f.$('portal-activate')); await f.idle();
@@ -538,4 +542,173 @@ test('private recovery links stay with their named recipient and webmaster acces
   f.set(form, 'webmaster', true); f.submit(form); await f.idle();
   assert.equal(form.elements.webmaster.checked, true); assert.match(f.$('portal-account-info').textContent, /Version 2/);
   assert.ok(f.calls.some(call => call.path === `/api/webmaster/accounts/${bob.accountId}` && call.options.method === 'PATCH'));
+});
+
+const committeeInvite = overrides => ({ id: 'cc1b1286-73cc-45c8-bf02-e6b8dc9d1f36', accountId: 'fd125ef2-f0d7-47f7-a6e9-89dcf9e0f8b3', username: 'test.committee', displayName: 'Fictional Committee Person', email: 'committee@example.test', siteId: site.id, siteName: site.name, role: 'committee', status: 'pending', version: 1, createdAt: '2026-11-28T10:00:00.000Z', updatedAt: '2026-11-28T10:00:00.000Z', expiresAt: '2026-11-29T10:00:00.000Z', acceptedAt: null, cancelledAt: null, createdBy: `account:${identity.accountId}`, ...overrides });
+const invitationAccount = invitation => ({ accountId: invitation.accountId, username: invitation.username, displayName: invitation.displayName, email: invitation.email, status: invitation.status === 'accepted' ? 'active' : 'invited', webmaster: false, version: 6 });
+const invitationButton = (f, id, label) => [...f.$('portal-invitation-list').querySelector(`[data-invitation-id="${id}"]`).querySelectorAll('button')].find(button => button.textContent === label);
+function completeCommitteeForm(f) {
+  const form = f.$('portal-committee-invite');
+  for (const [key, val] of Object.entries({ displayName: 'Fictional Committee Person', username: 'test.committee', email: 'committee@example.test', siteId: site.id })) f.set(form, key, val);
+  return form;
+}
+
+test('webmaster creates a group-specific committee invitation without sending messages or opening account-editing forms', async t => {
+  let saved;
+  const f = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path, options, body }) => {
+    if (path !== '/api/webmaster/committee-invitations') return;
+    if (options.method === 'POST') { saved = committeeInvite({ id: body.id, ...body }); return json({ invitation: saved, account: invitationAccount(saved), token: 'fictional-committee-link', purpose: 'activation', expiresAt: saved.expiresAt, sent: false }, 201); }
+    return json({ invitations: saved ? [saved] : [], total: saved ? 1 : 0, page: 1, pageSize: 25 });
+  } });
+  await f.idle();
+  assert.equal(f.$('panel-webmaster').hidden, false); assert.equal(f.$('portal-committee-invite-details').open, false);
+  assert.equal(f.$('committee-invitations-title').closest('details'), null);
+  f.$('portal-committee-invite-details').open = true;
+  const form = completeCommitteeForm(f); f.submit(form); await f.idle();
+  const request = f.calls.find(call => call.path === '/api/webmaster/committee-invitations' && call.options.method === 'POST');
+  assert.match(request.body.id, /^[a-f0-9-]{36}$/); assert.equal(request.body.siteId, site.id); assert.equal('webmaster' in request.body, false);
+  assert.equal(f.$('portal-account-editor').hidden, true); assert.equal(f.$('portal-committee-invite-details').open, false);
+  assert.equal(f.$('portal-private-link').hidden, false); assert.equal(f.$('portal-private-link-value').value, `${BASE}/portal.html#invite=fictional-committee-link`);
+  assert.match(f.$('portal-private-link-help').textContent, /Committee access for Fictional island pilot/);
+  assert.match(f.$('portal-status').textContent, /No message has been sent/);
+  assert.match(f.$('portal-invitation-list').textContent, /Fictional Committee Person/);
+  assert.equal(f.$('portal-invitation-list').textContent.includes('fictional-committee-link'), false);
+  assert.equal(f.calls.some(call => /send|mail|notification/.test(call.path)), false); assert.equal(f.ceremonies.length, 0);
+  let copied; Object.defineProperty(f.window.navigator, 'clipboard', { value: { writeText: async text => { copied = text; } } });
+  f.$('portal-copy-link').click(); await f.idle(); assert.equal(copied, `${BASE}/portal.html#invite=fictional-committee-link`);
+  f.$('portal-logout').click(); await f.idle();
+  assert.equal(f.$('portal-invitation-list').children.length, 0); assert.equal(f.$('portal-private-link-value').value, ''); assert.equal(form.elements.email.value, '');
+});
+
+test('committee invitation controls use saved versions for renewal, cancellation and explicit reopening', async t => {
+  let invitation = committeeInvite();
+  const f = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path, options, body }) => {
+    if (path === '/api/webmaster/committee-invitations') return json({ invitations: [invitation], total: 1, page: 1, pageSize: 25 });
+    if (!path.startsWith(`/api/webmaster/committee-invitations/${invitation.id}/`)) return;
+    assert.equal(options.method, 'POST'); assert.equal(body.expectedVersion, invitation.version);
+    const action = path.split('/').at(-1); invitation = { ...invitation, version: invitation.version + 1, status: action === 'cancel' ? 'cancelled' : 'pending', cancelledAt: action === 'cancel' ? '2026-11-28T11:00:00.000Z' : null };
+    return json({ invitation, account: invitationAccount(invitation), ...(action === 'cancel' ? {} : { token: `fictional-${action}-link`, purpose: 'activation', expiresAt: invitation.expiresAt, sent: false }) });
+  } });
+  await f.idle();
+  invitationButton(f, invitation.id, 'Renew private link').click(); await f.idle();
+  assert.match(f.$('portal-private-link-value').value, /#invite=fictional-renew-link$/); assert.equal(invitation.version, 2);
+  invitationButton(f, invitation.id, 'Cancel invitation').click(); await f.idle();
+  assert.equal(invitation.status, 'cancelled'); assert.equal(f.$('portal-private-link').hidden, true); assert.equal(f.$('portal-private-link-value').value, '');
+  assert.equal(invitationButton(f, invitation.id, 'Renew private link'), undefined); assert.equal(invitationButton(f, invitation.id, 'Cancel invitation'), undefined);
+  invitationButton(f, invitation.id, 'Reopen invitation').click(); await f.idle();
+  assert.equal(invitation.version, 4); assert.match(f.$('portal-private-link-value').value, /#invite=fictional-reopen-link$/);
+  assert.ok(invitationButton(f, invitation.id, 'Cancel invitation'));
+});
+
+test('accepted committee invitations open the current account and exact group even beyond the loaded group page', async t => {
+  const invitation = committeeInvite({ status: 'accepted', acceptedAt: '2026-11-28T11:00:00.000Z', siteId: 'later-group', siteName: 'Another local group' });
+  const f = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path }) => {
+    if (path === '/api/webmaster/committee-invitations') return json({ invitations: [invitation], total: 1, page: 1, pageSize: 25 });
+    if (path === `/api/webmaster/committee-invitations/${invitation.id}`) return json({ invitation, account: invitationAccount(invitation) });
+    if (path === `/api/webmaster/sites/${invitation.siteId}/roles/${invitation.accountId}`) return json({ assignment: { accountId: invitation.accountId, siteId: invitation.siteId, role: 'committee', version: 3 } });
+  } });
+  await f.idle();
+  assert.equal(invitationButton(f, invitation.id, 'Renew private link'), undefined); assert.equal(invitationButton(f, invitation.id, 'Cancel invitation'), undefined);
+  invitationButton(f, invitation.id, 'Manage account').click(); await f.idle();
+  assert.match(f.$('portal-account-info').textContent, /Version 6/); assert.equal(f.$('portal-account-role-details').open, true);
+  assert.equal(f.$('portal-role-workspace').value, invitation.siteId); assert.equal(f.$('portal-role').elements.role.value, 'committee');
+  assert.equal(f.$('portal-private-link').hidden, true);
+});
+
+test('committee invitation pagination and search keep all returned records reachable and render names as text', async t => {
+  const first = committeeInvite({ displayName: '<img src=x onerror=alert(1)>', status: 'expired' });
+  const last = committeeInvite({ id: crypto.randomUUID(), displayName: 'Last test invitation', username: 'last.invitation' });
+  const f = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path, url }) => {
+    if (path !== '/api/webmaster/committee-invitations') return;
+    const page = Number(url.searchParams.get('page')), search = url.searchParams.get('search');
+    return json({ invitations: search || page === 2 ? [last] : [first], total: search ? 1 : 26, page, pageSize: 25 });
+  } });
+  await f.idle();
+  assert.ok(invitationButton(f, first.id, 'Renew private link')); assert.equal(f.$('portal-invitation-list').querySelector('img'), null);
+  assert.equal(f.$('portal-invitations-prev').disabled, true); assert.equal(f.$('portal-invitations-next').disabled, false);
+  f.$('portal-invitations-next').click(); await f.idle();
+  assert.match(f.$('portal-invitation-list').textContent, /Last test invitation/); assert.match(f.$('portal-invitations-page').textContent, /Page 2/);
+  assert.equal(f.$('portal-invitations-next').disabled, true);
+  f.set(f.$('portal-invitation-search'), 'search', 'last.invitation'); f.submit(f.$('portal-invitation-search')); await f.idle();
+  const search = f.calls.filter(call => call.path === '/api/webmaster/committee-invitations').at(-1);
+  assert.match(search.search, /page=1/); assert.match(search.search, /search=last.invitation/);
+  assert.equal(f.$('portal-invitations-prev').disabled, true); assert.equal(f.$('portal-invitations-next').disabled, true);
+});
+
+test('committee invitation drafts and retry identity survive reauthentication and an uncertain create response', async t => {
+  let attempts = 0, saved;
+  const f = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path, options, body }) => {
+    if (path !== '/api/webmaster/committee-invitations') return;
+    if (options.method !== 'POST') return json({ invitations: saved ? [saved] : [], total: saved ? 1 : 0, page: 1, pageSize: 25 });
+    attempts++;
+    if (attempts === 1) return json({ code: 'reauthentication_required', error: 'Confirm your identity.' }, 403);
+    saved = committeeInvite({ id: body.id, ...body });
+    if (attempts === 2) throw new TypeError('Connection lost after save');
+    return json({ invitation: saved, account: invitationAccount(saved) });
+  } });
+  await f.idle();
+  const form = completeCommitteeForm(f); f.submit(form); await f.idle();
+  assert.equal(f.$('portal-reauth').hidden, false); assert.equal(form.elements.email.value, 'committee@example.test');
+  f.set(f.$('portal-reauth-form'), 'password', PASSWORD); f.submit(f.$('portal-reauth-form')); await f.idle();
+  f.submit(form); await f.idle(); assert.match(f.$('portal-status').textContent, /server did not confirm/); assert.equal(form.elements.siteId.value, site.id);
+  f.submit(form); await f.idle();
+  const writes = f.calls.filter(call => call.path === '/api/webmaster/committee-invitations' && call.options.method === 'POST');
+  assert.equal(new Set(writes.map(call => call.body.id)).size, 1); assert.equal(writes.length, 3);
+  assert.equal(f.$('portal-private-link-value').value, ''); assert.equal(f.$('portal-private-link').hidden, true); assert.match(f.$('portal-status').textContent, /already saved/);
+  assert.ok(invitationButton(f, saved.id, 'Renew private link')); assert.equal(form.elements.email.value, '');
+});
+
+test('committee recipient sees the group before accepting and invalid invitations never start credentials', async t => {
+  const invitation = committeeInvite({ siteName: '<script>fictional()</script>' });
+  for (const valid of [true, false]) {
+    const f = fixture(t, { signedIn: false, hash: '#invite=fictional-committee-private-token', override: ({ path, body, options }) => {
+      if (path !== '/api/auth/invitation') return;
+      assert.deepEqual(body, { token: 'fictional-committee-private-token' }); assert.equal(options.method, 'POST'); assert.equal(options.cache, 'no-store');
+      return valid ? json({ invitation }) : json({ error: 'This invitation has expired or been cancelled. Ask the webmaster for a new link.', code: 'invitation_unavailable' }, 401);
+    } });
+    await f.idle();
+    assert.equal(f.window.location.hash, ''); assert.equal(f.$('portal-activate').hidden, !valid); assert.equal(f.ceremonies.length, 0); assert.equal(f.workers.length, 0);
+    assert.equal(f.$('portal-activate').elements.consent.checked, false);
+    assert.equal(f.calls.some(call => call.path.endsWith('/options') || call.path.endsWith('/verify')), false);
+    assert.equal(f.$('portal-invitation-group').querySelector('script'), null);
+    if (valid) { assert.match(f.$('portal-invitation-group').textContent, /Committee access/); assert.match(f.$('portal-invitation-explanation').textContent, /Activating this account accepts committee access/); }
+    else { assert.match(f.$('portal-status').textContent, /expired or been cancelled/); assert.equal(f.$('portal-invitation-context').hidden, true); }
+    f.$('portal-activation').querySelector('[data-auth-cancel]').click();
+    assert.equal(f.$('portal-invitation-person').textContent, ''); assert.equal(f.$('portal-activation').hidden, true);
+  }
+});
+
+test('invitation lists and draft personal details are cleared on role loss and late reads cannot repopulate a closed page', async t => {
+  const invitation = committeeInvite();
+  const f = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path }) => {
+    if (path === '/api/webmaster/committee-invitations') return json({ invitations: [invitation], total: 1, page: 1, pageSize: 25 });
+    if (path === '/api/auth/password/reauth/verify') return json({ identity });
+  } });
+  await f.idle(); const form = completeCommitteeForm(f);
+  f.set(f.$('portal-reauth-form'), 'password', PASSWORD); f.submit(f.$('portal-reauth-form')); await f.idle();
+  assert.equal(f.$('tab-webmaster').hidden, true); assert.equal(f.$('portal-invitation-list').children.length, 0); assert.equal(form.elements.email.value, '');
+  let finish;
+  const pending = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path }) => path === '/api/webmaster/committee-invitations' ? new Promise(resolve => { finish = resolve; }) : null });
+  await pending.until(() => Boolean(finish)); pending.window.dispatchEvent(new pending.window.Event('pagehide'));
+  finish(json({ invitations: [invitation], total: 1, page: 1, pageSize: 25 })); await pending.idle();
+  assert.equal(pending.$('portal-invitation-list').children.length, 0); assert.equal(pending.$('portal-signed-in').hidden, true);
+  assert.equal(pending.window.document.body.textContent.includes(invitation.email), false);
+});
+
+test('a direct webmaster permission denial clears invitation records, private links and unfinished drafts', async t => {
+  let denied = false;
+  const invitation = committeeInvite();
+  const f = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path, options }) => {
+    if (path !== '/api/webmaster/committee-invitations') return;
+    if (denied) return json({ error: 'Webmaster access is required.', code: 'webmaster_required' }, 403);
+    if (options.method === 'POST') return json({ invitation, account: invitationAccount(invitation), token: 'fictional-private-committee-link', purpose: 'activation', expiresAt: invitation.expiresAt, sent: false });
+    return json({ invitations: [invitation], total: 1, page: 1, pageSize: 25 });
+  } });
+  await f.idle();
+  f.submit(completeCommitteeForm(f)); await f.idle();
+  assert.equal(f.$('portal-private-link').hidden, false);
+  const form = completeCommitteeForm(f); denied = true; f.$('portal-refresh-invitations').click(); await f.idle();
+  assert.equal(f.$('portal-signed-in').hidden, true); assert.equal(f.$('portal-invitation-list').children.length, 0);
+  assert.equal(f.$('portal-private-link-value').value, ''); assert.equal(form.elements.email.value, '');
+  assert.equal(f.window.document.body.textContent.includes(invitation.email), false);
 });

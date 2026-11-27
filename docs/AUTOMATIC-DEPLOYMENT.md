@@ -1,6 +1,6 @@
 # Automatic deployment of the existing Cloudflare service
 
-Verified 27 November 2026: pushes to `main` now trigger the existing Cloudflare Worker automatically. The first successful automatic release deployed commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e`; all five public hub pages were checked live. See the [release evidence](../README.md#automatic-cloudflare-deployment). The later member extension adds native username/password access with optional passkeys. Cloudflare Access remains an optional existing operator route. One-time owner activation and an authenticated production workflow check remain separate from automatic deployment; see [member services](MEMBER-SERVICES.md).
+Verified 27 November 2026: pushes to `main` now trigger the existing Cloudflare Worker automatically. The first successful automatic release deployed commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e`; all five public hub pages were checked live. See the [release evidence](../README.md#automatic-cloudflare-deployment). Later releases add native username/password access with optional passkeys and Webmaster-managed committee invitations. Luke has already established the Webmaster account. Cloudflare Access remains an optional existing operator route. Continue private workflow checks through the existing account; see [member services](MEMBER-SERVICES.md).
 
 ## One-time dashboard settings
 
@@ -46,7 +46,7 @@ Keep migrations compatible with the currently running Worker. A failed check or 
 
 Push the intended changes to `main`, then follow the **Workers Builds: ready-setco** check in GitHub or open the Worker's **Deployments → View build history**. Check that the successful build is for the intended commit and produces an active deployment of `ready-setco`. Use the available retry action after correcting a failed build.
 
-Verify the affected pages on the existing workers.dev hostname. The first public release passed these checks, while `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable` because private review is not configured. Activate native Webmaster access using [the one-secret setup](MEMBER-SERVICES.md#activate-the-existing-service), or retain the optional existing Access route, then verify signed-out protection and authorised saves and exports. A successful public deployment does not establish private workflow readiness or independently validate the live database schema.
+Verify the affected pages on the existing workers.dev hostname. At the first public release, `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable` because private review had not yet been configured. That is historical evidence: Luke has since established the native Webmaster account. Use that existing account to check authorised saves, invitations and exports, and check signed-out protection separately. Initial activation instructions in [member services](MEMBER-SERVICES.md#existing-webmaster-and-first-installation-setup) apply only to a fresh installation. A successful public deployment does not independently establish every private workflow or validate the live database schema.
 
 ## Sources
 

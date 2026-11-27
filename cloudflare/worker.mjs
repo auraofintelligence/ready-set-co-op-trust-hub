@@ -304,7 +304,7 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
         }
         if (api) {
           if (!env.DB?.prepare || !env.DB?.batch) fail(503, 'service_unavailable', 'The service is temporarily unavailable.');
-          if (url.pathname.startsWith('/api/auth/') || url.pathname.startsWith('/api/webmaster/accounts')) {
+          if (url.pathname.startsWith('/api/auth/') || url.pathname.startsWith('/api/webmaster/accounts') || url.pathname.startsWith('/api/webmaster/committee-invitations')) {
             const response=await handleAccountRequest(request,env,{identity,now:now(),readJSON:()=>readJSON(request)});
             if(response)return secure(response,{api});
           }

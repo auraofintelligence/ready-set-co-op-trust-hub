@@ -4,8 +4,8 @@
   if (!$('portal-status')) return;
   const CONSENT_VERSION = '2026-11-27';
   const INTERESTS = { founding: 'Forming the cooperative', employment: 'Paid work', training: 'Training and learning', events: 'Events', grants: 'Grants', resources: 'Shared resources', media: 'Media and notices', support: 'Practical support', mapping: 'Community map', working_holiday: 'Working holiday work', tourism: 'Tourism' };
-  const STATUS = { submitted: 'Submitted', in_review: 'Under review', more_info: 'More information requested', accepted_participant: 'Participation accepted', declined: 'Declined', withdrawn: 'Withdrawn', admitted: 'Cooperative admission recorded', active: 'Active', invited: 'Invited', disabled: 'Disabled', participant: 'Participant', committee: 'Committee', none: 'No group access' };
-  const state = { identity: null, profile: null, participantView: false, participantLoaded: false, sites: [], groups: [], applications: [], committeeSites: [], accounts: [], accountTotal: 0, accountPage: 1, accountSearch: '', selectedAccount: null, selectedApplication: null, selectedSite: null, selectedGroup: '', selectedCommittee: '', selectedPost: null, roleAssignment: null, allSites: [], recoveryCodes: [], recoveryUsername: '', token: '', authMode: '', busy: false, profileDirty: false };
+  const STATUS = { submitted: 'Submitted', in_review: 'Under review', more_info: 'More information requested', accepted_participant: 'Participation accepted', declined: 'Declined', withdrawn: 'Withdrawn', admitted: 'Cooperative admission recorded', active: 'Active', invited: 'Invited', disabled: 'Disabled', participant: 'Participant', committee: 'Committee', none: 'No group access', pending: 'Pending', expired: 'Expired', accepted: 'Accepted', cancelled: 'Cancelled' };
+  const state = { identity: null, profile: null, participantView: false, participantLoaded: false, sites: [], groups: [], applications: [], committeeSites: [], accounts: [], accountTotal: 0, accountPage: 1, accountSearch: '', invitations: [], invitationTotal: 0, invitationPage: 1, invitationSearch: '', invitationContext: null, selectedAccount: null, selectedApplication: null, selectedSite: null, selectedGroup: '', selectedCommittee: '', selectedPost: null, roleAssignment: null, allSites: [], recoveryCodes: [], recoveryUsername: '', token: '', authMode: '', busy: false, profileDirty: false };
   const retries = new Map();
   const controls = new Map();
   const passwordTasks = new Map();
@@ -180,14 +180,16 @@
     authRevision++; stopPasswordWorker();
     state.participantView = false; state.participantLoaded = false;
     state.identity = null; state.profile = null; state.sites = []; state.groups = []; state.applications = []; state.committeeSites = []; state.accounts = []; state.allSites = []; state.selectedAccount = null; state.selectedApplication = null; state.selectedSite = null; state.selectedGroup = ''; state.selectedCommittee = ''; state.selectedPost = null; state.roleAssignment = null; state.profileDirty = false; state.resubmission = null; state.accountEvents = []; state.reviewApplications = []; state.committeePosts = []; state.groupPosts = []; retries.clear();
+    state.invitations = []; state.invitationTotal = 0; state.invitationPage = 1; state.invitationSearch = ''; clearInvitationContext();
     $('portal-signed-in').hidden = true; $('portal-reauth').hidden = true; document.querySelectorAll('[data-page-more]').forEach(control => control.remove());
     $('tab-committee').hidden = true; $('tab-webmaster').hidden = true;
-    for (const id of ['portal-application-list', 'portal-groups-list', 'portal-post-list', 'portal-review-list', 'portal-committee-posts', 'portal-account-list', 'portal-account-roles', 'portal-audit-list', 'portal-passkey-list']) $(id).replaceChildren();
-    for (const id of ['portal-profile', 'portal-application', 'portal-review', 'portal-post', 'portal-account-state', 'portal-role', 'portal-invite', 'portal-site', 'portal-add-passkey', 'portal-password', 'portal-reauth-form', 'portal-recovery-password']) $(id).reset();
+    for (const id of ['portal-application-list', 'portal-groups-list', 'portal-post-list', 'portal-review-list', 'portal-committee-posts', 'portal-account-list', 'portal-invitation-list', 'portal-account-roles', 'portal-audit-list', 'portal-passkey-list']) $(id).replaceChildren();
+    for (const id of ['portal-profile', 'portal-application', 'portal-review', 'portal-post', 'portal-account-state', 'portal-role', 'portal-invite', 'portal-committee-invite', 'portal-invitation-search', 'portal-site', 'portal-add-passkey', 'portal-password', 'portal-reauth-form', 'portal-recovery-password']) $(id).reset();
+    $('portal-committee-invite-details').open = false;
     for (const id of ['portal-group-content', 'portal-committee-content', 'portal-account-editor', 'portal-review-editor', 'portal-private-link']) $(id).hidden = true;
     $('portal-private-link-value').value = ''; $('portal-account-name').textContent = ''; $('portal-account-label').textContent = '';
     for (const id of ['portal-group-name', 'portal-group-role', 'portal-group-membership', 'portal-review-applicant', 'portal-review-statement', 'portal-account-info', 'account-editor-title', 'portal-profile-meta', 'portal-private-link-help']) $(id).textContent = '';
-    for (const id of ['portal-application-workspace', 'portal-committee-workspace', 'portal-role-workspace', 'portal-site-select']) fillOptions($(id), []);
+    for (const id of ['portal-application-workspace', 'portal-committee-workspace', 'portal-role-workspace', 'portal-invitation-workspace', 'portal-site-select']) fillOptions($(id), []);
     clearRecovery(); showAuth();
   }
   async function api(path, { method = 'GET', data } = {}) {
@@ -198,6 +200,7 @@
       const error = new Error(body.error || 'The server could not complete this request.'); error.status = response.status; error.code = body.code;
       const retryableAuth = /^\/api\/auth\/(?:password\/)?(?:login|reauth|recovery-codes)\/(?:options|verify)$/.test(path) && ['password_invalid', 'invalid_ceremony'].includes(error.code);
       if (response.status === 401 && state.identity && !retryableAuth) clearPrivate();
+      else if (response.status === 403 && error.code === 'webmaster_required' && path.startsWith('/api/webmaster/') && state.identity?.webmaster) clearPrivate();
       throw error;
     }
     return body;
@@ -244,6 +247,7 @@
     $('portal-auth-ordinary').hidden = ['setup', 'invite', 'recover'].includes(state.authMode);
     $('portal-setup').hidden = state.authMode !== 'setup';
     $('portal-activation').hidden = !['invite', 'recover'].includes(state.authMode);
+    $('portal-activate').hidden = state.authMode === 'invite' && !state.invitationContext;
     $('activation-title').textContent = state.authMode === 'recover' ? 'Restore your account' : 'Activate your account';
     $('portal-activation-consent').hidden = state.authMode === 'recover'; field($('portal-activate'), 'consent').required = state.authMode !== 'recover';
   }
@@ -252,6 +256,27 @@
     state.authMode = hash === 'setup' ? 'setup' : params.has('invite') ? 'invite' : params.has('recover') ? 'recover' : '';
     state.token = params.get('invite') || params.get('recover') || '';
     if (state.token) history.replaceState(null, '', location.pathname + location.search);
+  }
+  function clearInvitationContext() {
+    state.invitationContext = null; $('portal-invitation-context').hidden = true;
+    for (const id of ['portal-invitation-person', 'portal-invitation-group', 'portal-invitation-explanation', 'portal-invitation-expiry']) $(id).textContent = '';
+  }
+  async function loadInvitationContext() {
+    clearInvitationContext(); $('portal-activate').hidden = true;
+    const revision = authRevision, token = state.token;
+    const result = await api('/api/auth/invitation', { method: 'POST', data: { token } });
+    checkAuthRevision(revision);
+    if (state.authMode !== 'invite' || state.token !== token) return;
+    const invitation = result.invitation;
+    if (!invitation?.username) throw new Error('This invitation could not be confirmed. Ask the webmaster for a new link.');
+    state.invitationContext = invitation;
+    const committee = invitation.role === 'committee';
+    $('portal-invitation-context-title').textContent = committee ? 'Committee invitation' : 'Your account invitation';
+    $('portal-invitation-person').textContent = `${invitation.displayName} · @${invitation.username}`;
+    $('portal-invitation-group').textContent = committee ? `Committee access · ${invitation.siteName}` : 'Participant account';
+    $('portal-invitation-explanation').textContent = committee ? 'Activating this account accepts committee access for this group, including reviewing applications and publishing group information. This does not appoint a cooperative director.' : 'Activate your account to manage your own participation. Group access is assigned separately.';
+    $('portal-invitation-expiry').textContent = `This invitation expires ${date(invitation.expiresAt)}.`;
+    $('portal-invitation-context').hidden = false; $('portal-activate').hidden = false;
   }
   function showRecovery(codes, username) {
     if (!Array.isArray(codes) || !codes.length) return;
@@ -274,6 +299,7 @@
   }
   async function signedIn(result) {
     state.identity = result.identity; state.authMode = ''; state.token = ''; $('portal-unavailable').hidden = true; $('portal-signed-out').hidden = true;
+    clearInvitationContext();
     state.participantView = false; state.participantLoaded = false;
     $('portal-signed-in').hidden = false; $('portal-account-name').textContent = state.identity.displayName; $('portal-account-label').textContent = `@${state.identity.username}${state.identity.webmaster ? ' · Webmaster' : ' · Private account'}`;
     for (const id of ['portal-login', 'portal-passkey-login', 'portal-register', 'portal-bootstrap', 'portal-recover', 'portal-activate']) $(id).reset();
@@ -307,7 +333,7 @@
     if (result.authenticated && result.identity) { await signedIn(result); setStatus(state.identity.webmaster ? 'Your webmaster administration is ready.' : 'Your private portal is ready.'); return; }
     clearPrivate();
     if (state.authMode === 'setup' && (result.setupComplete === true || !result.bootstrapAvailable)) { state.authMode = ''; showAuth(); setStatus('The first webmaster account has already been established. Sign in to continue.'); }
-    else { if (state.authMode === 'setup') { $('portal-setup-help').hidden = true; setStatus('Cloudflare account setup is ready. Keep the setup key below, complete your details and choose your own password.', 'success'); } else setStatus(state.authMode ? 'Complete the private account step below.' : 'Sign in or create an account to continue.'); }
+    else { if (state.authMode === 'setup') { $('portal-setup-help').hidden = true; setStatus('Cloudflare account setup is ready. Keep the setup key below, complete your details and choose your own password.', 'success'); } else { if (state.authMode === 'invite') await loadInvitationContext(); setStatus(state.authMode ? 'Complete the private account step below.' : 'Sign in or create an account to continue.'); } }
   }
   function profileData() {
     const form = $('portal-profile');
@@ -332,7 +358,7 @@
     const revision = authRevision;
     if (state.identity.webmaster) {
       const [sites, committee] = await Promise.all([api('/api/webmaster/sites'), api('/api/committee/sites')]);
-      checkAuthRevision(revision); receiveAllSites(sites); receiveCommitteeSites(committee); await loadAccounts();
+      checkAuthRevision(revision); receiveAllSites(sites); receiveCommitteeSites(committee); await loadWebmasterLists();
     } else {
       const [, committee] = await Promise.all([loadParticipantData(), api('/api/committee/sites')]);
       checkAuthRevision(revision); receiveCommitteeSites(committee);
@@ -361,7 +387,7 @@
   }
   function receiveAllSites(result, page = 1) {
     state.allSites = mergeRows(state.allSites, result.sites || [], page); renderSiteOptions();
-    for (const id of ['portal-site-select', 'portal-role-workspace']) showMore($(id), result, async next => receiveAllSites(await api(`/api/webmaster/sites?page=${next}`), next));
+    for (const id of ['portal-site-select', 'portal-role-workspace', 'portal-invitation-workspace']) showMore($(id), result, async next => { const revision = authRevision; const sites = await api(`/api/webmaster/sites?page=${next}`); checkAuthRevision(revision); receiveAllSites(sites, next); });
   }
   function applicationDetails(application, card) {
     if (application.motivation) card.append(node('p', application.motivation, 'portal-preserve'));
@@ -470,6 +496,51 @@
     $('portal-accounts-prev').disabled = state.busy || state.accountPage <= 1;
     $('portal-accounts-next').disabled = state.busy || state.accountPage * 25 >= state.accountTotal;
     $('portal-accounts-page').textContent = `Page ${state.accountPage} · ${state.accountTotal} accounts`;
+    $('portal-invitations-prev').disabled = state.busy || state.invitationPage <= 1;
+    $('portal-invitations-next').disabled = state.busy || state.invitationPage * 25 >= state.invitationTotal;
+    $('portal-invitations-page').textContent = `Page ${state.invitationPage} · ${state.invitationTotal} invitations`;
+  }
+  async function loadWebmasterLists() { await Promise.all([loadAccounts(), loadInvitations()]); }
+  async function loadInvitations() {
+    const revision = authRevision;
+    const result = await api(`/api/webmaster/committee-invitations?page=${state.invitationPage}&pageSize=25&search=${encodeURIComponent(state.invitationSearch)}`);
+    checkAuthRevision(revision);
+    state.invitations = result.invitations || []; state.invitationTotal = result.total || 0;
+    const list = $('portal-invitation-list'); list.replaceChildren();
+    if (!state.invitations.length) empty(list, state.invitationSearch ? 'No committee invitations match this search.' : 'No committee invitations yet. Create an invitation when someone is ready to join the committee.');
+    for (const invitation of state.invitations) {
+      const card = node('article', undefined, 'portal-record'); card.dataset.invitationId = invitation.id;
+      card.append(node('h4', invitation.displayName), badge(STATUS[invitation.status] || invitation.status, invitation.status), node('p', `Committee · ${invitation.siteName}`), node('p', `@${invitation.username} · ${invitation.email}`, 'portal-hint'));
+      const timing = invitation.status === 'accepted' ? `Accepted ${date(invitation.acceptedAt)}` : invitation.status === 'cancelled' ? `Cancelled ${date(invitation.cancelledAt)}` : `${invitation.status === 'expired' ? 'Expired' : 'Expires'} ${date(invitation.expiresAt)}`;
+      card.append(node('p', timing, 'portal-hint'));
+      if (['pending', 'expired'].includes(invitation.status)) card.append(actionRow(button('Renew private link', () => run(() => invitationAction(invitation, 'renew'))), button('Cancel invitation', () => run(() => invitationAction(invitation, 'cancel')))));
+      if (invitation.status === 'cancelled') card.append(actionRow(button('Reopen invitation', () => run(() => invitationAction(invitation, 'reopen')))));
+      if (invitation.status === 'accepted') {
+        card.append(node('p', 'Use account management to review or change this person’s current group access.', 'portal-hint'));
+        card.append(actionRow(button('Manage account', () => run(() => manageInvitationAccount(invitation)))));
+      }
+      list.append(card);
+    }
+    updatePagination();
+  }
+  async function invitationAction(invitation, action) {
+    const revision = authRevision;
+    clearPrivateLink();
+    const result = await api(`/api/webmaster/committee-invitations/${invitation.id}/${action}`, { method: 'POST', data: { expectedVersion: invitation.version } });
+    checkAuthRevision(revision);
+    if (state.selectedAccount?.accountId === result.account?.accountId) updateSelectedAccount(result.account);
+    if (result.token) showPrivateLink(result);
+    await loadWebmasterLists();
+    setStatus(action === 'cancel' ? 'The invitation has been cancelled. Its unused link no longer works.' : action === 'reopen' ? 'The invitation is open again. Share the new private link with the intended person.' : 'A new private link is ready. The previous link no longer works. No message has been sent.', 'success');
+  }
+  async function manageInvitationAccount(invitation) {
+    const revision = authRevision;
+    const result = await api(`/api/webmaster/committee-invitations/${invitation.id}`);
+    checkAuthRevision(revision); openAccount(result.account);
+    const current = result.invitation || invitation, select = $('portal-role-workspace');
+    if (![...select.options].some(item => item.value === current.siteId)) option(select, current.siteName, current.siteId);
+    $('portal-account-role-details').open = true; select.value = current.siteId;
+    await loadRole();
   }
   async function loadAccounts() {
     const revision = authRevision;
@@ -485,7 +556,7 @@
     updatePagination();
   }
   function openAccount(account) {
-    $('portal-private-link').hidden = true; $('portal-private-link-value').value = ''; $('portal-private-link-help').textContent = '';
+    clearPrivateLink();
     state.selectedAccount = account; $('portal-account-editor').hidden = false; $('account-editor-title').textContent = account.displayName;
     $('portal-account-info').textContent = `@${account.username} · ${account.email} · Version ${account.version}`;
     const form = $('portal-account-state'); field(form, 'status').value = account.status === 'disabled' ? 'disabled' : 'active'; field(form, 'webmaster').checked = account.webmaster === true; form.hidden = account.status === 'invited';
@@ -501,19 +572,26 @@
     field($('portal-account-state'), 'webmaster').checked = account.webmaster === true;
     $('portal-account-reset').hidden = account.status !== 'active'; $('portal-account-invitation').hidden = account.status !== 'invited';
   }
+  function clearPrivateLink() { $('portal-private-link').hidden = true; $('portal-private-link-value').value = ''; $('portal-private-link-help').textContent = ''; }
   function showPrivateLink(result) {
-    updateSelectedAccount(result.account);
+    const recipient = result.account || state.selectedAccount;
+    if (!recipient || !result.token) throw new Error('The private link was not returned. Refresh the invitation list before preparing a new link.');
+    if (state.selectedAccount?.accountId === recipient.accountId) updateSelectedAccount(recipient);
     const target = new URL('portal.html', location.href); target.search = ''; target.hash = `${result.purpose === 'recovery' ? 'recover' : 'invite'}=${encodeURIComponent(result.token)}`;
     $('portal-private-link-value').value = target.href; $('portal-private-link').hidden = false;
-    $('portal-private-link-help').textContent = `For ${state.selectedAccount.displayName} (@${state.selectedAccount.username}). This ${result.purpose === 'recovery' ? 'recovery' : 'activation'} link expires ${date(result.expiresAt)}. Share it only with this verified recipient. No message has been sent.`;
+    $('portal-private-link-help').textContent = `For ${recipient.displayName} (@${recipient.username}). ${result.invitation ? `Committee access for ${result.invitation.siteName}. ` : ''}This ${result.purpose === 'recovery' ? 'recovery' : 'activation'} link expires ${date(result.expiresAt)}. Share it only with this verified recipient. No message has been sent.`;
+    $('portal-private-link').scrollIntoView?.({ block: 'nearest', behavior: 'auto' });
   }
   async function accountAction(action) {
     if (!state.selectedAccount) throw new Error('Choose an account first.');
+    const revision = authRevision;
     const result = await api(`/api/webmaster/accounts/${state.selectedAccount.accountId}/${action}`, { method: 'POST', data: { expectedVersion: state.selectedAccount.version } });
+    checkAuthRevision(revision);
     updateSelectedAccount(result.account); if (result.token) showPrivateLink(result); return result;
   }
   function renderSiteOptions() {
     fillOptions($('portal-role-workspace'), state.allSites, 'Choose a group', $('portal-role-workspace').value);
+    fillOptions($('portal-invitation-workspace'), state.allSites, 'Choose a group', $('portal-invitation-workspace').value);
     fillOptions($('portal-site-select'), state.allSites, 'Create a local group', state.selectedSite?.id || '');
   }
   function editSite(id) {
@@ -523,9 +601,11 @@
     field(form, 'id').disabled = !!state.selectedSite;
   }
   async function loadRole() {
-    const siteId = value($('portal-role'), 'siteId'); state.roleAssignment = null; $('portal-account-roles').replaceChildren();
+    const siteId = value($('portal-role'), 'siteId'), accountId = state.selectedAccount?.accountId, revision = authRevision; state.roleAssignment = null; $('portal-account-roles').replaceChildren();
     if (!siteId || !state.selectedAccount) return;
-    const result = await api(`/api/webmaster/sites/${encodeURIComponent(siteId)}/roles/${state.selectedAccount.accountId}`);
+    const result = await api(`/api/webmaster/sites/${encodeURIComponent(siteId)}/roles/${accountId}`);
+    checkAuthRevision(revision);
+    if (state.selectedAccount?.accountId !== accountId || value($('portal-role'), 'siteId') !== siteId) return;
     state.roleAssignment = result.assignment || null;
     const current = state.roleAssignment?.role || 'none'; field($('portal-role'), 'role').value = current;
     $('portal-account-roles').append(node('p', `Current access: ${STATUS[current] || current}`, 'portal-hint'));
@@ -566,7 +646,7 @@
   });
   for (const tab of document.querySelectorAll('[data-panel]')) tab.addEventListener('click', () => {
     if (state.busy || tab.hidden) return; const panel = tab.dataset.panel; selectPanel(panel);
-    if (panel === 'webmaster') run(loadAccounts); if (panel === 'security') run(loadPasskeys);
+    if (panel === 'webmaster') run(loadWebmasterLists); if (panel === 'security') run(loadPasskeys);
   });
   document.querySelector('.portal-tabs').addEventListener('keydown', event => {
     const tabs = [...document.querySelectorAll('[data-panel]')].filter(tab => !tab.hidden);
@@ -577,7 +657,7 @@
     if (event.key === 'Home') next = 0; if (event.key === 'End') next = tabs.length - 1;
     if (next !== undefined) { event.preventDefault(); tabs[next].focus(); tabs[next].click(); }
   });
-  for (const control of document.querySelectorAll('[data-auth-cancel]')) control.addEventListener('click', () => { state.authMode = ''; state.token = ''; authRevision++; stopPasswordWorker(); for (const id of ['portal-bootstrap', 'portal-activate']) $(id).reset(); updateAuthMethods(); history.replaceState(null, '', location.pathname + location.search); showAuth(); });
+  for (const control of document.querySelectorAll('[data-auth-cancel]')) control.addEventListener('click', () => { state.authMode = ''; state.token = ''; authRevision++; stopPasswordWorker(); clearInvitationContext(); for (const id of ['portal-bootstrap', 'portal-activate']) $(id).reset(); updateAuthMethods(); history.replaceState(null, '', location.pathname + location.search); showAuth(); });
   for (const id of ['portal-register', 'portal-recover', 'portal-activate']) field($(id), 'usePasskey').addEventListener('change', updateAuthMethods);
   listenForm('portal-login', form => { const data = { username: value(form, 'username') }; run(() => withPassword(form, async password => signedIn(await passwordExchange('login', data, password))), 'Signed in. Your private portal is ready.'); });
   listenForm('portal-passkey-login', form => { const data = { username: value(form, 'username') }; run(async () => { await signedIn(await ceremony('login', data)); }, 'Signed in. Your private portal is ready.'); });
@@ -598,6 +678,7 @@
   });
   listenForm('portal-activate', form => run(async () => {
     if (!state.token) throw new Error('Open the complete private account link supplied by your organiser.');
+    if (state.authMode === 'invite' && !state.invitationContext) throw new Error('This invitation could not be confirmed. Ask the webmaster for a new link.');
     if (checked(form, 'usePasskey')) return signedIn(await ceremony(state.authMode === 'recover' ? 'recover' : 'activate', { token: state.token, ...(state.authMode === 'recover' ? {} : { consentAccount: checked(form, 'consent'), consentVersion: CONSENT_VERSION }) }));
     await withPassword(form, async password => {
       const result = await passwordExchange(state.authMode === 'recover' ? 'recover' : 'activate', { token: state.token, ...(state.authMode === 'recover' ? {} : { consentAccount: checked(form, 'consent'), consentVersion: CONSENT_VERSION }) }, password, true); await signedIn(result);
@@ -658,14 +739,32 @@
     }, 'The information is saved and available to this group.');
   });
   $('portal-refresh-accounts').addEventListener('click', () => run(loadAccounts));
+  $('portal-refresh-invitations').addEventListener('click', () => run(loadInvitations));
+  listenForm('portal-invitation-search', form => { state.invitationSearch = value(form, 'search'); state.invitationPage = 1; run(loadInvitations); });
+  $('portal-invitations-prev').addEventListener('click', () => { state.invitationPage = Math.max(1, state.invitationPage - 1); run(loadInvitations); });
+  $('portal-invitations-next').addEventListener('click', () => { state.invitationPage++; run(loadInvitations); });
+  $('portal-find-existing-account').addEventListener('click', () => { $('portal-existing-accounts').scrollIntoView?.({ block: 'nearest', behavior: 'auto' }); field($('portal-account-search'), 'search').focus(); });
+  listenForm('portal-committee-invite', form => {
+    const data = stableCreate('committee-invite', { username: value(form, 'username'), displayName: value(form, 'displayName'), email: value(form, 'email'), siteId: value(form, 'siteId') });
+    run(async () => {
+      const revision = authRevision;
+      const result = await api('/api/webmaster/committee-invitations', { method: 'POST', data });
+      checkAuthRevision(revision); clearPrivateLink();
+      if (result.token) showPrivateLink(result);
+      retries.delete('committee-invite'); form.reset(); $('portal-committee-invite-details').open = false;
+      state.invitationPage = 1; state.invitationSearch = ''; $('portal-invitation-search').reset();
+      await loadWebmasterLists();
+      setStatus(result.token ? 'The committee invitation is ready to share privately. No message has been sent.' : 'This committee invitation is already saved. Use its invitation controls to prepare a new private link if needed.', 'success');
+    });
+  });
   listenForm('portal-account-search', form => { state.accountSearch = value(form, 'search'); state.accountPage = 1; run(loadAccounts); });
   $('portal-accounts-prev').addEventListener('click', () => { state.accountPage = Math.max(1, state.accountPage - 1); run(loadAccounts); });
   $('portal-accounts-next').addEventListener('click', () => { state.accountPage++; run(loadAccounts); });
   listenForm('portal-account-state', form => { const data = { expectedVersion: state.selectedAccount.version, status: value(form, 'status'), webmaster: checked(form, 'webmaster') }; run(async () => { updateSelectedAccount((await api(`/api/webmaster/accounts/${state.selectedAccount.accountId}`, { method: 'PATCH', data })).account); await loadAccounts(); }, 'Account access has been updated.'); });
   $('portal-account-reset').addEventListener('click', () => run(() => accountAction('recovery-link'), 'A private recovery link is ready. No message has been sent.'));
-  $('portal-account-invitation').addEventListener('click', () => run(() => accountAction('invite'), 'A private activation link is ready. No message has been sent.'));
+  $('portal-account-invitation').addEventListener('click', () => run(async () => { await accountAction('invite'); await loadInvitations(); }, 'A private activation link is ready. No message has been sent.'));
   $('portal-account-revoke').addEventListener('click', () => run(() => accountAction('revoke-sessions'), 'The account sessions have been signed out.'));
-  $('portal-account-revoke-links').addEventListener('click', () => run(async () => { await accountAction('revoke-links'); $('portal-private-link').hidden = true; $('portal-private-link-value').value = ''; }, 'Unused account links have been revoked.'));
+  $('portal-account-revoke-links').addEventListener('click', () => run(async () => { await accountAction('revoke-links'); clearPrivateLink(); await loadInvitations(); }, 'Unused account links have been revoked.'));
   $('portal-role-workspace').addEventListener('change', () => run(loadRole));
   listenForm('portal-role', form => {
     const siteId = value(form, 'siteId'), data = { accountId: state.selectedAccount.accountId, role: value(form, 'role'), expectedVersion: state.roleAssignment?.version || 0 };
@@ -684,7 +783,7 @@
   }
   $('portal-account-history').addEventListener('toggle', () => { if ($('portal-account-history').open && state.selectedAccount) run(loadAccountHistory); });
   $('portal-copy-link').addEventListener('click', () => run(async () => { if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText($('portal-private-link-value').value); setStatus('Link copied. Share it only with the verified recipient.', 'success'); } else { $('portal-private-link-value').focus(); $('portal-private-link-value').select(); setStatus('Select and copy the link from the field.'); } }));
-  $('portal-clear-link').addEventListener('click', () => { $('portal-private-link-value').value = ''; $('portal-private-link').hidden = true; });
+  $('portal-clear-link').addEventListener('click', clearPrivateLink);
   $('portal-site-select').addEventListener('change', () => editSite($('portal-site-select').value));
   listenForm('portal-site', form => {
     const site = state.selectedSite, data = { id: value(form, 'id'), name: value(form, 'name'), locality: value(form, 'locality'), summary: value(form, 'summary'), governanceWorkspaceId: value(form, 'governanceWorkspaceId'), published: checked(form, 'published'), applicationsOpen: checked(form, 'applicationsOpen'), ...(site ? { expectedVersion: site.version } : {}) };

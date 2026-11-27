@@ -280,6 +280,7 @@ async function createOptions(request, env, identity, purpose, data, now, loc) {
         .bind(await keyed(env, 'account-link', data.token), purpose === 'activate' ? 'activation' : 'recovery', now).first();
       if (!link) fail(401, 'link_invalid', 'This private link has expired or has already been used.');
       account = await getAccount(db, link.account_id); payload.linkId = link.id;
+      if (purpose === 'activate') Object.assign(payload, await committeeActivationPayload(db, link, account, now));
     } else if (purpose === 'recover' && data.token === undefined && typeof data.recoveryCode === 'string') {
       const name = username(data.username);
       const code = data.recoveryCode.replace(/[\s-]/g, '').toUpperCase();
@@ -380,8 +381,9 @@ async function completeRegistration(env, identity, purpose, ceremony, now, loc, 
     const recoveryState = { sql: "EXISTS (SELECT 1 FROM member_accounts WHERE id=? AND version=? AND auth_version=? AND status=?)",
       values: [id, payload.accountVersion, payload.authVersion, purpose === 'activate' ? 'invited' : 'active'] };
     if (payload.linkId) {
-      statements.push(db.prepare('UPDATE member_auth_links SET redeemed_at=?,claim_id=? WHERE id=? AND account_id=? AND purpose=? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>? AND ' + cg.sql + ' AND ' + recoveryState.sql)
-        .bind(now, op, payload.linkId, id, purpose === 'activate' ? 'activation' : 'recovery', now, ...cg.values, ...recoveryState.values));
+      const invitationGate = committeeActivationGuard(payload, id, now);
+      statements.push(db.prepare('UPDATE member_auth_links SET redeemed_at=?,claim_id=? WHERE id=? AND account_id=? AND purpose=? AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>? AND ' + cg.sql + ' AND ' + recoveryState.sql + ' AND ' + invitationGate.sql)
+        .bind(now, op, payload.linkId, id, purpose === 'activate' ? 'activation' : 'recovery', now, ...cg.values, ...recoveryState.values, ...invitationGate.values));
       gate = { sql: 'EXISTS (SELECT 1 FROM member_auth_links WHERE id=? AND claim_id=?)', values: [payload.linkId, op] };
     } else if (payload.codeId) {
       statements.push(db.prepare('UPDATE member_recovery_codes SET used_at=?,claim_id=? WHERE id=? AND account_id=? AND used_at IS NULL AND revoked_at IS NULL AND ' + cg.sql + ' AND ' + recoveryState.sql)
@@ -397,6 +399,7 @@ async function completeRegistration(env, identity, purpose, ceremony, now, loc, 
     if (purpose === 'recover') statements.push(...revokeStatements(db, id, now, ag, { passkeys: true, passwords: true, sessions: true, codes: true, links: true }));
     if (purpose === 'change' || purpose === 'activate') statements.push(...revokeStatements(db, id, now, ag, { passwords: true, links: true, sessions: true, codes: true }));
   }
+  if (purpose === 'activate' && payload.committeeInvitationId) statements.push(...acceptCommitteeStatements(db, id, payload, now, op, ag));
   statements.push(credentialStatement(op, ag));
   const codes = purpose === 'passkeys' ? [] : await recoveryCodes(env, id);
   statements.push(...codeStatements(db, id, codes, now, ag));
@@ -527,6 +530,7 @@ async function passwordRegistrationSubject(db, env, identity, purpose, data, now
         .bind(await keyed(env, 'account-link', data.token), purpose === 'activate' ? 'activation' : 'recovery', now).first();
       if (!link) fail(401, 'link_invalid', 'This private link has expired or has already been used.');
       account = await getAccount(db, link.account_id); payload.linkId = link.id;
+      if (purpose === 'activate') Object.assign(payload, await committeeActivationPayload(db, link, account, now));
     } else if (purpose === 'recover' && data.token === undefined && typeof data.recoveryCode === 'string') {
       const name = username(data.username), code = data.recoveryCode.replace(/[\s-]/g, '').toUpperCase();
       account = await db.prepare('SELECT * FROM member_accounts WHERE username=?').bind(name).first();
@@ -645,6 +649,172 @@ function pagination(url) {
   if (!Number.isSafeInteger(page) || page < 1 || page > 1000000 || !Number.isSafeInteger(pageSize) || pageSize < 1 || pageSize > 100) fail(400, 'invalid_page', 'Choose a page and between 1 and 100 results.');
   return { page, pageSize, offset: (page - 1) * pageSize };
 }
+const COMMITTEE_SELECT = `SELECT i.*,a.username,a.display_name,a.email,a.status AS account_status,s.name AS site_name
+  FROM member_committee_invitations i JOIN member_accounts a ON a.id=i.account_id JOIN member_sites s ON s.id=i.site_id`;
+const COMMITTEE_STATUS = "CASE WHEN i.accepted_at IS NOT NULL THEN 'accepted' WHEN i.cancelled_at IS NOT NULL THEN 'cancelled' WHEN i.expires_at<=? THEN 'expired' ELSE 'pending' END";
+function committeeInvitation(row, now) {
+  return { id: row.id, accountId: row.account_id, username: row.username, displayName: row.display_name, email: row.email,
+    siteId: row.site_id, siteName: row.site_name, role: 'committee',
+    status: row.accepted_at ? 'accepted' : row.cancelled_at ? 'cancelled' : row.expires_at <= now ? 'expired' : 'pending',
+    version: row.version, createdAt: row.created_at, updatedAt: row.updated_at, expiresAt: row.expires_at,
+    acceptedAt: row.accepted_at ?? null, cancelledAt: row.cancelled_at ?? null, createdBy: row.created_by };
+}
+async function getCommitteeInvitation(db, id) {
+  const row = await db.prepare(COMMITTEE_SELECT + ' WHERE i.id=?').bind(id).first();
+  if (!row) fail(404, 'invitation_not_found', 'The committee invitation was not found.');
+  return row;
+}
+function committeeGuard(id, op) {
+  return { sql: 'EXISTS (SELECT 1 FROM member_committee_invitations WHERE id=? AND last_operation_id=?)', values: [id, op] };
+}
+function committeeActivationGuard(payload, accountId, now) {
+  if (!payload.committeeInvitationId) return { sql: '1=1', values: [] };
+  return { sql: 'EXISTS (SELECT 1 FROM member_committee_invitations WHERE id=? AND account_id=? AND current_link_id=? AND version=? AND accepted_at IS NULL AND cancelled_at IS NULL AND expires_at>?)',
+    values: [payload.committeeInvitationId, accountId, payload.linkId, payload.committeeInvitationVersion, now] };
+}
+async function committeeActivationPayload(db, link, account, now) {
+  if (!link.committee_invitation_id) return {};
+  const invitation = await getCommitteeInvitation(db, link.committee_invitation_id);
+  if (account.status !== 'invited' || invitation.account_id !== account.id || invitation.current_link_id !== link.id || invitation.accepted_at || invitation.cancelled_at || invitation.expires_at <= now) {
+    fail(401, 'invitation_unavailable', 'This invitation is no longer available. Ask the webmaster for a current invitation.');
+  }
+  return { committeeInvitationId: invitation.id, committeeInvitationVersion: invitation.version, committeeSiteId: invitation.site_id };
+}
+function acceptCommitteeStatements(db, accountId, payload, now, op, accountGate) {
+  const who = 'account:' + accountId, invitationGate = committeeActivationGuard(payload, accountId, now);
+  return [
+    db.prepare(`INSERT INTO member_site_roles(site_id,account_id,role,version,created_at,updated_at,updated_by,write_id)
+      SELECT ?,?,'committee',1,?,?,?,? WHERE ${accountGate.sql} AND ${invitationGate.sql}
+      ON CONFLICT(site_id,account_id) DO UPDATE SET role='committee',version=member_site_roles.version+1,updated_at=excluded.updated_at,updated_by=excluded.updated_by,write_id=excluded.write_id`)
+      .bind(payload.committeeSiteId, accountId, now, now, who, op, ...accountGate.values, ...invitationGate.values),
+    db.prepare(`INSERT INTO member_service_history(id,entity_type,entity_id,account_id,site_id,version,event,snapshot_json,actor,created_at)
+      SELECT ?,'role',site_id||':'||account_id,account_id,site_id,version,'committee_invitation_accepted',json_object('siteId',site_id,'accountId',account_id,'role',role,'invitationId',?),?,?
+      FROM member_site_roles WHERE site_id=? AND account_id=? AND write_id=?`)
+      .bind(crypto.randomUUID(), payload.committeeInvitationId, who, now, payload.committeeSiteId, accountId, op),
+    db.prepare(`UPDATE member_committee_invitations SET accepted_at=?,updated_at=?,version=version+1,last_operation_id=?
+      WHERE id=? AND ${accountGate.sql} AND ${invitationGate.sql} AND EXISTS (SELECT 1 FROM member_site_roles WHERE site_id=? AND account_id=? AND role='committee' AND write_id=?)`)
+      .bind(now, now, op, payload.committeeInvitationId, ...accountGate.values, ...invitationGate.values, payload.committeeSiteId, accountId, op),
+    audit(db, accountId, who, 'committee_invitation_accepted', now, { invitationId: payload.committeeInvitationId, siteId: payload.committeeSiteId, role: 'committee' }, committeeGuard(payload.committeeInvitationId, op)),
+  ];
+}
+async function invitationContext(db, env, data, now) {
+  fields(data, ['token']);
+  if (typeof data.token !== 'string' || !TOKEN.test(data.token)) fail(400, 'invalid_invitation', 'Open the complete private invitation link.');
+  const link = await db.prepare("SELECT * FROM member_auth_links WHERE token_hash=? AND purpose='activation' AND redeemed_at IS NULL AND revoked_at IS NULL AND expires_at>?")
+    .bind(await keyed(env, 'account-link', data.token), now).first();
+  if (!link) fail(401, 'invitation_unavailable', 'This invitation has expired, been cancelled or already been accepted. Ask the webmaster for a current invitation.');
+  const account = await getAccount(db, link.account_id);
+  if (account.status !== 'invited') fail(401, 'invitation_unavailable', 'This invitation is no longer available. Sign in to your existing account.');
+  const payload = await committeeActivationPayload(db, link, account, now);
+  const invitation = payload.committeeInvitationId ? await getCommitteeInvitation(db, payload.committeeInvitationId) : null;
+  return json({ invitation: { displayName: account.display_name, username: account.username, siteId: invitation?.site_id ?? null,
+    siteName: invitation?.site_name ?? null, role: invitation ? 'committee' : 'participant', expiresAt: link.expires_at } });
+}
+async function createCommitteeInvitation(db, env, identity, data, now) {
+  fields(data, ['id', 'username', 'displayName', 'email', 'siteId']);
+  const id = uuid(data.id), values = registration(data, { consent: false });
+  const siteId = text(data.siteId, 'a local group', 1, 64);
+  if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(siteId)) fail(400, 'invalid_group', 'Choose a local group.');
+  const original = JSON.stringify({ ...values, siteId, role: 'committee' });
+  const prior = await db.prepare(COMMITTEE_SELECT + ' WHERE i.id=?').bind(id).first();
+  if (prior) {
+    if (prior.original_payload_json !== original) fail(409, 'invitation_conflict', 'This invitation reference belongs to different details. Refresh before trying again.');
+    return json({ invitation: committeeInvitation(prior, now), account: publicAccount(await getAccount(db, prior.account_id)) });
+  }
+  const site = await db.prepare('SELECT id,name FROM member_sites WHERE id=?').bind(siteId).first();
+  if (!site) fail(400, 'group_not_found', 'Create or choose the local group before inviting its committee.');
+  if (await db.prepare('SELECT id FROM member_accounts WHERE username=?').bind(values.username).first()) {
+    fail(409, 'account_exists', 'This username already has an account. Manage that existing account and its group responsibilities instead.');
+  }
+  const accountId = crypto.randomUUID(), linkId = crypto.randomUUID(), token = randomHex(), expiresAt = after(now, 24 * 60 * 60);
+  const op = crypto.randomUUID(), security = actorGuard(identity, now, true), ag = accountGuard(accountId, op), ig = committeeGuard(id, op), who = actor(identity);
+  const result = await db.batch([
+    db.prepare(`INSERT INTO member_accounts(id,username,display_name,email,status,created_at,updated_at,created_by,original_payload_json,last_operation_id)
+      SELECT ?,?,?,?,'invited',?,?,?,?,? WHERE ${security.sql} AND EXISTS(SELECT 1 FROM member_sites WHERE id=?)
+      AND NOT EXISTS(SELECT 1 FROM member_committee_invitations WHERE id=?) ON CONFLICT(id) DO NOTHING RETURNING *`)
+      .bind(accountId, values.username, values.displayName, values.email, now, now, who, JSON.stringify(values), op, ...security.values, siteId, id),
+    db.prepare(`INSERT INTO member_committee_invitations(id,account_id,site_id,expires_at,created_at,updated_at,created_by,original_payload_json,last_operation_id)
+      SELECT ?,?,?,?,?,?,?,?,? WHERE ${ag.sql}`)
+      .bind(id, accountId, siteId, expiresAt, now, now, who, original, op, ...ag.values),
+    db.prepare(`INSERT INTO member_auth_links(id,account_id,purpose,token_hash,created_by,created_at,expires_at,committee_invitation_id)
+      SELECT ?,?,'activation',?,?,?,?,? WHERE ${ig.sql}`)
+      .bind(linkId, accountId, await keyed(env, 'account-link', token), who, now, expiresAt, id, ...ig.values),
+    db.prepare(`UPDATE member_committee_invitations SET current_link_id=? WHERE id=? AND ${ig.sql} RETURNING *`).bind(linkId, id, ...ig.values),
+    audit(db, accountId, who, 'committee_invitation_created', now, { invitationId: id, siteId, role: 'committee' }, ag),
+  ]);
+  const account = rows(result[0])[0], invitation = rows(result[3])[0];
+  if (!account || !invitation) {
+    const retry = await db.prepare(COMMITTEE_SELECT + ' WHERE i.id=?').bind(id).first();
+    if (retry?.original_payload_json === original) return json({ invitation: committeeInvitation(retry, now), account: publicAccount(await getAccount(db, retry.account_id)) });
+    conflict();
+  }
+  return json({ invitation: committeeInvitation({ ...invitation, username: account.username, display_name: account.display_name, email: account.email, site_name: site.name }, now),
+    account: publicAccount(account), token, purpose: 'activation', expiresAt, sent: false }, 201);
+}
+async function manageCommitteeInvitation(db, env, identity, id, operation, data, now, expectedAccountVersion = null) {
+  fields(data, ['expectedVersion']);
+  const expected = version(data.expectedVersion), invitation = await getCommitteeInvitation(db, id);
+  if (invitation.version !== expected) fail(409, 'invitation_conflict', 'This invitation changed. Refresh it before trying again.');
+  const account = await getAccount(db, invitation.account_id);
+  if (invitation.accepted_at || account.status !== 'invited') fail(409, 'invitation_accepted', 'This person already has an active account. Manage their account and group responsibilities instead.');
+  if (operation === 'reopen' && !invitation.cancelled_at) fail(409, 'invitation_not_cancelled', 'Only a cancelled invitation can be reopened.');
+  if (operation !== 'reopen' && invitation.cancelled_at) fail(409, 'committee_invitation_cancelled', 'This invitation is cancelled. Use Reopen invitation in Committee invitations to invite this person again.');
+  const op = crypto.randomUUID(), security = actorGuard(identity, now, true), ag = accountGuard(account.id, op), ig = committeeGuard(id, op), who = actor(identity);
+  const token = operation === 'cancel' ? null : randomHex(), linkId = token ? crypto.randomUUID() : null;
+  const expiresAt = token ? after(now, 24 * 60 * 60) : invitation.expires_at;
+  const action = { renew: 'committee_invitation_renewed', cancel: 'committee_invitation_cancelled', reopen: 'committee_invitation_reopened' }[operation];
+  const stateCheck = operation === 'reopen' ? 'cancelled_at IS NOT NULL' : 'cancelled_at IS NULL';
+  const statements = [
+    db.prepare(`UPDATE member_accounts SET version=version+1,updated_at=?,last_operation_id=? WHERE id=? AND version=? AND status='invited'
+      AND ${security.sql} AND EXISTS(SELECT 1 FROM member_committee_invitations WHERE id=? AND version=? AND accepted_at IS NULL AND ${stateCheck}) RETURNING *`)
+      .bind(now, op, account.id, expectedAccountVersion ?? account.version, ...security.values, id, expected),
+    ...revokeStatements(db, account.id, now, ag, { links: true }),
+  ];
+  const invitationIndex = statements.length;
+  statements.push(db.prepare(`UPDATE member_committee_invitations SET cancelled_at=?,expires_at=?,updated_at=?,version=version+1,last_operation_id=? WHERE id=? AND version=? AND ${ag.sql} RETURNING *`)
+    .bind(operation === 'cancel' ? now : null, expiresAt, now, op, id, expected, ...ag.values));
+  if (token) {
+    statements.push(db.prepare(`INSERT INTO member_auth_links(id,account_id,purpose,token_hash,created_by,created_at,expires_at,committee_invitation_id)
+      SELECT ?,?,'activation',?,?,?,?,? WHERE ${ig.sql}`)
+      .bind(linkId, account.id, await keyed(env, 'account-link', token), who, now, expiresAt, id, ...ig.values));
+    statements.push(db.prepare(`UPDATE member_committee_invitations SET current_link_id=? WHERE id=? AND ${ig.sql}`).bind(linkId, id, ...ig.values));
+  }
+  statements.push(audit(db, account.id, who, action, now, { invitationId: id, siteId: invitation.site_id, role: 'committee' }, ig));
+  const result = await db.batch(statements), changed = rows(result[invitationIndex])[0];
+  if (!rows(result[0]).length || !changed) conflict();
+  return json({ invitation: committeeInvitation({ ...invitation, ...changed }, now), account: publicAccount(rows(result[0])[0]),
+    ...(token ? { token, purpose: 'activation', expiresAt, sent: false } : { ok: true }) });
+}
+async function handleCommitteeInvitations(db, env, identity, request, data, now, url) {
+  requireWebmaster(identity, now, !['GET', 'HEAD'].includes(request.method));
+  const security = actorGuard(identity, now, true);
+  if (!await db.prepare('SELECT 1 AS allowed WHERE ' + security.sql).bind(...security.values).first()) fail(403, 'webmaster_required', 'This action is available to the current webmaster.');
+  const base = '/api/webmaster/committee-invitations';
+  if (url.pathname === base) {
+    if (request.method === 'POST') return createCommitteeInvitation(db, env, identity, await data(), now);
+    if (request.method === 'GET') {
+      const page = pagination(url), search = (url.searchParams.get('search') ?? '').trim().toLowerCase(), status = url.searchParams.get('status') ?? '';
+      if (search.length > 120 || !['', 'pending', 'expired', 'accepted', 'cancelled'].includes(status)) fail(400, 'invalid_search', 'Check the invitation search and status.');
+      const where = '(instr(lower(a.username),?)>0 OR instr(lower(a.display_name),?)>0 OR instr(lower(a.email),?)>0 OR instr(lower(s.name),?)>0)' + (status ? ' AND ' + COMMITTEE_STATUS + '=?' : '');
+      const values = [search, search, search, search, ...(status ? [now, status] : [])];
+      const result = await db.batch([
+        db.prepare(COMMITTEE_SELECT + ' WHERE ' + where + ' ORDER BY i.created_at DESC,i.id DESC LIMIT ? OFFSET ?').bind(...values, page.pageSize, page.offset),
+        db.prepare('SELECT COUNT(*) AS total FROM member_committee_invitations i JOIN member_accounts a ON a.id=i.account_id JOIN member_sites s ON s.id=i.site_id WHERE ' + where).bind(...values),
+      ]);
+      return json({ invitations: rows(result[0]).map(row => committeeInvitation(row, now)), total: rows(result[1])[0].total, page: page.page, pageSize: page.pageSize });
+    }
+  }
+  const match = /^\/api\/webmaster\/committee-invitations\/([0-9a-f-]+)(?:\/(renew|cancel|reopen))?$/.exec(url.pathname);
+  if (match) {
+    const id = uuid(match[1]);
+    if (!match[2] && request.method === 'GET') {
+      const invitation = await getCommitteeInvitation(db, id);
+      return json({ invitation: committeeInvitation(invitation, now), account: publicAccount(await getAccount(db, invitation.account_id)) });
+    }
+    if (match[2] && request.method === 'POST') return manageCommitteeInvitation(db, env, identity, id, match[2], await data(), now);
+  }
+  return json({ error: 'This invitation endpoint was not found.', code: 'not_found' }, 404);
+}
 async function reserveAccount(db, identity, data, now) {
   fields(data, ['id', 'username', 'displayName', 'email']);
   const id = uuid(data.id); const values = registration(data, { consent: false }); const original = JSON.stringify(values);
@@ -671,15 +841,24 @@ async function manageAccount(db, env, identity, accountId, operation, data, now)
   fields(data, operation === 'patch' ? ['expectedVersion', 'status', 'webmaster'] : ['expectedVersion']);
   const expected = version(data.expectedVersion); const account = await getAccount(db, accountId);
   if (account.version !== expected) conflict();
+  if (account.status === 'invited' && ['invite', 'revoke-links'].includes(operation)) {
+    const link = await db.prepare("SELECT * FROM member_auth_links WHERE account_id=? AND purpose='activation' ORDER BY created_at DESC,id DESC LIMIT 1").bind(accountId).first();
+    if (link?.committee_invitation_id) {
+      const invitation = await getCommitteeInvitation(db, link.committee_invitation_id);
+      if (operation === 'invite' || !invitation.cancelled_at) {
+        return manageCommitteeInvitation(db, env, identity, invitation.id, operation === 'invite' ? 'renew' : 'cancel', { expectedVersion: invitation.version }, now, expected);
+      }
+    }
+  }
   const op = crypto.randomUUID(); const security = actorGuard(identity, now, true); const guard = accountGuard(accountId, op);
   let sql; let values; let token; let expiresAt; let purpose; let action;
   let revoke = {};
   if (operation === 'patch') {
+    if (account.status === 'invited') fail(400, 'activation_required', 'The invited person must activate their own account before account access can be changed. Manage their invitation to renew or cancel it.');
     if (data.status === undefined && data.webmaster === undefined) fail(400, 'invalid_fields', 'Choose the account change to save.');
     if (data.status !== undefined && !['active', 'disabled'].includes(data.status)) fail(400, 'invalid_status', 'An account may be active or disabled.');
     if (data.webmaster !== undefined && typeof data.webmaster !== 'boolean') fail(400, 'invalid_role', 'Choose whether this account is a webmaster.');
     const status = data.status ?? account.status; const webmaster = data.webmaster === undefined ? account.webmaster : Number(data.webmaster);
-    if (account.status === 'invited' && status !== 'invited') fail(400, 'activation_required', 'The invited person must activate their own account.');
     if (webmaster && status !== 'active' && !(account.webmaster && data.webmaster === undefined)) fail(400, 'active_account_required', 'Activate the account before assigning webmaster access.');
     const removingLast = account.status === 'active' && account.webmaster === 1 && (status !== 'active' || !webmaster);
     if (removingLast && !(await db.prepare("SELECT id FROM member_accounts WHERE status='active' AND webmaster=1 AND id<>? LIMIT 1").bind(accountId).first())) fail(409, 'last_webmaster', 'Keep at least one active webmaster.');
@@ -730,7 +909,7 @@ async function ownRevoke(db, identity, now, keyId = null) {
 }
 export async function handleAccountRequest(request, env, { identity = null, now: providedNow, readJSON } = {}) {
   const pathname = new URL(request.url).pathname;
-  if (!pathname.startsWith('/api/auth/') && !pathname.startsWith('/api/webmaster/accounts')) return null;
+  if (!pathname.startsWith('/api/auth/') && !pathname.startsWith('/api/webmaster/accounts') && !pathname.startsWith('/api/webmaster/committee-invitations')) return null;
   try {
     const now = iso(providedNow); const loc = location(request, env); const db = env.DB;
     if (!db?.prepare || !db?.batch) fail(503, 'auth_unavailable', 'Account sign-in is temporarily unavailable.');
@@ -746,6 +925,11 @@ export async function handleAccountRequest(request, env, { identity = null, now:
     requireSecret(env);
     if (!['GET', 'HEAD'].includes(request.method)) mutation(request, loc.url.origin);
     const body = () => (readJSON ? readJSON() : readBody(request));
+    if (pathname.startsWith('/api/webmaster/committee-invitations')) return await handleCommitteeInvitations(db, env, identity, request, body, now, loc.url);
+    if (pathname === '/api/auth/invitation' && request.method === 'POST') {
+      await throttle(db, request, env, now, 'invitation-context');
+      return await invitationContext(db, env, await body(), now);
+    }
     if (pathname === '/api/auth/logout' && request.method === 'POST') {
       fields(await body(), []);
       if (['passkey', 'password'].includes(identity?.authentication)) {

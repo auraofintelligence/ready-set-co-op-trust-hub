@@ -63,6 +63,9 @@
 .portal-tabs button[aria-selected="true"] { background: #ede5fb; border-color: #7334d4; box-shadow: inset 4px 0 #7334d4; }
 .portal-panels { min-width: 0; }
 .portal-section-heading { display: flex; gap: 1rem; align-items: center; justify-content: space-between; flex-wrap: wrap; margin: 1.7rem 0 1rem; }
+.portal-invitations { margin-top: 1.5rem; padding-bottom: 1.5rem; border-bottom: 1px solid #dbe0ed; }
+.portal-invitations > .portal-section-heading { margin-top: 0; }
+.portal-invitations .portal-record > h4 { margin-bottom: .5rem; }
 .portal-subheading { margin: 1.75rem 0 1rem; }
 .portal-record-list { display: grid; gap: .9rem; margin: 1rem 0; }
 .portal-record { min-width: 0; border: 1px solid #dbe0ed; border-radius: .6rem; padding: 1rem; background: #fafbfe; overflow-wrap: anywhere; }
@@ -75,7 +78,8 @@
 .portal-empty { color: #536078; padding: 1rem; background: #f7f8fc; border: 1px dashed #b8bfce; border-radius: .5rem; }
 .portal-badge { display: inline-block; max-width: 100%; font-size: .9rem; font-weight: 650; padding: .25rem .65rem; border-radius: 1rem; background: #e5f4ec; color: #165b45; line-height: 1.5; }
 .portal-badge[data-state="pending"], .portal-badge[data-state="under_review"], .portal-badge[data-state="submitted"] { color: #6e5009; background: #fff0ca; }
-.portal-badge[data-state="disabled"], .portal-badge[data-state="declined"], .portal-badge[data-state="withdrawn"] { color: #82232c; background: #fde8ea; }
+.portal-badge[data-state="disabled"], .portal-badge[data-state="declined"], .portal-badge[data-state="withdrawn"], .portal-badge[data-state="cancelled"] { color: #82232c; background: #fde8ea; }
+.portal-badge[data-state="expired"] { color: #644812; background: #f8ebd4; }
 .portal-preserve { white-space: pre-wrap; overflow-wrap: anywhere; }
 .portal-inset { border-left: 4px solid #7334d4; padding: 1.2rem; background: #f3effa; margin-top: 1rem; }
 .portal-inset > button { margin-top: 1rem; }
