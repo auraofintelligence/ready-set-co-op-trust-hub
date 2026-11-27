@@ -390,9 +390,9 @@ async function completeRegistration(env, identity, purpose, ceremony, now, loc, 
     }
     const security = ownChange ? actorGuard(identity, now) : { sql: '1=1', values: [] };
     accountIndex = statements.length;
-    statements.push(db.prepare("UPDATE member_accounts SET status='active',consent_account=1,consent_version=?,version=version+1,auth_version=auth_version+?,updated_at=?,last_login_at=?,last_operation_id=? WHERE id=? AND version=? AND auth_version=? AND status=? AND " + gate.sql + ' AND ' + security.sql +
+    statements.push(db.prepare("UPDATE member_accounts SET status='active'," + (purpose === 'activate' ? 'consent_account=1,consent_version=?,' : '') + 'version=version+1,auth_version=auth_version+?,updated_at=?,last_login_at=?,last_operation_id=? WHERE id=? AND version=? AND auth_version=? AND status=? AND ' + gate.sql + ' AND ' + security.sql +
       (purpose === 'passkeys' ? ' AND (SELECT COUNT(*) FROM member_passkeys WHERE account_id=? AND revoked_at IS NULL)<' + MAX_PASSKEYS : '') + ' RETURNING *')
-      .bind(purpose === 'activate' ? payload.consentVersion : (await getAccount(db, id)).consent_version, Number(purpose !== 'passkeys'), now, now, op, id, payload.accountVersion, payload.authVersion,
+      .bind(...(purpose === 'activate' ? [payload.consentVersion] : []), Number(purpose !== 'passkeys'), now, now, op, id, payload.accountVersion, payload.authVersion,
         purpose === 'activate' ? 'invited' : 'active', ...gate.values, ...security.values, ...(purpose === 'passkeys' ? [id] : [])));
     if (purpose === 'recover') statements.push(...revokeStatements(db, id, now, ag, { passkeys: true, passwords: true, sessions: true, codes: true, links: true }));
     if (purpose === 'change' || purpose === 'activate') statements.push(...revokeStatements(db, id, now, ag, { passwords: true, links: true, sessions: true, codes: true }));

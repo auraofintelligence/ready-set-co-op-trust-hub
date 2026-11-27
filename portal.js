@@ -5,7 +5,7 @@
   const CONSENT_VERSION = '2026-11-27';
   const INTERESTS = { founding: 'Forming the cooperative', employment: 'Paid work', training: 'Training and learning', events: 'Events', grants: 'Grants', resources: 'Shared resources', media: 'Media and notices', support: 'Practical support', mapping: 'Community map', working_holiday: 'Working holiday work', tourism: 'Tourism' };
   const STATUS = { submitted: 'Submitted', in_review: 'Under review', more_info: 'More information requested', accepted_participant: 'Participation accepted', declined: 'Declined', withdrawn: 'Withdrawn', admitted: 'Cooperative admission recorded', active: 'Active', invited: 'Invited', disabled: 'Disabled', participant: 'Participant', committee: 'Committee', none: 'No group access' };
-  const state = { identity: null, profile: null, sites: [], groups: [], applications: [], committeeSites: [], accounts: [], accountTotal: 0, accountPage: 1, accountSearch: '', selectedAccount: null, selectedApplication: null, selectedSite: null, selectedGroup: '', selectedCommittee: '', selectedPost: null, roleAssignment: null, allSites: [], recoveryCodes: [], recoveryUsername: '', token: '', authMode: '', busy: false, profileDirty: false };
+  const state = { identity: null, profile: null, participantView: false, participantLoaded: false, sites: [], groups: [], applications: [], committeeSites: [], accounts: [], accountTotal: 0, accountPage: 1, accountSearch: '', selectedAccount: null, selectedApplication: null, selectedSite: null, selectedGroup: '', selectedCommittee: '', selectedPost: null, roleAssignment: null, allSites: [], recoveryCodes: [], recoveryUsername: '', token: '', authMode: '', busy: false, profileDirty: false };
   const retries = new Map();
   const controls = new Map();
   const passwordTasks = new Map();
@@ -178,6 +178,7 @@
   }
   function clearPrivate() {
     authRevision++; stopPasswordWorker();
+    state.participantView = false; state.participantLoaded = false;
     state.identity = null; state.profile = null; state.sites = []; state.groups = []; state.applications = []; state.committeeSites = []; state.accounts = []; state.allSites = []; state.selectedAccount = null; state.selectedApplication = null; state.selectedSite = null; state.selectedGroup = ''; state.selectedCommittee = ''; state.selectedPost = null; state.roleAssignment = null; state.profileDirty = false; state.resubmission = null; state.accountEvents = []; state.reviewApplications = []; state.committeePosts = []; state.groupPosts = []; retries.clear();
     $('portal-signed-in').hidden = true; $('portal-reauth').hidden = true; document.querySelectorAll('[data-page-more]').forEach(control => control.remove());
     $('tab-committee').hidden = true; $('tab-webmaster').hidden = true;
@@ -195,7 +196,8 @@
     try { body = await response.json(); } catch { body = {}; }
     if (!response.ok) {
       const error = new Error(body.error || 'The server could not complete this request.'); error.status = response.status; error.code = body.code;
-      if (response.status === 401 && state.identity && !path.startsWith('/api/auth/login') && !/^\/api\/auth\/password\/(?:login|reauth|recovery-codes)\//.test(path)) clearPrivate();
+      const retryableAuth = /^\/api\/auth\/(?:password\/)?(?:login|reauth|recovery-codes)\/(?:options|verify)$/.test(path) && ['password_invalid', 'invalid_ceremony'].includes(error.code);
+      if (response.status === 401 && state.identity && !retryableAuth) clearPrivate();
       throw error;
     }
     return body;
@@ -223,8 +225,21 @@
       if (selected && focus) tab.focus();
     }
   }
+  function updatePortalView() {
+    const webmaster = state.identity?.webmaster === true, administration = webmaster && !state.participantView;
+    for (const panel of ['profile', 'applications', 'groups']) $(`tab-${panel}`).hidden = administration;
+    $('tab-webmaster').hidden = !administration;
+    $('tab-committee').hidden = webmaster ? !administration : !state.committeeSites.length;
+    $('portal-participant-view').hidden = !webmaster;
+    $('portal-participant-view').textContent = state.participantView ? 'Back to administration' : 'Open participant view (optional)';
+    $('portal-participant-view').setAttribute('aria-pressed', String(webmaster && state.participantView));
+    $('portal-title').textContent = administration ? 'Webmaster administration' : webmaster ? 'Participant view' : 'Member portal';
+    $('portal-eyebrow').textContent = administration ? 'Accounts · groups · governance' : webmaster ? 'Optional · your participation' : 'People · participation · local groups';
+    $('portal-member-intro').hidden = administration; $('portal-admin-intro').hidden = !administration;
+  }
   function showAuth() {
     hidePasswords();
+    updatePortalView();
     $('portal-signed-out').hidden = !!state.identity;
     $('portal-auth-ordinary').hidden = ['setup', 'invite', 'recover'].includes(state.authMode);
     $('portal-setup').hidden = state.authMode !== 'setup';
@@ -242,9 +257,9 @@
     if (!Array.isArray(codes) || !codes.length) return;
     state.recoveryCodes = [...codes]; state.recoveryUsername = username || state.identity?.username || '';
     $('portal-code-list').replaceChildren(...codes.map(code => node('li', code)));
-    $('portal-recovery-codes').hidden = false;
+    $('portal-recovery-codes').open = false; $('portal-recovery-codes').hidden = false;
   }
-  function clearRecovery() { state.recoveryCodes = []; state.recoveryUsername = ''; $('portal-code-list').replaceChildren(); $('portal-recovery-codes').hidden = true; }
+  function clearRecovery() { state.recoveryCodes = []; state.recoveryUsername = ''; $('portal-code-list').replaceChildren(); $('portal-recovery-codes').open = false; $('portal-recovery-codes').hidden = true; }
   async function ceremony(purpose, data) {
     const webauthn = window.SimpleWebAuthnBrowser;
     if (!webauthn?.startRegistration || !webauthn?.startAuthentication) throw new Error('Passkey support did not load. Refresh this page in a current browser on the Cloudflare site.');
@@ -259,11 +274,24 @@
   }
   async function signedIn(result) {
     state.identity = result.identity; state.authMode = ''; state.token = ''; $('portal-unavailable').hidden = true; $('portal-signed-out').hidden = true;
+    state.participantView = false; state.participantLoaded = false;
     $('portal-signed-in').hidden = false; $('portal-account-name').textContent = state.identity.displayName; $('portal-account-label').textContent = `@${state.identity.username}${state.identity.webmaster ? ' · Webmaster' : ' · Private account'}`;
     for (const id of ['portal-login', 'portal-passkey-login', 'portal-register', 'portal-bootstrap', 'portal-recover', 'portal-activate']) $(id).reset();
-    updateAuthMethods(); updateSecurityAuth();
+    updateAuthMethods(); updateSecurityAuth(); updatePortalView(); selectPanel(state.identity.webmaster ? 'webmaster' : 'profile');
     showRecovery(result.recoveryCodes, state.identity.username);
-    await loadMemberData(); selectPanel('profile');
+    await loadPortalData();
+  }
+  async function refreshAuthIdentity(result) {
+    const previous = state.identity, next = result?.identity;
+    if (!next?.accountId || next.status !== 'active') { clearPrivate(); throw new Error('Sign in again to continue with an active account.'); }
+    const changed = !previous || previous.accountId !== next.accountId || (previous.webmaster === true) !== (next.webmaster === true) || previous.status !== next.status;
+    if (changed) { clearPrivate(); await signedIn(result); }
+    else { state.identity = next; updateSecurityAuth(); }
+    return changed;
+  }
+  async function confirmAuthIdentity(result) {
+    const changed = await refreshAuthIdentity(result); $('portal-reauth').hidden = true;
+    setStatus(changed ? 'Account access has changed. Review the current account before continuing.' : 'Identity confirmed. You can now repeat your account action.', 'success');
   }
   async function loadSession() {
     $('portal-unavailable').hidden = true;
@@ -276,7 +304,7 @@
       else { $('portal-signed-out').hidden = true; $('portal-unavailable').hidden = false; setStatus('The public hub is open. Private account setup is not complete yet.'); }
       return;
     }
-    if (result.authenticated && result.identity) { await signedIn(result); setStatus('Your private portal is ready.'); return; }
+    if (result.authenticated && result.identity) { await signedIn(result); setStatus(state.identity.webmaster ? 'Your webmaster administration is ready.' : 'Your private portal is ready.'); return; }
     clearPrivate();
     if (state.authMode === 'setup' && (result.setupComplete === true || !result.bootstrapAvailable)) { state.authMode = ''; showAuth(); setStatus('The first webmaster account has already been established. Sign in to continue.'); }
     else { if (state.authMode === 'setup') { $('portal-setup-help').hidden = true; setStatus('Cloudflare account setup is ready. Keep the setup key below, complete your details and choose your own password.', 'success'); } else setStatus(state.authMode ? 'Complete the private account step below.' : 'Sign in or create an account to continue.'); }
@@ -293,12 +321,22 @@
     $('portal-profile-meta').textContent = profile.version ? `Saved ${date(profile.updatedAt)} · Version ${profile.version}` : 'Review and save your contact choices before applying to a group.';
     state.profileDirty = false;
   }
-  async function loadMemberData() {
-    const [profile, sites, applications, groups, committee] = await Promise.all([api('/api/member/profile'), api('/api/member/sites'), api('/api/member/applications'), api('/api/member/groups'), api('/api/committee/sites')]);
+  async function loadParticipantData() {
+    const revision = authRevision;
+    const [profile, sites, applications, groups] = await Promise.all([api('/api/member/profile'), api('/api/member/sites'), api('/api/member/applications'), api('/api/member/groups')]);
+    checkAuthRevision(revision);
     state.profile = profile.profile; renderProfile();
-    receiveSites(sites); receiveApplications(applications); receiveGroups(groups); receiveCommitteeSites(committee);
-    $('tab-webmaster').hidden = !state.identity.webmaster;
-    if (state.identity.webmaster) receiveAllSites(await api('/api/webmaster/sites'));
+    receiveSites(sites); receiveApplications(applications); receiveGroups(groups); state.participantLoaded = true;
+  }
+  async function loadPortalData() {
+    const revision = authRevision;
+    if (state.identity.webmaster) {
+      const [sites, committee] = await Promise.all([api('/api/webmaster/sites'), api('/api/committee/sites')]);
+      checkAuthRevision(revision); receiveAllSites(sites); receiveCommitteeSites(committee); await loadAccounts();
+    } else {
+      const [, committee] = await Promise.all([loadParticipantData(), api('/api/committee/sites')]);
+      checkAuthRevision(revision); receiveCommitteeSites(committee);
+    }
   }
   function receiveSites(result, page = 1) {
     state.sites = mergeRows(state.sites, result.sites || [], page);
@@ -317,7 +355,7 @@
   }
   function receiveCommitteeSites(result, page = 1) {
     state.committeeSites = mergeRows(state.committeeSites, result.sites || [], page);
-    $('tab-committee').hidden = !state.identity.webmaster && !state.committeeSites.length;
+    updatePortalView();
     fillOptions($('portal-committee-workspace'), state.committeeSites, 'Choose a group', state.selectedCommittee);
     showMore($('portal-committee-workspace'), result, async next => receiveCommitteeSites(await api(`/api/committee/sites?page=${next}`), next));
   }
@@ -434,7 +472,9 @@
     $('portal-accounts-page').textContent = `Page ${state.accountPage} · ${state.accountTotal} accounts`;
   }
   async function loadAccounts() {
+    const revision = authRevision;
     const result = await api(`/api/webmaster/accounts?page=${state.accountPage}&pageSize=25&search=${encodeURIComponent(state.accountSearch)}`);
+    checkAuthRevision(revision);
     state.accounts = result.accounts || []; state.accountTotal = result.total || 0;
     const list = $('portal-account-list'); list.replaceChildren();
     if (!state.accounts.length) empty(list, 'No accounts match this search.');
@@ -516,8 +556,16 @@
   }
   $('portal-reading').hidden = false;
   $('portal-reading').addEventListener('click', () => { const easy = document.body.dataset.portalReading !== 'easy'; document.body.dataset.portalReading = easy ? 'easy' : 'normal'; $('portal-reading').setAttribute('aria-pressed', String(easy)); });
+  $('portal-participant-view').addEventListener('click', () => {
+    if (state.busy || !state.identity?.webmaster) return;
+    const participant = !state.participantView;
+    run(async () => {
+      if (participant && !state.participantLoaded) await loadParticipantData();
+      state.participantView = participant; updatePortalView(); selectPanel(participant ? 'profile' : 'webmaster');
+    }, participant ? 'Your optional participant view is open.' : 'Your webmaster administration is ready.');
+  });
   for (const tab of document.querySelectorAll('[data-panel]')) tab.addEventListener('click', () => {
-    if (state.busy) return; const panel = tab.dataset.panel; selectPanel(panel);
+    if (state.busy || tab.hidden) return; const panel = tab.dataset.panel; selectPanel(panel);
     if (panel === 'webmaster') run(loadAccounts); if (panel === 'security') run(loadPasskeys);
   });
   document.querySelector('.portal-tabs').addEventListener('keydown', event => {
@@ -542,11 +590,11 @@
         if (purpose === 'bootstrap' && password === data.bootstrapKey.normalize('NFC')) throw new Error('Choose your own password, separate from the one-time setup authorisation key.');
         await signedIn(await passwordExchange(purpose, data, password, true));
       }, { confirm: true });
-    }, 'Your account is ready. Save your recovery codes privately.');
+    }, 'Your account is ready. Optional recovery codes are available.');
   });
   listenForm('portal-recover', form => {
     const data = { username: value(form, 'username'), recoveryCode: value(form, 'recoveryCode') }, passkey = checked(form, 'usePasskey');
-    run(() => passkey ? ceremony('recover', data).then(signedIn) : withPassword(form, async password => signedIn(await passwordExchange('recover', data, password, true)), { confirm: true }), passkey ? 'Your account has been recovered with a new passkey. Save the new recovery codes.' : 'Your account has been recovered with your new password. Save the new recovery codes.');
+    run(() => passkey ? ceremony('recover', data).then(signedIn) : withPassword(form, async password => signedIn(await passwordExchange('recover', data, password, true)), { confirm: true }), passkey ? 'Your account has been recovered with a new passkey. Optional recovery codes are available.' : 'Your account has been recovered with your new password. Optional recovery codes are available.');
   });
   listenForm('portal-activate', form => run(async () => {
     if (!state.token) throw new Error('Open the complete private account link supplied by your organiser.');
@@ -554,15 +602,15 @@
     await withPassword(form, async password => {
       const result = await passwordExchange(state.authMode === 'recover' ? 'recover' : 'activate', { token: state.token, ...(state.authMode === 'recover' ? {} : { consentAccount: checked(form, 'consent'), consentVersion: CONSENT_VERSION }) }, password, true); await signedIn(result);
     }, { confirm: true });
-  }, checked(form, 'usePasskey') ? 'Your passkey is ready. Save your recovery codes privately.' : 'Your password is ready. Save your recovery codes privately.'));
-  listenForm('portal-reauth-form', form => run(() => withPassword(form, async password => { const result = await passwordExchange('reauth', {}, password); state.identity = result.identity; updateSecurityAuth(); $('portal-reauth').hidden = true; }), 'Identity confirmed. You can now repeat your account action.'));
-  $('portal-reauth-button').addEventListener('click', () => run(async () => { const result = await ceremony('login', { username: state.identity.username }); state.identity = result.identity; updateSecurityAuth(); $('portal-reauth').hidden = true; }, 'Identity confirmed. You can now repeat your account action.'));
-  listenForm('portal-recovery-password', form => run(() => withPassword(form, async password => { const result = await passwordExchange('recovery-codes', {}, password); state.identity = result.identity; updateSecurityAuth(); showRecovery(result.recoveryCodes, state.identity.username); }), 'Your old recovery codes have been replaced. Save the new codes privately.'));
-  $('portal-renew-codes-passkey').addEventListener('click', () => run(async () => { const result = await ceremony('recovery-codes', {}); state.identity = result.identity; updateSecurityAuth(); showRecovery(result.recoveryCodes, state.identity.username); }, 'Your old recovery codes have been replaced. Save the new codes privately.'));
+  }, checked(form, 'usePasskey') ? 'Your passkey is ready. Optional recovery codes are available.' : 'Your password is ready. Optional recovery codes are available.'));
+  listenForm('portal-reauth-form', form => run(() => withPassword(form, async password => confirmAuthIdentity(await passwordExchange('reauth', {}, password)))));
+  $('portal-reauth-button').addEventListener('click', () => run(async () => confirmAuthIdentity(await ceremony('login', { username: state.identity.username }))));
+  listenForm('portal-recovery-password', form => run(() => withPassword(form, async password => { const result = await passwordExchange('recovery-codes', {}, password); await refreshAuthIdentity(result); showRecovery(result.recoveryCodes, state.identity.username); }), 'Your old recovery codes have been replaced. Optional recovery codes are available.'));
+  $('portal-renew-codes-passkey').addEventListener('click', () => run(async () => { const result = await ceremony('recovery-codes', {}); await refreshAuthIdentity(result); showRecovery(result.recoveryCodes, state.identity.username); }, 'Your old recovery codes have been replaced. Optional recovery codes are available.'));
   listenForm('portal-password', form => run(() => withPassword(form, async password => {
-    if (state.identity.hasPassword) { const result = await passwordExchange('reauth', {}, readPassword(form, 'currentPassword')); state.identity = result.identity; }
-    const result = await passwordExchange('change', {}, password, true); state.identity = result.identity; updateSecurityAuth(); $('portal-reauth').hidden = true; showRecovery(result.recoveryCodes, state.identity.username);
-  }, { confirm: true }), 'Your password has been saved. Save the new recovery codes privately.'));
+    if (state.identity.hasPassword && await refreshAuthIdentity(await passwordExchange('reauth', {}, readPassword(form, 'currentPassword')))) throw new Error('Account access changed. Review the current account before changing its password.');
+    const result = await passwordExchange('change', {}, password, true); await refreshAuthIdentity(result); $('portal-reauth').hidden = true; showRecovery(result.recoveryCodes, state.identity.username);
+  }, { confirm: true }), 'Your password has been saved. Optional recovery codes are available.'));
   $('portal-generate-key').addEventListener('click', () => {
     if (state.busy || state.authMode !== 'setup') return;
     const key = [...crypto.getRandomValues(new Uint8Array(32))].map(byte => byte.toString(16).padStart(2, '0')).join('');

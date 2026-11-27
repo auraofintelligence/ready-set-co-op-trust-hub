@@ -8,11 +8,13 @@ The public formation and governance hub remains open. The account portal is `por
 
 Use the existing Cloudflare Worker **ready-setco** and its **ready-setco-operations** D1 database. Do not create another Worker, database, authentication service or hosting project.
 
+The initial Webmaster has already been established on this service, as confirmed by Luke on 27 November 2026. Use the existing sign-in and administration view. The following setup steps are retained for a fresh installation and must not be repeated for the established account.
+
 1. Apply the repository migrations through the existing automatic deployment workflow. `0005_member_accounts.sql` adds the account schema; `0006_member_services.sql` adds participation services; `0007_member_passwords.sql` adds password credentials and protocol state. These migrations do not seed a person, password, passkey, cooperative or role.
 2. Open **https://ready-setco.auraofintelligence.workers.dev/portal.html#setup**. Choose **Generate setup key**, then **Copy setup key**. This generates 32 random bytes in that browser and retains the value in the setup form. Keep the page open.
 3. In Cloudflare, open **Workers & Pages → ready-setco → Settings → Variables and Secrets → Add**. Choose **Secret**, name it **READY_AUTH_SECRET**, paste the copied value, then choose **Deploy**. Keep a private copy somewhere secure. Use the Worker runtime section, not **Builds → Variables and secrets**. If the runtime secret is already configured, keep it; the password update does not require a second key. Do not paste it into a GitHub file, issue, message or public URL.
 4. Return to the portal and choose **Check setup**. Supply a username, display name and contact email, choose and confirm your own password, and accept the account privacy information. The setup form retains the generated key for this step.
-5. Save the eight recovery codes somewhere private and separate from the device. They are displayed once. Passkeys are optional and appear only when deliberately selected. A password manager or biometric enrolment is not required.
+5. Optionally open the recovery-code disclosure and save the eight backup codes somewhere private and separate from the device. The codes are available during this response and are not required to continue into administration. Passkeys are optional and appear only when deliberately selected. A password manager or biometric enrolment is not required.
 6. Verify that the portal identifies the new account as webmaster and that sign-out followed by password sign-in works. The webmaster can then establish local groups and explicitly assign scoped committee roles.
 
 The first public registrant does **not** become webmaster. Bootstrap requires the configured setup authorisation key and a separately chosen account credential. Its permanent singleton record is created atomically with the webmaster account. After that, the setup key cannot establish a second initial webmaster, even if the secret is changed. Keep the secret configured: it remains the server key for private links, recovery codes, browser challenge bindings, rate-limit identifiers and encryption of the persistent password-protocol setup. It is never the member's account password.
@@ -24,6 +26,8 @@ The session endpoint reports configuration and migration readiness without revea
 ## What people use
 
 The normal sign-in and account-creation forms use a typed username and password. A password must be nonempty and may contain up to 128 Unicode characters; there is no additional minimum length, mandatory mixture of symbols or periodic password change. Spaces and memorable phrases are allowed. The client normalises Unicode to NFC and never trims leading or trailing spaces. Password confirmation compares the same normalised values. Each account-password field has an explicit show/hide eye button and starts hidden. The initial setup form rejects reuse of the setup authorisation key as the account password.
+
+An existing Webmaster opens directly into administration. Personal profile, applications and participant group screens load only when the Webmaster explicitly opens participant view. No participant profile is required for Webmaster permissions. Ordinary participants retain their personal portal. Switching views does not change the account, its roles or its saved records.
 
 Passkeys remain available through an explicit optional choice. Normal password submissions do not call WebAuthn, and the username input does not request WebAuthn autofill. The browser may independently offer to save a password; accepting that offer is not required. The site does not enrol biometrics, connect a Microsoft or Google account or require a password manager. Optional passkeys use a browser/device/security-key authenticator; the site stores its public credential only.
 
@@ -70,11 +74,15 @@ Password sign-in, password confirmation and password confirmation for replacemen
 
 Password changes, adding or removing passkeys and native webmaster account changes require a native session verified within the preceding five minutes. The portal asks for the current password by default while preserving form edits. Passkey confirmation is available only by explicit choice. Replacing recovery codes requires fresh password or optional passkey verification.
 
+The portal clears the previous private view when a refreshed identity or role changes, or the server requires a new sign-in because the session is no longer valid. An ordinary mistyped password during confirmation preserves the current account's unsaved edits.
+
 ## Recovery and account management
 
-Eight recovery codes are generated at enrolment, activation and successful recovery. Each code contains 160 random bits, is stored only as a domain-separated keyed digest and can be used once. Replacing the codes invalidates the previous set.
+Eight recovery codes are generated at enrolment, activation and successful recovery. Each code contains 160 random bits, is stored only as a domain-separated keyed digest and can be used once. Newly issued codes appear in a closed optional disclosure; saving them is not a gate before using the portal. Replacing the codes invalidates the previous set. The public operator contact is **sbt4183@gmail.com**; automatic email recovery remains unimplemented and the presence of that address is not a verification or delivery mechanism.
 
 Recovery uses either a recovery code and username or a private recovery link explicitly prepared by a webmaster. The person chooses a replacement password by default, with optional passkey recovery available by explicit choice. Completion revokes the old password, passkeys, sessions, unused links and recovery codes, then installs the chosen replacement credential and issues a new session and eight new codes. A normal password change keeps explicitly added passkeys but revokes existing sessions and unused links and replaces the recovery codes. A disabled account cannot recover itself back to active status.
+
+Password changes, passkey additions and recovery preserve the account's saved consent fields. Only explicit registration or invitation activation records account consent; a security action does not imply a new participant choice or replace an earlier consent version.
 
 A webmaster can reserve an invited account and then prepare an activation link. Links are returned once and are not sent automatically. Activation links last 24 hours; recovery links last one hour. A new link revokes previous unused links for that account. The operator must verify the intended recipient through their established private process before manually sharing a link. Email alone is not verified by this software.
 
@@ -191,7 +199,7 @@ The server source, schema and API remain portable. A future hostname change stil
 
 Run `node --test tests/accounts-worker.test.mjs` for focused authentication checks. `tests/helpers/passkeys.mjs` creates test-only P-256 credentials and authentic WebAuthn registration/assertion structures; verification still uses the production library. Checks cover real signature validation, exact origins, browser binding, user verification, replay, bootstrap races, one-use links and codes, privilege/session revocation, idempotent invitations, version conflicts, preservation of a last webmaster/passkey and transactional rollback on audit failure.
 
-Use the broader repository checks and a Worker runtime build before deployment. Production activation still requires the operator's actual setup authorisation and personally chosen credential; local test results do not claim that the owner has completed it. Password tests use real OPAQUE registration and proofs, while the runtime test exercises static WebAssembly under workerd.
+Use the broader repository checks and a Worker runtime build before deployment. The existing initial Webmaster has been established by the operator. Automated account tests use isolated fictional records; verification of private production actions uses the existing authorised account separately. Password tests use real OPAQUE registration and proofs, while the runtime test exercises static WebAssembly under workerd.
 
 Primary implementation references:
 

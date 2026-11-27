@@ -2,13 +2,17 @@
 
 Implemented 27 November 2026 in the existing `ready-setco` Worker and `ready-setco-operations` D1 database. The public formation, Queensland law, governance, planning and network information remains open. The portal is `/portal.html`; it loads private data only after server authentication.
 
-## Activate the existing service
+## Existing Webmaster and first-installation setup
+
+Luke has already established the Webmaster account on the live service. Sign in at `/portal.html`; administration opens by default. Account management, committee tools, organiser records and account security do not require completing a participant profile. **Open participant view** is an optional route to personal participation forms, with a direct return to administration. The current operator remains Luke Hayes trading as Strange But True, with public contact **sbt4183@gmail.com**.
+
+The setup steps below apply only to a fresh installation. They are not a task for an existing Webmaster.
 
 1. Open `/portal.html#setup`. Generate a private setup key in your own browser and copy it.
 2. In Cloudflare, open **Workers & Pages → ready-setco → Settings → Variables and Secrets → Add**. Choose **Secret**, name it **READY_AUTH_SECRET**, paste the key, then **Deploy**.
-3. Return to the setup page, select **Check setup**, enter your own account details, then choose and confirm a password. Save the recovery codes privately.
+3. Return to the setup page, select **Check setup**, enter your own account details, then choose and confirm a password. Saving the optional backup recovery codes is not required to enter the portal.
 
-Keep `READY_AUTH_SECRET` configured after setup. The database permanently closes the initial Webmaster claim when setup succeeds. The secret value never belongs in Git, a build variable, this README or chat. The setup page generates it only on an explicit click and does not store it in browser storage. If the runtime secret is already configured, the password update needs no additional Cloudflare setting. The setup authorisation key and account password are separate. After setup, sign in with your username and password, or choose an optional passkey. Keep recovery codes privately. Once password accounts exist, changing the runtime secret requires a controlled rewrap of the encrypted server setup; see [authentication operations](MEMBER-AUTH.md).
+Keep `READY_AUTH_SECRET` configured after setup. The database permanently closes the initial Webmaster claim when setup succeeds. The secret value never belongs in Git, a build variable, this README or chat. The setup page generates it only on an explicit click and does not store it in browser storage. If the runtime secret is already configured, the password update needs no additional Cloudflare setting. The setup authorisation key and account password are separate. After setup, sign in with your username and password, or choose an optional passkey. Keep any recovery codes you choose to save privately. Once password accounts exist, changing the runtime secret requires a controlled rewrap of the encrypted server setup; see [authentication operations](MEMBER-AUTH.md).
 
 This is a runtime secret for this Worker, separate from the existing Cloudflare build API token. No change to GitHub's selected-repository permissions is needed. The current dashboard path was verified against [Cloudflare's Worker secrets documentation](https://developers.cloudflare.com/workers/configuration/secrets/) on 27 November 2026.
 

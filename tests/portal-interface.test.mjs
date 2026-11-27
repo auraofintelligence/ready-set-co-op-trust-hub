@@ -123,6 +123,11 @@ test('registration accepts a simple one-character password with explicit consent
   assert.equal(f.$('portal-signed-in').hidden, false); assert.equal(f.$('portal-code-list').children.length, 8);
   assert.equal(f.downloads.length, 0, 'Recovery codes are downloaded only on request.');
   assert.equal(f.$('tab-webmaster').hidden, true); assert.equal(f.$('tab-committee').hidden, true);
+  assert.equal(f.$('portal-participant-view').hidden, true); assert.equal(f.$('portal-title').textContent, 'Member portal');
+  assert.equal(f.$('portal-recovery-codes').tagName, 'DETAILS'); assert.equal(f.$('portal-recovery-codes').open, false);
+  assert.equal(f.$('recovery-title').textContent, 'Optional recovery codes'); assert.equal(f.$('portal-codes-saved').textContent, 'Dismiss');
+  f.$('tab-applications').click(); assert.equal(f.$('panel-applications').hidden, false, 'Recovery codes do not gate the portal.');
+  f.$('portal-recovery-codes').open = true;
   f.$('portal-download-codes').click(); assert.equal(f.downloads.length, 1); assert.match(await f.downloads[0].text(), /TEST-CODE-01/);
   f.$('portal-codes-saved').click(); assert.equal(f.$('portal-code-list').children.length, 0); assert.equal(f.$('portal-recovery-codes').hidden, true);
   assert.equal(form.elements.password.value, ''); assert.equal(form.elements.confirmPassword.value, '');
@@ -155,6 +160,54 @@ test('typed password sign-in preserves spaces, normalises Unicode and never invo
   assert.equal(f.calls.some(call => JSON.stringify(call.body).includes(password.normalize('NFC'))), false);
   assert.equal(form.elements.password.value, ''); assert.equal(f.workers[0].states.size, 0);
   assert.equal(f.window.localStorage.length, 0); assert.equal(f.window.sessionStorage.length, 0);
+});
+
+test('webmasters land in administration after sign-in or session reload without loading participant records', async t => {
+  const admin = { ...identity, webmaster: true };
+  for (const signedIn of [false, true]) {
+    const f = fixture(t, { account: admin, signedIn }); await f.idle();
+    if (!signedIn) { const form = f.$('portal-login'); f.set(form, 'username', admin.username); f.set(form, 'password', PASSWORD); f.submit(form); await f.idle(); }
+    assert.equal(f.$('portal-title').textContent, 'Webmaster administration');
+    assert.equal(f.$('portal-admin-intro').hidden, false); assert.equal(f.$('portal-member-intro').hidden, true);
+    assert.equal(f.$('panel-webmaster').hidden, false); assert.equal(f.$('tab-webmaster').getAttribute('aria-selected'), 'true');
+    for (const panel of ['profile', 'applications', 'groups']) { assert.equal(f.$(`tab-${panel}`).hidden, true); assert.equal(f.$(`panel-${panel}`).hidden, true); }
+    assert.equal(f.$('tab-committee').hidden, false); assert.equal(f.$('tab-security').hidden, false);
+    assert.ok(f.$('panel-webmaster').querySelector('a[href="manage.html"]'));
+    assert.equal(f.$('portal-participant-view').textContent, 'Open participant view (optional)');
+    assert.equal(f.calls.some(call => call.path.startsWith('/api/member/')), false);
+    assert.ok(f.calls.some(call => call.path === '/api/webmaster/accounts')); assert.ok(f.calls.some(call => call.path === '/api/webmaster/sites'));
+    assert.ok(f.calls.some(call => call.path === '/api/committee/sites'));
+    assert.equal(f.calls.some(call => /\/api\/auth\/password\/(?:register|bootstrap)\//.test(call.path)), false);
+    f.$('tab-security').click(); await f.idle(); assert.equal(f.$('panel-security').hidden, false);
+    assert.equal(f.calls.some(call => call.path.startsWith('/api/member/')), false);
+  }
+});
+
+test('webmasters enter and leave the optional participant view without saving or losing edits', async t => {
+  const f = fixture(t, { account: { ...identity, webmaster: true } }); await f.idle();
+  f.$('portal-participant-view').click(); await f.idle();
+  assert.equal(f.$('portal-title').textContent, 'Participant view'); assert.equal(f.$('portal-participant-view').textContent, 'Back to administration');
+  assert.equal(f.$('tab-profile').hidden, false); assert.equal(f.$('panel-profile').hidden, false);
+  assert.equal(f.$('tab-webmaster').hidden, true);
+  for (const path of ['/api/member/profile', '/api/member/sites', '/api/member/applications', '/api/member/groups']) assert.equal(f.calls.filter(call => call.path === path).length, 1);
+  const form = f.$('portal-profile'); f.set(form, 'about', 'An optional unsaved participant detail.');
+  f.$('portal-participant-view').click(); await f.idle();
+  assert.equal(f.$('portal-title').textContent, 'Webmaster administration'); assert.equal(f.$('panel-webmaster').hidden, false); assert.equal(f.$('tab-profile').hidden, true);
+  f.$('portal-participant-view').click(); await f.idle();
+  assert.equal(form.elements.about.value, 'An optional unsaved participant detail.');
+  assert.equal(f.calls.filter(call => call.path === '/api/member/profile').length, 1);
+  assert.equal(f.calls.some(call => call.options.method !== 'GET'), false, 'Changing views never saves a profile or changes account access.');
+  assert.equal(f.window.localStorage.length, 0); assert.equal(f.window.sessionStorage.length, 0);
+});
+
+test('slow or failed administration loading never reveals the webmaster participant form', async t => {
+  let finishAccounts;
+  const f = fixture(t, { account: { ...identity, webmaster: true }, override: ({ path }) => path === '/api/webmaster/accounts' ? new Promise(resolve => { finishAccounts = resolve; }) : null });
+  await f.until(() => !!finishAccounts);
+  assert.equal(f.$('portal-signed-in').hidden, false); assert.equal(f.$('panel-webmaster').hidden, false); assert.equal(f.$('panel-profile').hidden, true);
+  finishAccounts(json({ error: 'Accounts could not be loaded. Please try again.' }, 503)); await f.idle();
+  assert.equal(f.$('panel-webmaster').hidden, false); assert.equal(f.$('panel-profile').hidden, true);
+  assert.equal(f.calls.some(call => call.path.startsWith('/api/member/')), false);
 });
 
 test('inline password controls reveal independent fields without submitting, moving focus or changing values', async t => {
@@ -254,20 +307,67 @@ test('recovery uses a saved code to set a typed password without opening device 
   assert.equal(form.elements.recoveryCode.value, ''); assert.equal(form.elements.password.value, '');
 });
 
-test('failed password reauthentication preserves signed-in identity and unsaved profile edits', async t => {
-  let rejectPassword = true;
+test('retryable password errors and unchanged-account reauthentication preserve private drafts', async t => {
+  let rejectCode = 'password_invalid';
   const f = fixture(t, { override: ({ path, options }) => {
     if (path === '/api/member/profile' && options.method === 'PATCH') return json({ error: 'Confirm your sign-in.', code: 'reauthentication_required' }, 403);
-    if (path === '/api/auth/password/reauth/verify' && rejectPassword) return json({ error: 'The password could not be confirmed.', code: 'invalid_credentials' }, 401);
+    if (path === '/api/auth/password/reauth/verify') return rejectCode ? json({ error: 'The password could not be confirmed.', code: rejectCode }, 401) : json({ identity: { ...identity, version: 2 } });
   } });
   await f.idle(); const profileForm = f.$('portal-profile'), form = f.$('portal-reauth-form');
   f.set(profileForm, 'about', 'Keep my private unsaved edit.'); f.submit(profileForm); await f.idle();
   assert.equal(f.$('portal-reauth').hidden, false); assert.equal(form.hidden, false);
-  f.set(form, 'password', 'Incorrect fictional password'); f.submit(form); await f.idle();
-  assert.equal(f.$('portal-signed-in').hidden, false); assert.equal(profileForm.elements.about.value, 'Keep my private unsaved edit.'); assert.equal(form.elements.password.value, '');
-  rejectPassword = false; f.set(form, 'password', PASSWORD); f.submit(form); await f.idle();
+  for (const code of ['password_invalid', 'invalid_ceremony']) {
+    rejectCode = code; f.set(form, 'password', 'Incorrect fictional password'); f.submit(form); await f.idle();
+    assert.equal(f.$('portal-signed-in').hidden, false); assert.equal(profileForm.elements.about.value, 'Keep my private unsaved edit.'); assert.equal(form.elements.password.value, '');
+  }
+  rejectCode = ''; f.set(form, 'password', PASSWORD); f.submit(form); await f.idle();
   assert.equal(f.$('portal-reauth').hidden, true); assert.equal(profileForm.elements.about.value, 'Keep my private unsaved edit.');
   assert.equal(f.ceremonies.length, 0);
+});
+
+test('reauthentication removes previous administrator data when webmaster access has been revoked', async t => {
+  const admin = { ...identity, webmaster: true };
+  for (const method of ['password', 'passkey']) {
+    const path = method === 'password' ? '/api/auth/password/reauth/verify' : '/api/auth/login/verify';
+    const f = fixture(t, { account: admin, override: request => request.path === path ? json({ identity: { ...admin, webmaster: false, version: 2 } }) : null }); await f.idle();
+    assert.ok(f.$('portal-account-list').children.length > 0);
+    f.$('portal-reauth').hidden = false;
+    if (method === 'password') { const form = f.$('portal-reauth-form'); f.set(form, 'password', PASSWORD); f.submit(form); }
+    else f.$('portal-reauth-button').click();
+    await f.idle();
+    assert.equal(f.$('portal-title').textContent, 'Member portal'); assert.equal(f.$('tab-webmaster').hidden, true);
+    assert.equal(f.$('portal-participant-view').hidden, true); assert.equal(f.$('portal-account-list').textContent, '');
+    assert.equal(f.$('portal-account-editor').hidden, true); assert.equal(f.$('panel-profile').hidden, false);
+    assert.match(f.$('portal-status').textContent, /Account access has changed/);
+  }
+});
+
+test('an unexpected account returned by optional passkey reauthentication replaces the prior account view', async t => {
+  const admin = { ...identity, webmaster: true };
+  const other = { ...identity, accountId: '09fea21e-965b-424b-9de3-78c375b6a0d5', username: 'fictional.other', displayName: 'Fictional Other', email: 'other@example.test' };
+  let switched = false;
+  const f = fixture(t, { account: admin, override: ({ path }) => {
+    if (path === '/api/auth/login/verify') { switched = true; return json({ identity: other }); }
+    if (switched && path === '/api/member/profile') return json({ profile: { ...profile, accountId: other.accountId, displayName: other.displayName, email: other.email } });
+    if (switched && path === '/api/committee/sites') return json({ sites: [], total: 0, page: 1, pageSize: 50 });
+  } }); await f.idle();
+  assert.ok(f.$('portal-account-list').children.length > 0); f.$('portal-reauth').hidden = false; f.$('portal-reauth-button').click(); await f.idle();
+  assert.equal(f.$('portal-account-name').textContent, other.displayName); assert.match(f.$('portal-account-label').textContent, /@fictional\.other/);
+  assert.equal(f.$('portal-profile').elements.email.value, other.email); assert.equal(f.$('portal-account-list').textContent, '');
+  assert.equal(f.$('tab-webmaster').hidden, true); assert.equal(f.$('portal-title').textContent, 'Member portal');
+  assert.match(f.$('portal-status').textContent, /Review the current account/);
+});
+
+test('expired or revoked sessions clear private data during password reauthentication or code renewal', async t => {
+  for (const [path, formId] of [['/api/auth/password/reauth/options', 'portal-reauth-form'], ['/api/auth/password/recovery-codes/verify', 'portal-recovery-password']]) {
+    const f = fixture(t, { override: request => request.path === path ? json({ error: 'Sign in to your account first.', code: 'sign_in_required' }, 401) : null }); await f.idle();
+    f.set(f.$('portal-profile'), 'about', 'Private text from the expired session.');
+    const form = f.$(formId); f.set(form, 'password', PASSWORD); f.submit(form); await f.idle();
+    assert.equal(f.$('portal-signed-in').hidden, true); assert.equal(f.$('portal-signed-out').hidden, false);
+    assert.equal(f.$('portal-profile').elements.about.value, ''); assert.equal(f.$('portal-profile').elements.email.value, '');
+    assert.equal(f.$('portal-account-name').textContent, ''); assert.equal(f.$('portal-reauth').hidden, true);
+    assert.equal(f.$('portal-recovery-codes').hidden, true); assert.equal(form.elements.password.value, '');
+  }
 });
 
 test('changing a password confirms the current password first and rotates recovery codes without touching passkeys', async t => {

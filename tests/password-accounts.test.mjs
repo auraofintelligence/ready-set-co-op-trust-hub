@@ -247,6 +247,20 @@ test('password change requires recent sign-in, keeps optional passkeys and rotat
   assert.equal((await f.client().post('/api/auth/password/recover/options', { username: 'change.person', recoveryCode: created.recoveryCodes[0], registrationRequest: recoveryStart.registrationRequest })).status, 401);
 });
 
+for (const consentAccount of [false, true]) test('password changes and recovery preserve saved account consent: ' + consentAccount, async t => {
+  const f = fixture(t), person = f.client(), name = 'password.consent'; const created = await enrol(person, name);
+  const consentVersion = consentAccount ? '2026-01-01' : '';
+  f.sqlite.prepare('UPDATE member_accounts SET consent_account=?,consent_version=? WHERE id=?').run(Number(consentAccount), consentVersion, created.identity.accountId);
+  const assertConsent = () => {
+    const row = f.sqlite.prepare('SELECT consent_account,consent_version FROM member_accounts WHERE id=?').get(created.identity.accountId);
+    assert.equal(row.consent_account, Number(consentAccount)); assert.equal(row.consent_version, consentVersion);
+  };
+  const changed = await okay(await person.post('/api/auth/password/change/verify', await registration(person, 'change', {}, NEXT_PASSWORD)));
+  assertConsent();
+  const recovering = f.client(), proof = await registration(recovering, 'recover', { username: name, recoveryCode: changed.recoveryCodes[0] }, PASSWORD);
+  await okay(await recovering.post('/api/auth/password/recover/verify', proof)); assertConsent();
+});
+
 test('password recovery revokes old passwords and passkeys, and stale recovery leaves its unused code available', async t => {
   const f = fixture(t), original = f.client(), recovering = f.client(); const created = await enrol(original, 'recover.person'); await addPasskey(original);
   const proof = await registration(recovering, 'recover', { username: 'recover.person', recoveryCode: created.recoveryCodes[0] }, NEXT_PASSWORD);
@@ -316,6 +330,8 @@ test('password activation and manual recovery links are scoped, one-use and do n
   const proof = await registration(invited, 'activate', { token: link.token, ...consent });
   const activated = await okay(await invited.post('/api/auth/password/activate/verify', proof));
   assert.equal(activated.identity.accountId, accountId); assert.equal(activated.identity.hasPassword, true);
+  const activeConsent = f.sqlite.prepare('SELECT consent_account,consent_version FROM member_accounts WHERE id=?').get(accountId);
+  assert.equal(activeConsent.consent_account, 1); assert.equal(activeConsent.consent_version, consent.consentVersion);
   assert.equal((await invited.post('/api/auth/password/activate/verify', proof)).status, 401);
   const latest = (await okay(await owner.get('/api/webmaster/accounts?search=invited.person'))).accounts[0];
   const recovery = await okay(await owner.post(`/api/webmaster/accounts/${accountId}/recovery-link`, { expectedVersion: latest.version }));

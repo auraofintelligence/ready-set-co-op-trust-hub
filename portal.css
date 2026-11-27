@@ -47,11 +47,14 @@
 .portal-narrow { width: 100%; max-width: 680px; }
 .portal-message { border: 1px solid #e6cf91; background: #fffbec; padding: 1.2rem; margin-top: 1.5rem; border-radius: .6rem; }
 .portal-message h3 + p, .portal-message label { margin-top: .75rem; }
-.portal-recovery { border: 2px solid #b38619; background: #fffbec; margin-bottom: 1.5rem; }
+.portal-recovery { border: 1px solid #dbe0ed; border-radius: .6rem; background: #fff; margin: 1rem 0; padding: 0 1rem 1rem; }
+.portal-recovery:not([open]) { padding-bottom: 0; }
+.portal-recovery > summary { font-weight: 600; }
 .portal-code-list { list-style: none; padding: 0; display: grid; gap: .6rem; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); }
 .portal-code-list li { margin: 0; padding: .65rem .8rem; border: 1px solid #d8c27b; background: #fff; border-radius: .3rem; font-family: ui-monospace, monospace; overflow-wrap: anywhere; }
 .portal-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; margin-top: 1rem; }
 .portal-account-bar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: .8rem; margin: 1rem 0 1.4rem; }
+.portal-account-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
 .portal-account-bar strong { display: block; font-size: 1.2rem; }
 .portal-account-bar .portal-hint { display: block; }
 .portal-layout { display: grid; gap: 1.25rem; align-items: start; }

@@ -8,7 +8,9 @@ It is a proposed **minimum viable community for a fair go in the age of superint
 
 **Open information and private participation, 27 November 2026:** the five-page formation and governance hub remains open on the existing Cloudflare site. This repository also contains a member portal with username and password as the default, optional passkeys, durable personal profiles and applications, local group notices, committee permissions and Webmaster account controls. The directory contains 22 entries: the same 20 public information pages, the member portal and the protected organiser workspace. Automatic deployment from `main` updates the existing Worker and database.
 
-**Initial account activation:** native member access requires one private Worker runtime secret, `READY_AUTH_SECRET`, and the owner's one-time setup at [the member portal](https://ready-setco.auraofintelligence.workers.dev/portal.html#setup). The setup authorisation key and the owner's chosen account password are separate. Setup creates the first Webmaster and permanently closes that bootstrap route. A password manager, Microsoft or Google account, fingerprint and face scan are not required. No credentials or member accounts are seeded. See [member access and operations](docs/MEMBER-SERVICES.md). A successful source deployment does not establish that the owner has completed activation.
+**Webmaster access:** Luke Hayes has established the initial Webmaster account, confirmed by the operator on 27 November 2026. Use the existing account at [the portal](https://ready-setco.auraofintelligence.workers.dev/portal.html). Webmaster sign-in opens administration; a participant profile is optional and is accessed through a separate participant view. The existing operator is Luke Hayes, trading as Strange But True, with public contact **sbt4183@gmail.com**.
+
+**Setup is already complete for this service.** The one-time `#setup` route is for a fresh installation only. Keep the existing private Worker runtime secret, `READY_AUTH_SECRET`, configured. This dashboard update does not recreate the Webmaster, change their password or require another Cloudflare setup. Future deployments can follow [member access and operations](docs/MEMBER-SERVICES.md).
 
 Strange But True is the initial sole trader operator. ready SET Co-op remains proposed; cooperative formation, formal member admission, employment arrangements and service handovers require their actual decisions and agreements.
 
@@ -142,17 +144,19 @@ The [community media pathway](docs/COMMUNITY-MEDIA-PATHWAY.md) proposes separate
 
 | Area | Working implementation |
 | --- | --- |
-| Accounts | Username and password registration and sign-in by default, optional passkeys, password changes, eight-hour private sessions, one-use recovery codes, manual invitations and recovery links, account disable and session revocation |
-| Personal records | Own profile, contact and future-handover consent, versioned updates and own-data export |
+| Accounts | Username and password registration and sign-in by default, optional passkeys, password changes, eight-hour private sessions, optional one-use recovery codes, manual invitations and recovery links, account disable and session revocation |
+| Personal records | Participant profile, contact and future-handover consent, versioned updates and own-data export; a Webmaster does not need to complete this profile to administer the service |
 | Participation | Apply to a published local group, track responses, supply requested information, withdraw, and read saved history |
 | Local groups | Private notices, meeting information and document links; committee authoring and archival |
 | Committee | Review applications for assigned groups; accept participation separately from recording evidenced cooperative admission |
-| Webmaster | Manage accounts, local group listings and scoped access; use existing intake, map review and formation tools |
+| Webmaster | Opens directly to administration: manage accounts, local group listings and scoped access; use committee, intake, map review, formation and account-security tools; switch to participant view only when wanted |
 | Public information | The same substantial guides, law sources, planner and public participation form remain open without signing in |
 
 People choose and type their own password. Passwords must be nonempty, with no additional minimum length or mandatory character mixture; the input accepts up to 128 Unicode characters. An inline eye button lets people show or hide each password while typing. Password attempts share a server-enforced three-attempt limit per account within 15 minutes, including attempts abandoned before verification. Changing device or IP address does not reset that account limit. A successful password verification resets the applicable attempt window.
 
-Passkeys are an explicit optional choice; visiting the page or choosing the normal password flow does not request device authentication. A browser may independently offer to save a password, but accepting that offer is not required. Recovery and invitation links are prepared inside the authorised portal; this release does not send emails. Contact email is not treated as verified identity. Group access, software account status, an admission record and current legal/voting rights are separate concepts.
+Passkeys are an explicit optional choice; visiting the page or choosing the normal password flow does not request device authentication. A browser may independently offer to save a password, but accepting that offer is not required. Newly issued recovery codes sit in a closed optional disclosure; saving or dismissing them is not a prerequisite for using the portal. They can be used once to restore account access if the person loses their password. An authorised Webmaster can also prepare an expiring private recovery link after verifying the intended recipient.
+
+**Email recovery is still outstanding.** The public contact address **sbt4183@gmail.com** identifies the current operator, but the portal has no connected email-delivery or verified-email password-reset service. It does not automatically send recovery or invitation emails. Contact email is not treated as verified identity. Group access, software account status, an admission record and current legal/voting rights are separate concepts.
 
 Password authentication uses the standard OPAQUE protocol with client-side Argon2id hardening. The server stores a password registration record, not the typed password. The existing runtime secret protects the server's persistent protocol setup in D1; there is no additional authentication service or manual secret to configure. See [authentication details and key rotation constraints](docs/MEMBER-AUTH.md) before moving or changing server credentials.
 
@@ -211,7 +215,7 @@ Each handover retains the original operator, receiving legal entity, approved sc
 | --- | --- |
 | Public interface | Static HTML/CSS/JavaScript, shared shell, local Archivo fonts, vendored Leaflet and tide-mark artwork |
 | Formation pages and tools | `scripts/build-formation-pages.mjs` maintains the five pages; `formation-data.js`, `formation.js` and `formation.css` hold the public guidance, planner and presentation |
-| Private organiser interface | `manage.html`, `manage.js` and `governance-workspace.js` / `.css`; production access awaits configuration |
+| Private organiser interface | `manage.html`, `manage.js` and `governance-workspace.js` / `.css`; native Webmaster access and scoped committee governance access |
 | Cloudflare Worker | `cloudflare/worker.mjs`, shared HTTP API and protected asset routes |
 | Member accounts and services | `cloudflare/accounts.mjs`, `cloudflare/member-services.mjs`, `portal.html/js/css`, migrations `0005` through `0007`; passwords, optional passkeys, sessions, recovery, profiles, applications, local roles and notices |
 | Records and private governance | `cloudflare/repository.mjs`, `cloudflare/map-records.mjs` and `cloudflare/governance.mjs`, using SQLite-compatible queries and transactions |
@@ -245,7 +249,7 @@ The existing `ready-setco` Worker is connected to this GitHub repository. A push
 
 For the normal release workflow, check the changes locally, push the intended source changes to `main`, then follow the **Workers Builds: ready-setco** GitHub check or **Workers & Pages → ready-setco → Deployments → View build history**. Confirm the intended commit and check the affected live pages. The [automatic deployment guide](docs/AUTOMATIC-DEPLOYMENT.md) covers repository access, the dedicated build token, migration behaviour and troubleshooting.
 
-The first successful automatic release was verified on **27 November 2026**:
+The first successful automatic release was verified on **27 November 2026**, before native member accounts were added. This table retains that release's original evidence:
 
 | Evidence | Identifier or result |
 | --- | --- |
@@ -253,7 +257,9 @@ The first successful automatic release was verified on **27 November 2026**:
 | Cloudflare build | `ed315537-9958-4f49-86dc-fdefe4814878`, succeeded |
 | Worker version | `c4cc9c0b-370b-4f60-82a8-619516a78077` |
 | Public verification | All five new hub pages returned HTTP 200; the directory contains 21 pages and the public site has 20 page URLs |
-| Private verification | `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable`; organiser Access setup remains pending |
+| Private verification at that release | `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable`; no organiser access was configured at that point |
+
+Later releases added native accounts and password sign-in. Luke has since established the Webmaster account. The current portal opens that account into administration, with participant forms available only through an explicit optional view. The historical `503` result above is not the current account-activation status.
 
 Migrations must remain compatible with the running Worker. A successful migration remains applied if a later Worker upload fails. Preserve the existing database and use one production deployment path; the scripts do not add a distributed migration lock.
 
@@ -311,7 +317,8 @@ These connections describe research, implementation lineage or potential coopera
 
 ## Further development and decisions
 
-- Activate the first native Webmaster with the one private Worker secret and a separately chosen password, then verify sign-in, recovery-code custody, account revocation, member applications and scoped committee access. Passkeys and Cloudflare Access remain optional.
+- The first Webmaster is established. Continue checking account administration, revocation, member applications and scoped committee access through that existing account; no repeat setup is needed.
+- Connect and verify an email delivery and password-reset path before describing email recovery as available. Keep backup codes optional and manual recovery links available to authorised Webmasters.
 - Confirm the live governance schema and complete an approved live intake/receipt check; retain the distinction between a successful public deployment and verified private operations.
 - Establish the founding group and agree legal registration, primary activity, membership, employer/contract arrangements, insurance, safety, training and financial responsibilities.
 - Agree which services and assets may transfer from SBT, especially the proposed Noticeboard first project, with consent and a documented decision.

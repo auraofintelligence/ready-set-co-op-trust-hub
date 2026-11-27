@@ -153,6 +153,8 @@ test('invitation retries keep the current version, activation requires consent a
   const begin = await options(invited, 'activate', { token: link.token, ...consent }); const key = createTestPasskey();
   const active = await success(await invited.post('/api/auth/activate/verify', { ceremonyId: begin.ceremonyId, response: key.registration(begin.options, { origin: BASE }) }));
   assert.equal(active.identity.accountId, payload.id);
+  const activeConsent = f.sqlite.prepare('SELECT consent_account,consent_version FROM member_accounts WHERE id=?').get(payload.id);
+  assert.equal(activeConsent.consent_account, 1); assert.equal(activeConsent.consent_version, consent.consentVersion);
   assert.equal((await invited.post('/api/auth/activate/options', { token: link.token, ...consent })).status, 401);
   const recovery = f.client();
   const rb = await options(recovery, 'recover', { username: payload.username, recoveryCode: active.recoveryCodes[0] }); const replacement = createTestPasskey();
@@ -191,6 +193,23 @@ test('security controls require recent sign-in, cannot remove the last key, and 
   assert.equal((await f.client().post('/api/auth/recover/options', { username: member.identity.username, recoveryCode: member.recoveryCodes[1] })).status, 401);
   await success(await client.post('/api/auth/sessions/revoke'));
   assert.equal(count(f, 'member_sessions'), 0);
+});
+
+for (const consentAccount of [false, true]) test('optional passkey additions and recovery preserve saved account consent: ' + consentAccount, async t => {
+  const f = fixture(t), person = f.client(); const created = await enrol(person, 'passkey.consent');
+  const consentVersion = consentAccount ? '2026-01-01' : '';
+  f.sqlite.prepare('UPDATE member_accounts SET consent_account=?,consent_version=? WHERE id=?').run(Number(consentAccount), consentVersion, created.identity.accountId);
+  const assertConsent = () => {
+    const row = f.sqlite.prepare('SELECT consent_account,consent_version FROM member_accounts WHERE id=?').get(created.identity.accountId);
+    assert.equal(row.consent_account, Number(consentAccount)); assert.equal(row.consent_version, consentVersion);
+  };
+  const add = await options(person, 'passkeys', { name: 'Fictional optional key' }), additionalKey = createTestPasskey();
+  await success(await person.post('/api/auth/passkeys/verify', { ceremonyId: add.ceremonyId, response: additionalKey.registration(add.options, { origin: BASE }) }));
+  assertConsent();
+  const recovering = f.client(), recovery = await options(recovering, 'recover', { username: created.identity.username, recoveryCode: created.recoveryCodes[0] });
+  const replacement = createTestPasskey();
+  await success(await recovering.post('/api/auth/recover/verify', { ceremonyId: recovery.ceremonyId, response: replacement.registration(recovery.options, { origin: BASE }) }));
+  assertConsent();
 });
 
 test('webmaster changes use versions, revoke privileges and atomically preserve an active webmaster', async t => {
