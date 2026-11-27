@@ -15,13 +15,19 @@ Open **Workers & Pages → ready-setco → Settings → Builds**. Edit the exist
 | Build command | `npm run build:cloudflare` |
 | Deploy command | `npm run deploy` |
 | Preview builds | Disabled |
-| API token | A dedicated `ready-setco-builds` user token for this account |
+| API token | The dedicated `ready-set-co-op-trust-hub` user token for this account |
 
 The repository's `.nvmrc` selects Node.js 24, and `packageManager` selects the validated npm version. Keep the default dependency installation enabled, including development dependencies. Do not set a production-only dependency omission: checks and deployment require jsdom and the pinned Wrangler version. The public output directory is already `./dist` in `wrangler.jsonc`.
 
+## GitHub repository access
+
+In the installed **Cloudflare Workers & Pages** GitHub app, **Only select repositories** is supported. Include `ready-set-co-op-trust-hub` in the selected repositories, keep the other projects' selections, and save. Return to this Worker's Builds settings and refresh to confirm that the disconnected Git account warning has cleared. Installing the app for repository access and authorising it for your own GitHub user are separate steps.
+
 ## Dedicated build token
 
-Use a dedicated token for Ready SET Co-op. Keep the wildlife-rescue project's token and connection intact. If Cloudflare creates the new build token automatically, its documented default permissions omit D1. Under **My Profile → API Tokens**, add **Account → D1 → Edit** to that new token, scoped to the existing account, then select it in this Worker's Build settings. Retain the token's Worker deployment permissions. Never place its value in source, public variables or chat.
+Use the dedicated `ready-set-co-op-trust-hub` token for this Worker. Keep the wildlife-rescue project's token and connection intact. Worker deployment and D1 migration permissions are both required by the deploy command.
+
+Inspect an actual build failure before changing token permissions. If a build reports missing D1 write access, open [User API tokens](https://dash.cloudflare.com/profile/api-tokens), edit this token's existing **Account policy** for the Cloudflare account, and enable the D1 write permission. Preserve the Worker deployment permissions. Empty additional policies do not grant access. Save the token changes and retry the failed build; if Cloudflare reports a stale token, select a valid token in Builds settings. Never place a token value in source, public variables or chat.
 
 Keep the existing Worker Access configuration and runtime secrets. Build variables and runtime secrets are different settings. The deploy command uses `--keep-vars` to retain dashboard-configured variables; committed variables are still applied by Wrangler.
 
@@ -45,6 +51,8 @@ Verify the formation pages on the existing workers.dev hostname, signed-out priv
 ## Sources
 
 - [Connect an existing Worker](https://developers.cloudflare.com/workers/ci-cd/builds/)
+- [GitHub app installation, authorisation and selected repository access](https://developers.cloudflare.com/workers/ci-cd/builds/git-integration/github-integration/)
+- [Build troubleshooting](https://developers.cloudflare.com/workers/ci-cd/builds/troubleshoot/)
 - [Build commands, environment variables and API token permissions](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/)
 - [Node and package manager versions](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/)
 - [D1 migration tracking](https://developers.cloudflare.com/d1/reference/migrations/)
