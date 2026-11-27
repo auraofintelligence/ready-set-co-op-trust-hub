@@ -9,13 +9,37 @@ const origin = 'https://ready-setco.auraofintelligence.workers.dev';
 const navigation = [
   ['events.html', 'Events'], ['jobs.html', 'Training & work'],
   ['media-assets.html', 'Notices & media'], ['grant-roadmap.html', 'Grants'],
-  ['boundaries.html', 'Support'], ['map.html', 'Map'], ['members.html', 'Members'], ['formation.html', 'Form a co-op'],
+  ['boundaries.html', 'Support'], ['map.html', 'Map'],
+];
+const navigationGroups = [
+  { id: 'coop', label: 'Co-op hub', links: [
+    ['formation.html', 'Start a co-op'],
+    ['cooperative-law.html', 'Queensland co-op law'],
+    ['governance.html', 'Governance & decisions'],
+    ['formation-planner.html', 'Formation planner'],
+    ['cooperative-network.html', 'Co-op network'],
+    ['members.html', 'Members & participation'],
+  ] },
+  { id: 'about', label: 'About', links: [
+    ['about.html', 'About ready SET Co-op'],
+    ['ecosystem-links.html', 'Sources & connected work'],
+    ['site-map.html', 'Site directory'],
+  ], research: [
+    ['trust-ladder.html', 'Trust ladder'],
+    ['ballow-road.html', 'Ballow Road concept'],
+    ['horizon.html', 'Longer-term horizon'],
+  ] },
 ];
 const legacy = new Set(['trust-ladder.html', 'ballow-road.html', 'horizon.html']);
 const brand = `<a class="brand-mark" href="index.html" aria-label="ready SET Co-op home"><img class="brand-logo" src="assets/ready-setco-tide-192.png" width="192" height="192" alt=""><span class="brand-name">ready <span class="set">SET</span> Co-op<span class="brand-subtitle">PEOPLE · SKILLS · POSSIBILITY</span></span></a>`;
 const current = (file, target) => file === target ? ' aria-current="page"' : '';
+const navigationLink = (file, [target, label]) => `<a href="${target}"${current(file, target)}>${label}</a>`;
+function navigationGroup(file, group) {
+  const active = [...group.links, ...(group.research || [])].some(([target]) => target === file);
+  return `<details class="nav-group${active ? ' nav-group-current' : ''}"><summary aria-controls="nav-${group.id}-links">${group.label}<span class="nav-chevron" aria-hidden="true"></span></summary><div class="nav-dropdown" id="nav-${group.id}-links">${group.links.map(link => navigationLink(file, link)).join('')}${group.research ? `<p class="nav-dropdown-label">Earlier research</p>${group.research.map(link => navigationLink(file, link)).join('')}` : ''}</div></details>`;
+}
 function header(file) {
-  return `<nav class="nav" aria-label="Main navigation">${brand}<button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links"><span class="menu-lines" aria-hidden="true"></span>Menu</button><div class="nav-links" id="nav-links">${navigation.map(([target, label]) => `<a href="${target}"${current(file, target)}>${label}</a>`).join('')}<a class="mobile-only" href="about.html"${current(file, 'about.html')}>About Ready SETCO</a><a class="nav-join" href="join.html"${current(file, 'join.html')}>Take part</a></div></nav>`;
+  return `<nav class="nav" aria-label="Main navigation">${brand}<button class="nav-toggle" type="button" aria-expanded="false" aria-controls="nav-links"><span class="menu-lines" aria-hidden="true"></span>Menu</button><div class="nav-links" id="nav-links">${navigation.map(link => navigationLink(file, link)).join('')}${navigationGroups.map(group => navigationGroup(file, group)).join('')}<a class="nav-join" href="join.html"${current(file, 'join.html')}>Take part</a></div></nav>`;
 }
 function dock(file) {
   return `<nav class="mobile-dock" aria-label="Quick navigation"><a href="events.html"${current(file, 'events.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="5" width="16" height="16" rx="2"/><path d="M8 2v6m8-6v6M4 11h16"/></svg>Events</a><a href="map.html"${current(file, 'map.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m3 5 6-2 6 2 6-2v16l-6 2-6-2-6 2Zm6-2v16m6-14v16"/></svg>Map</a><a class="dock-join" href="join.html"${current(file, 'join.html')}><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m4-14v8m-4-4h8"/></svg>Take part</a></nav>`;

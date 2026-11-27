@@ -1,6 +1,6 @@
 # Automatic deployment of the existing Cloudflare service
 
-Prepared 27 November 2026. Repository preparation does not establish that the Cloudflare connection is enabled or that a production deployment has succeeded.
+Verified 27 November 2026: pushes to `main` now trigger the existing Cloudflare Worker automatically. The first successful automatic release deployed commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e`; all five public hub pages were checked live. See the [release evidence](../README.md#automatic-cloudflare-deployment). Private organiser Access configuration and authenticated workflow verification remain outstanding.
 
 ## One-time dashboard settings
 
@@ -42,11 +42,11 @@ Wrangler records applied migrations in `d1_migrations` and does not reapply reco
 
 Keep migrations compatible with the currently running Worker. A failed check or migration stops deployment. If a migration succeeds and the later upload fails, the schema change remains; retrying does not undo it. The current 0004 migration is additive. Use one production deployment path and avoid overlapping production releases; this setup does not add a distributed migration lock.
 
-## Confirm the first deployment
+## Verify a deployment
 
-Save the connection, then open the Worker's **Deployments → View build history**. Use the available retry/build action or push a new commit to `main` to start the first build. Check that the successful build is for the intended commit and produces an active deployment of `ready-setco`.
+Push the intended changes to `main`, then follow the **Workers Builds: ready-setco** check in GitHub or open the Worker's **Deployments → View build history**. Check that the successful build is for the intended commit and produces an active deployment of `ready-setco`. Use the available retry action after correcting a failed build.
 
-Verify the formation pages on the existing workers.dev hostname, signed-out private-route protection and authorised organiser access. A successful source commit or a Console message saying no data was returned does not prove those checks.
+Verify the affected pages on the existing workers.dev hostname. The first public release passed these checks, while `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable` because private review is not configured. Complete the existing service's Access configuration, then verify signed-out protection and authorised organiser saves and exports. A successful public deployment does not establish private workflow readiness or independently validate the live database schema.
 
 ## Sources
 

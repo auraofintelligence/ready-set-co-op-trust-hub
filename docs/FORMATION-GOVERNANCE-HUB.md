@@ -61,7 +61,9 @@ Release verification on 27 November 2026: all 93 tests passed, the static build 
 
 ## Production completion
 
-Source publication does not prove a Cloudflare deployment. Production completion requires applying the new migration to the existing database, deploying the existing Worker/assets, confirming the public pages and checking signed-out and authorised organiser access. Preserve existing Cloudflare Access configuration and credentials. There are no new public record endpoints.
+The public release was verified on 27 November 2026. The automatic Cloudflare build for commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e` succeeded and deployed the existing Worker and assets. All five new hub pages and their supporting files returned HTTP 200, the directory listed 21 pages, and the public sitemap included all 20 public page URLs. See [automatic deployment and release evidence](../README.md#automatic-cloudflare-deployment).
+
+Private organiser access remains pending. Live requests to `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable`, with “Private review is not configured.” Complete the existing service's Cloudflare Access configuration, independently confirm the governance schema, and verify signed-out protection plus authorised saves, history and exports before using the workspace operationally. There are no new public record endpoints.
 
 ## Further development for the wider network
 

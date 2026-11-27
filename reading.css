@@ -49,6 +49,9 @@ html[data-reading-mode=easy] .nav-links{flex:1 0 100%;grid-template-columns:minm
 html.js[data-reading-mode=easy] .nav-links{display:none}
 html.js[data-reading-mode=easy] .nav-open .nav-links{display:grid}
 html[data-reading-mode=easy] .nav-links a{color:#fff;white-space:normal;font-size:1rem;min-height:2.8rem;background:transparent;text-decoration:underline}
+html[data-reading-mode=easy] .nav-group>summary{color:#fff;white-space:normal;font-size:1rem;min-height:2.8rem}
+html[data-reading-mode=easy] .nav-group-current>summary{color:#62f6a5;background:#24243d}
+html[data-reading-mode=easy] .nav-dropdown{position:static;min-width:0;width:auto;max-width:none;max-height:none;overflow:visible;margin:.25rem 0 .5rem .65rem;padding:.25rem .35rem .5rem .6rem;border:0;border-left:2px solid #62f6a5;background:transparent;box-shadow:none}
 html[data-reading-mode=easy] .nav-links .mobile-only{display:flex}
 html[data-reading-mode=easy] .nav-links a[aria-current=page]{background:#24243d;color:#62f6a5;border:1px solid #62f6a5}
 html[data-reading-mode=easy] .nav-links .nav-join{background:#62f6a5;color:#101020;border-color:#62f6a5;margin-left:0}
@@ -88,3 +91,4 @@ html[data-reading-mode=easy] .place-position-actions .button{font-size:1rem;flex
 html[data-reading-mode=easy] :focus-visible{outline:3px solid #542096;outline-offset:3px;box-shadow:0 0 0 6px #ffe070}
 @media(max-width:25rem){.reading-quick-controls button{flex-basis:100%}.reading-panel{padding-inline:1rem}}
 @media print{.reading-panel{display:none}}
+

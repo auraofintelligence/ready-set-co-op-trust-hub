@@ -1,27 +1,41 @@
-# Ready SET Co-op | Learn. Work. Build together.
+# ready SET Co-op | Learn. Work. Build together.
 
 **Ready Sustainable Employment and Training Cooperative**
 
-Ready SET Co-op (also styled Ready SETCO in the website and earlier documents) is a proposed member-owned cooperative starting on Minjerribah / North Stradbroke Island, Queensland. It brings together local skills, employment, training, volunteer coordination, shared resources and the practical support needed to turn community ideas into useful, sustainable services.
+ready SET Co-op (Ready SETCO in earlier documents) is a proposed member-owned cooperative starting on Minjerribah / North Stradbroke Island, Queensland. It brings together local skills, employment, training, volunteer coordination, shared resources and the practical support needed to turn community ideas into useful, sustainable services.
 
 It is a proposed **minimum viable community for a fair go in the age of superintelligence**: start with the people, capabilities, equipment and coordination that a community needs, then repeat the useful foundations in other places with locally chosen priorities and peer relationships. The long-term direction is Joyful Responsible Abundance, not a centrally imposed community programme.
 
-**Current status:** public information and participation software implemented; cooperative formation, member admission, employment arrangements and service handovers require separate decisions. Strange But True is the initial sole trader operator.
+**Live, checked 27 November 2026:** the five-page public formation and governance hub is available on the existing Cloudflare site. Automatic deployment from this repository's `main` branch is working. The site directory contains 21 pages: 20 public pages and one protected organiser page.
 
-**Documentation reviewed: 27 November 2026.**
+**Organiser access is pending:** the private page and governance API currently return `503 admin_unavailable`, with the message “Private review is not configured.” Cloudflare Access configuration and authorised workflow verification remain to be completed.
+
+Strange But True is the initial sole trader operator. ready SET Co-op remains proposed; cooperative formation, formal member admission, employment arrangements and service handovers require their actual decisions and agreements.
+
+## Open the co-op hub
+
+| Live page | What it helps with |
+| --- | --- |
+| [Formation & governance](https://ready-setco.auraofintelligence.workers.dev/formation.html) | Follow the twelve-step formation pathway and compare distributing and non-distributing cooperative structures |
+| [Queensland law & rules](https://ready-setco.auraofintelligence.workers.dev/cooperative-law.html) | Find the legal sources, official model rules and guidance on disclosure, membership, voting and reporting |
+| [Running the cooperative](https://ready-setco.auraofintelligence.workers.dev/governance.html) | Plan membership, responsibilities, decisions, finance, records and service handover |
+| [Formation planning tools](https://ready-setco.auraofintelligence.workers.dev/formation-planner.html) | Prepare a device-held draft, explore a first-year budget and download seven preparation workbooks |
+| [Other communities](https://ready-setco.auraofintelligence.workers.dev/cooperative-network.html) | Adapt the foundations locally and explore the proposed Missing Middle network |
+
+The [Members & decisions](https://ready-setco.auraofintelligence.workers.dev/members.html) page connects this preparation to founding participation. The public tools help people prepare and discuss; saving a plan does not register a cooperative or admit a member.
 
 ## Two public entry points, one repository
 
 | Site | Role |
 | --- | --- |
-| [Ready SET Co-op on Cloudflare](https://ready-setco.auraofintelligence.workers.dev/index.html) | Current public participation service, with same-origin Worker API, dedicated D1 register and reviewed public place data |
-| [Ready SET Co-op Trust Hub on GitHub Pages](https://auraofintelligence.github.io/ready-set-co-op-trust-hub/) | Public project information, source-linked research and the same rebuilt public interface; operational requests point to the Cloudflare API |
+| [ready SET Co-op on Cloudflare](https://ready-setco.auraofintelligence.workers.dev/index.html) | Current public site and live co-op hub, with same-origin Worker API, dedicated D1 register and public place data |
+| [ready SET Co-op Trust Hub on GitHub Pages](https://auraofintelligence.github.io/ready-set-co-op-trust-hub/) | Public project information and source-linked research from this repository; operational requests point to the Cloudflare API |
 
 Both sites are maintained from this repository. The 19 November 2026 rebuild supersedes the earlier property-led front door without erasing its history. The GitHub Pages edition is not a second operational database.
 
-For automatic updates of the existing Cloudflare Worker from `main`, follow [Automatic deployment](docs/AUTOMATIC-DEPLOYMENT.md). The repository provides `npm run build:cloudflare` for checks, tests and assets, and `npm run deploy` for guarded D1 migrations followed by deployment. The Cloudflare connection and its dedicated build token must be configured once in the dashboard.
+The existing GitHub connection now builds and deploys `main` to the same Cloudflare Worker. See [automatic deployment below](#automatic-cloudflare-deployment) for the current commands and verified release, and [the operating guide](docs/AUTOMATIC-DEPLOYMENT.md) for connection settings and troubleshooting.
 
-The repository's original substantive build date remains 21 May 2026. The current operational rebuild began on 19 November, with map and contribution improvements on 20 November.
+The repository's original substantive build date remains 21 May 2026. The current operational rebuild began on 19 November, with map and contribution improvements on 20 November and the live formation and governance extension on 27 November.
 
 ## Who can help shape it?
 
@@ -37,7 +51,9 @@ The site is not a recruitment agency advertising confirmed vacancies, a register
 
 ## Public site guide
 
-The experience has 17 current public pages, three earlier research pages and one protected organiser page. The formation and governance extension adds five public pages and a durable private workspace within the existing organiser page.
+The 20 public pages comprise 17 current pages, including the five hub pages linked above, and three labelled earlier research pages. The remaining current pages are listed here. The organiser page is the 21st directory entry and remains closed pending access configuration.
+
+The **Co-op hub** menu groups Start a co-op, Queensland co-op law, Governance & decisions, Formation planner, Co-op network and Members & participation. **About** groups the project introduction, sources, site directory and three labelled earlier research pages. Events, Training & work, Notices & media, Grants, Support and Map have direct menu links, with **Take part** as the participation action.
 
 | Page | Purpose |
 | --- | --- |
@@ -49,11 +65,6 @@ The experience has 17 current public pages, three earlier research pages and one
 | [Permissions & support](https://ready-setco.auraofintelligence.workers.dev/boundaries.html) | Consent, permissions, responsibilities, compliance and practical safeguards |
 | [Map](https://ready-setco.auraofintelligence.workers.dev/map.html) | Find useful places, submit quick pins or detailed observations, suggest corrections and export public records |
 | [Members & decisions](https://ready-setco.auraofintelligence.workers.dev/members.html) | Formation, member choice, decision records and future operational handover |
-| [Formation & governance](https://ready-setco.auraofintelligence.workers.dev/formation.html) | Twelve-step formation pathway and structure comparison |
-| [Queensland law & rules](https://ready-setco.auraofintelligence.workers.dev/cooperative-law.html) | Current legal sources, official model rules, disclosure, voting and reporting |
-| [Running the cooperative](https://ready-setco.auraofintelligence.workers.dev/governance.html) | Membership, authority, decisions, finance and service handover |
-| [Formation planning tools](https://ready-setco.auraofintelligence.workers.dev/formation-planner.html) | Device drafts, first-year budget scenarios and seven downloadable preparation workbooks |
-| [Other communities](https://ready-setco.auraofintelligence.workers.dev/cooperative-network.html) | Locally chosen replication and the proposed Missing Middle network |
 | [About](https://ready-setco.auraofintelligence.workers.dev/about.html) | Repeatable community foundations, the Missing Middle and longer-term stewardship |
 | [Take part](https://ready-setco.auraofintelligence.workers.dev/join.html) | Durable expressions of interest, consent and submission receipts |
 | [Sources & connected work](https://ready-setco.auraofintelligence.workers.dev/ecosystem-links.html) | Related public projects and research foundations |
@@ -77,7 +88,7 @@ A future personal Aura of Intelligence or agent could help a person document a c
 
 ## First proposed shared project: Straddie Noticeboard Network
 
-The [current Cloudflare Noticeboard Network](https://straddie-noticeboard-cloudflare.auraofintelligence.workers.dev/) is a separate implementation and the first proposed project for cooperative stewardship. Its current public service and publisher arrangements must be considered separately from Ready SET Co-op formation.
+The [current Cloudflare Noticeboard Network](https://straddie-noticeboard-cloudflare.auraofintelligence.workers.dev/) is a separate implementation and the first proposed project for cooperative stewardship. Its current public service and publisher arrangements must be considered separately from ready SET Co-op formation.
 
 The intended everyday network connects residents, businesses, clubs, community groups and visitors through useful local notices, events, service information, websites and shared screens. It incorporates the disruption and recovery principles of [Aura Disaster Resilience](https://auraofintelligence.github.io/aura-disaster-resilience/): preserve the original issuer, issue and checked times, expiry and the difference between current, cached and demonstration information. Official emergency authorities retain responsibility for emergency directions.
 
@@ -127,13 +138,13 @@ The [community media pathway](docs/COMMUNITY-MEDIA-PATHWAY.md) proposes separate
 
 ## Participation and formation register
 
-The Cloudflare service provides an expression-of-interest intake and a private human-review workspace. It is not a formal member register, workforce HR/payroll system or digital voting platform.
+The Cloudflare service provides public expression-of-interest intake. The private human-review workspace is implemented but awaits production Access configuration. An expression of interest remains separate from formal cooperative membership, employment and voting rights.
 
 The public form accepts an individual, local business, community organisation/leader or work/training enquiry, with relevant interests and optional context. An organisation representative confirms authority to enquire. The applicant separately agrees to contact by Strange But True and may opt in to future sharing with the registered cooperative.
 
 A server-confirmed receipt follows durable persistence; canonical retries reuse the reference instead of duplicating records. Submitting an expression of interest does not publish a map pin or confer membership, employment, partnership or funding rights.
 
-The organiser workspace at `manage.html` supports protected participant review, follow-up status and notes, audit history and portable export, alongside the private map review queue. The Worker independently verifies signed Cloudflare Access identity and restricts administrative writes. Missing production identity configuration fails closed. Whether the real production identity policy is now configured requires a separate account-level check; the repository documentation last describes it as locked pending verification.
+The organiser workspace code at `manage.html` includes participant review, follow-up status and notes, audit history and portable export, alongside the private map review queue. The Worker requires a verified Cloudflare Access identity and restricts administrative writes. On 27 November, live checks of `/manage.html` and `/api/admin/governance/workspaces` both returned `503 admin_unavailable`: “Private review is not configured.” Complete the [administrative access setup](docs/CLOUDFLARE-OPERATIONS.md#administrative-access), then verify signed-out protection and an authorised review, save and export before using these private tools operationally.
 
 No public participant lookup or register export is provided. Do not collect passport scans, tax file numbers, banking details or other unnecessary sensitive records through public intake.
 
@@ -141,13 +152,13 @@ No public participant lookup or register export is provided. Do not collect pass
 
 The 27 November extension implements Luke's direction: Straddie is the first ready SET Co-op pilot, with reusable foundations for up to 3,000 potential Missing Middle sites. This is the intended scale of a proposed network, not evidence of registered cooperatives, funded installations or a single national ownership structure. Each community chooses its own purpose, membership, governance and projects. A physical site, legal entity and shared service are distinct.
 
-The five public pages provide a twelve-step formation pathway, the three cooperative configurations, Queensland legal and model-rule references, ongoing governance guidance, and a community replication approach. The public planner stores nothing until the visitor chooses to save on their device. It supports validated JSON import/export, a discussion brief, seven blank preparation workbooks and a first-year calculator that separates capital from trading income. It makes no network requests and does not create an organiser record. Other jurisdictions are explicitly marked for local review.
+The five public pages provide a twelve-step formation pathway, the three cooperative configurations, Queensland legal and model-rule references, ongoing governance guidance, and a community replication approach. The public planner stores nothing until the visitor chooses to save on their device. It supports validated JSON import/export, a discussion brief, seven blank preparation workbooks and a first-year calculator that separates capital from trading income. It does not send drafts to a server or create an organiser record. Other jurisdictions are explicitly marked for local review.
 
-The existing protected `manage.html#governance` now has multiple formation workspaces, eleven typed record areas, reusable formation actions, revision history, actor attribution, optimistic version checks, private JSON exports and printable document packs. It records evidence and human decisions; it does not register an entity, run a legal ballot, automatically admit a member, grant an office holder access, collect money or execute a handover.
+The protected `manage.html#governance` implementation includes multiple formation workspaces, eleven typed record areas, reusable formation actions, revision history, actor attribution, optimistic version checks, private JSON exports and printable document packs. Its production access remains pending as described above. These tools record evidence and human decisions; they do not register an entity, run a legal ballot, automatically admit a member, grant an office holder access, collect money or execute a handover.
 
-The new `/api/admin/governance/*` routes inherit the existing verified Cloudflare Access identity and same-origin rules. Apply `0004_governance.sql` to the existing dedicated database before deployment. No participants, memberships or legal statuses are seeded. Missing identity configuration remains closed; a missing migration returns a clear setup response to an authenticated organiser.
+The new `/api/admin/governance/*` routes require the existing Cloudflare Access identity and same-origin rules. Automatic deployment applies unrecorded migrations, including `0004_governance.sql`, to the existing dedicated database before deploying the Worker. No participants, memberships or legal statuses are seeded. A separate live governance schema check and authenticated save/export verification remain outstanding; the successful public deployment is not evidence of completed organiser setup.
 
-All current authorised administrators can access all workspaces in this deployment. Workspace separation prevents mixing records and exports; it is not a finished tenant-permission system for thousands of independent communities. Independent deployments and a later scoped authorisation layer remain distinct implementation choices. Read [the governance API and data model](docs/GOVERNANCE-API.md) and [the implementation matrix](docs/FORMATION-GOVERNANCE-HUB.md).
+Under the implemented access model, every authorised administrator can access all workspaces in this deployment. Workspace separation prevents mixing records and exports; it is not a finished tenant-permission system for thousands of independent communities. Independent deployments and a later scoped authorisation layer remain distinct implementation choices. Read [the governance API and data model](docs/GOVERNANCE-API.md) and [the implementation matrix](docs/FORMATION-GOVERNANCE-HUB.md).
 
 Public source prompts live in `formation-data.js`; page content is maintained in `scripts/build-formation-pages.mjs`. After changing either source, regenerate and apply the shared navigation:
 
@@ -172,25 +183,56 @@ Earlier research describes a proposed distributing cooperative. That is a consul
 
 Each handover retains the original operator, receiving legal entity, approved scope, consent, effective date and historical records. A software change cannot transfer an employment contract or statutory responsibility. See [launch and handover](docs/SBT-TO-SETCO-HANDOVER.md).
 
-## Technical architecture and portability
+## Repository guide and architecture
 
 | Component | Implementation |
 | --- | --- |
 | Public interface | Static HTML/CSS/JavaScript, shared shell, local Archivo fonts, vendored Leaflet and tide-mark artwork |
+| Formation pages and tools | `scripts/build-formation-pages.mjs` maintains the five pages; `formation-data.js`, `formation.js` and `formation.css` hold the public guidance, planner and presentation |
+| Private organiser interface | `manage.html`, `manage.js` and `governance-workspace.js` / `.css`; production access awaits configuration |
 | Cloudflare Worker | `cloudflare/worker.mjs`, shared HTTP API and protected asset routes |
-| Data adapters | `cloudflare/repository.mjs`, `cloudflare/map-records.mjs`, SQLite-compatible queries and transactions |
+| Records and private governance | `cloudflare/repository.mjs`, `cloudflare/map-records.mjs` and `cloudflare/governance.mjs`, using SQLite-compatible queries and transactions |
 | Persistent database | Dedicated D1 database `ready-setco-operations`, bound as `DB` |
-| Migrations | `0001_intake.sql`, `0002_operator_legal_name.sql`, `0003_map_records.sql`, `0004_governance.sql` |
+| Migrations | `migrations/0001_intake.sql` through `0004_governance.sql`, tracked by Wrangler |
 | Local operation | Node.js 24+ native SQLite and loopback-only server using the same Worker interfaces |
 | Static deployment | Allowlisted `dist/` bundle built by `scripts/build.mjs`; private data, server source and local credentials excluded |
+| Production deployment | `wrangler.jsonc`, `scripts/check-deploy-target.mjs` and the `build:cloudflare` / `deploy` package scripts |
 | API configuration | `operations-config.js` selects the Cloudflare API for GitHub Pages and same-origin API for Cloudflare/local operation |
 | Tests | Node test runner, jsdom, interface, map controls/records, security, reading and translation checks |
+| Operating documentation | `docs/`, including [automatic deployment](docs/AUTOMATIC-DEPLOYMENT.md), [Cloudflare operations](docs/CLOUDFLARE-OPERATIONS.md) and [governance API](docs/GOVERNANCE-API.md) |
 
-Core public API routes include `POST /api/intake`, `GET /api/health`, `GET /api/map/places`, `POST /api/map/suggestions` and `GET /api/map/export`. Participant administration and map reviews/exports remain under `/api/admin/*`.
+Core public API routes include `POST /api/intake`, `GET /api/health`, `GET /api/map/places`, `POST /api/map/suggestions` and `GET /api/map/export`. Participant administration, map review and governance records remain protected under `/api/admin/*`.
 
 Cloudflare is the initial hosting and storage adapter. The same SQL migrations, standard HTTP interfaces, stable identifiers and export history support a later move to agreed local island servers. The documented 19 November portability rehearsal exercised local D1 export, native SQLite restoration and matching participant/map history and public GeoJSON. This is not proof of a completed live production backup or migration.
 
 Read [Cloudflare operations](docs/CLOUDFLARE-OPERATIONS.md) before changing infrastructure. Preserve the existing Worker and dedicated D1 database, not another project's database or identity policy.
+
+## Automatic Cloudflare deployment
+
+The existing `ready-setco` Worker is connected to this GitHub repository. A push to `main` runs checks, tests and the public asset build, then verifies the production target, applies unrecorded D1 migrations and deploys to the existing Worker. A failed check or migration stops deployment. The deploy command retains dashboard-configured variables with `--keep-vars`; runtime Access configuration remains a separate requirement.
+
+| Setting | Current value |
+| --- | --- |
+| Repository and production branch | `auraofintelligence/ready-set-co-op-trust-hub`, `main` |
+| Root directory | Repository root, `/` |
+| Build command | `npm run build:cloudflare` |
+| Deploy command | `npm run deploy` |
+| Preview builds | Disabled |
+| Runtime for the build | Node.js 24 from `.nvmrc`, with the pinned npm version in `package.json` |
+
+For the normal release workflow, check the changes locally, push the intended source changes to `main`, then follow the **Workers Builds: ready-setco** GitHub check or **Workers & Pages → ready-setco → Deployments → View build history**. Confirm the intended commit and check the affected live pages. The [automatic deployment guide](docs/AUTOMATIC-DEPLOYMENT.md) covers repository access, the dedicated build token, migration behaviour and troubleshooting.
+
+The first successful automatic release was verified on **27 November 2026**:
+
+| Evidence | Identifier or result |
+| --- | --- |
+| Source commit | [`2ba425f42f948ffbccd99b4ba09d8c19062bc19e`](https://github.com/auraofintelligence/ready-set-co-op-trust-hub/commit/2ba425f42f948ffbccd99b4ba09d8c19062bc19e) |
+| Cloudflare build | `ed315537-9958-4f49-86dc-fdefe4814878`, succeeded |
+| Worker version | `c4cc9c0b-370b-4f60-82a8-619516a78077` |
+| Public verification | All five new hub pages returned HTTP 200; the directory contains 21 pages and the public site has 20 page URLs |
+| Private verification | `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable`; organiser Access setup remains pending |
+
+Migrations must remain compatible with the running Worker. A successful migration remains applied if a later Worker upload fails. Preserve the existing database and use one production deployment path; the scripts do not add a distributed migration lock.
 
 ## Accessible design and maintenance
 
@@ -225,7 +267,7 @@ npm run build
 node scripts/verify-portability.mjs
 ```
 
-The build prepares the public asset bundle; the portability script performs a local fictional-data rehearsal. For authorised deployment and migrations, use the existing configuration and follow [Cloudflare operations](docs/CLOUDFLARE-OPERATIONS.md). Do not create a replacement production database simply to follow older initial-setup instructions: the current `wrangler.jsonc` already specifies the dedicated database binding.
+The build prepares the public asset bundle; the portability script performs a local fictional-data rehearsal. `npm run build:cloudflare` runs the same checks, tests and asset build used by the automatic pipeline without deploying. Production releases follow the GitHub `main` connection described above. The current `wrangler.jsonc` already specifies the existing Worker and dedicated database; retain these when following older initial-setup documentation.
 
 ## Current and connected project foundations
 
@@ -246,7 +288,8 @@ These connections describe research, implementation lineage or potential coopera
 
 ## Further development and decisions
 
-- Verify live intake, approved test receipts and signed-out/authorised organiser access against the real Cloudflare deployment.
+- Complete the existing Worker's Cloudflare Access configuration, then verify signed-out protection, authorised participant/map review and governance saves, history and exports.
+- Confirm the live governance schema and complete an approved live intake/receipt check; retain the distinction between a successful public deployment and verified private operations.
 - Establish the founding group and agree legal registration, primary activity, membership, employer/contract arrangements, insurance, safety, training and financial responsibilities.
 - Agree which services and assets may transfer from SBT, especially the proposed Noticeboard first project, with consent and a documented decision.
 - Develop community map stewardship, place verification and media approval policies, then separately implement the proposed media, C-Hour and wider Sensorium integrations when authorised.
