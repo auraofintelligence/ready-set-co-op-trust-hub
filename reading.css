@@ -45,7 +45,7 @@ html[data-reading-mode=easy] .brand-name .set{color:#62f6a5}
 html[data-reading-mode=easy] .brand-subtitle{display:none}
 html[data-reading-mode=easy] .nav-toggle{background:transparent;color:#fff;border:2px solid #b9b9d1;font-size:1rem;min-height:2.75rem}
 html.js[data-reading-mode=easy] .nav-toggle{display:inline-flex}
-html[data-reading-mode=easy] .nav-links{flex:1 0 100%;grid-template-columns:minmax(0,1fr);padding:0;max-height:none;overflow:visible}
+html[data-reading-mode=easy] .nav-links,html[data-reading-mode=easy] .nav-open .nav-links{flex:1 0 100%;grid-template-columns:minmax(0,1fr);padding:0;max-height:none;overflow:visible}
 html.js[data-reading-mode=easy] .nav-links{display:none}
 html.js[data-reading-mode=easy] .nav-open .nav-links{display:grid}
 html[data-reading-mode=easy] .nav-links a{color:#fff;white-space:normal;font-size:1rem;min-height:2.8rem;background:transparent;text-decoration:underline}

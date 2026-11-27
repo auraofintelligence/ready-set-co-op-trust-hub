@@ -5,6 +5,8 @@
   if (toggle && links) {
     const header = toggle.closest('.site-header');
     const groups = [...links.querySelectorAll('.nav-group')];
+    let pointerNavigation = false;
+    document.addEventListener('pointerdown', () => { pointerNavigation = true; }, { capture: true });
     function closeGroups(except = null) {
       for (const group of groups) if (group !== except) group.open = false;
     }
@@ -24,6 +26,7 @@
     toggle.addEventListener('click', () => setMenu(toggle.getAttribute('aria-expanded') !== 'true'));
     links.addEventListener('click', event => { if (event.target.closest('a')) setMenu(false); });
     document.addEventListener('keydown', event => {
+      pointerNavigation = false;
       if (event.key !== 'Escape') return;
       const openGroup = groups.find(group => group.open);
       if (openGroup) {
@@ -37,7 +40,7 @@
     });
     document.addEventListener('click', event => { if (!event.target.closest('.site-header')) setMenu(false); });
     header?.addEventListener('focusout', event => {
-      if (event.relatedTarget && !header.contains(event.relatedTarget)) setMenu(false);
+      if (!pointerNavigation && event.relatedTarget && !header.contains(event.relatedTarget)) setMenu(false);
     });
     window.matchMedia('(min-width: 76rem)').addEventListener('change', () => setMenu(false));
   }
