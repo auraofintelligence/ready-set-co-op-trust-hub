@@ -19,8 +19,8 @@ for (const file of files) {
   const ids = [...doc.querySelectorAll('[id]')].map(element => element.id);
   if (new Set(ids).size !== ids.length) errors.push(`${file}: duplicate IDs`);
   for (const image of doc.querySelectorAll('img')) if (!image.hasAttribute('alt')) errors.push(`${file}: image missing alt`);
-  if (file !== 'manage.html' && !doc.querySelector('.nav-links a[href="map.html"]')) errors.push(`${file}: map missing from main menu`);
-  if (file !== 'manage.html') {
+  if (!['manage.html','portal.html'].includes(file) && !doc.querySelector('.nav-links a[href="map.html"]')) errors.push(`${file}: map missing from main menu`);
+  if (!['manage.html','portal.html'].includes(file)) {
     if (!doc.querySelector('.site-header + .reading-panel') ||
         !doc.querySelector('button#reading-easy-toggle[aria-pressed]') ||
         !doc.querySelector('button#reading-language-toggle[aria-controls="translation-options"]') ||
@@ -57,7 +57,7 @@ for (const [file, dom] of pages) {
     links++;
     const url = new URL(value, `https://ready-setco.example/${file}`);
     const filename = decodeURIComponent(url.pathname.slice(1)) || 'index.html';
-    const target = path.resolve(root, filename);
+    const target = path.resolve(root, filename === 'vendor/simplewebauthn-browser.js' ? 'node_modules/@simplewebauthn/browser/esm/index.js' : filename);
     if (!target.startsWith(root) || !(await stat(target).catch(() => null))?.isFile()) {
       errors.push(`${file}: missing local destination ${value}`); continue;
     }
@@ -70,3 +70,4 @@ for (const [file, dom] of pages) {
 for (const dom of pages.values()) dom.window.close();
 if (errors.length) throw new Error(errors.join('\n'));
 console.log(`Verified ${files.length} pages and ${links} local links/assets: headings, anchors, IDs, map navigation, the public page tour, brand names and image descriptions.`);
+

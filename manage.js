@@ -27,6 +27,14 @@
     return value;
   }
   const governance = window.ReadySetGovernance?.init({ request });
+  let nativeSession = false;
+  document.querySelector('#manage-signout')?.addEventListener('click', async () => {
+    if (nativeSession) {
+      try { await request('/api/auth/logout', {method:'POST',body:'{}'}); location.replace('portal.html'); }
+      catch(error) { notice(error.message,true); }
+    } else if(local) location.reload();
+    else location.assign('/cdn-cgi/access/logout');
+  });
   function cell(text, tag = 'td') { const element = document.createElement(tag); element.textContent = text || 'Not provided'; return element; }
   function summary(label, value) { document.querySelector('#participant-summary').append(cell(label, 'dt'), cell(value, 'dd')); }
   function openRecord(record) {
@@ -190,10 +198,21 @@
       catch(error) { mapNotice(error.message,true); }
     });
   }
+  async function startPrivateAreas() {
+    let identity=null;
+    try { identity=(await request('/api/auth/session')).identity; } catch { /* The original Access-only route remains supported. */ }
+    nativeSession=identity?.authentication==='passkey';
+    if(identity&&!identity.webmaster){
+      for(const selector of ['#register-title','#export-register']) document.querySelector(selector)?.closest('section')?.setAttribute('hidden','');
+      for(const selector of ['#participant-detail','#map-review','#gov-create-section']) document.querySelector(selector)?.setAttribute('hidden','');
+      for(const link of document.querySelectorAll('a[href="#register-title"],a[href="#map-review"]'))link.hidden=true;
+      governance?.load();
+    }else{load();loadMapQueue();loadPublishedPlaces();governance?.load();}
+  }
   if (local) {
     document.querySelector('#local-login').hidden = false;
     document.querySelector('#local-login-form').addEventListener('submit', event => { event.preventDefault(); token = event.target.elements.namedItem('token').value; event.target.reset(); document.querySelector('#local-login').hidden = true; load(); loadMapQueue(); loadPublishedPlaces(); governance?.load(); });
     document.querySelector('#review-count').textContent = 'Enter the local session token to load records.';
-  } else { load(); loadMapQueue(); loadPublishedPlaces(); governance?.load(); }
+  } else { startPrivateAreas(); }
 })();
 

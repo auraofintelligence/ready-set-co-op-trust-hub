@@ -6,9 +6,9 @@ ready SET Co-op (Ready SETCO in earlier documents) is a proposed member-owned co
 
 It is a proposed **minimum viable community for a fair go in the age of superintelligence**: start with the people, capabilities, equipment and coordination that a community needs, then repeat the useful foundations in other places with locally chosen priorities and peer relationships. The long-term direction is Joyful Responsible Abundance, not a centrally imposed community programme.
 
-**Live, checked 27 November 2026:** the five-page public formation and governance hub is available on the existing Cloudflare site. Automatic deployment from this repository's `main` branch is working. The site directory contains 21 pages: 20 public pages and one protected organiser page.
+**Open information and private participation, 27 November 2026:** the five-page formation and governance hub remains open on the existing Cloudflare site. This repository now also contains a passkey member portal, durable personal profiles and applications, local group notices, committee permissions and Webmaster account controls. The directory contains 22 entries: the same 20 public information pages, the member portal and the protected organiser workspace. Automatic deployment from `main` updates the existing Worker and database.
 
-**Organiser access is pending:** the private page and governance API currently return `503 admin_unavailable`, with the message “Private review is not configured.” Cloudflare Access configuration and authorised workflow verification remain to be completed.
+**Initial account activation:** native member access requires one private Worker secret, `READY_AUTH_SECRET`, and the owner's one-time setup at [the member portal](https://ready-setco.auraofintelligence.workers.dev/portal.html#setup). Setup creates the first Webmaster only after a verified passkey ceremony and permanently closes that bootstrap route. No credentials or member accounts are seeded. See [member access and operations](docs/MEMBER-SERVICES.md). A successful source deployment does not establish that the owner has completed activation.
 
 Strange But True is the initial sole trader operator. ready SET Co-op remains proposed; cooperative formation, formal member admission, employment arrangements and service handovers require their actual decisions and agreements.
 
@@ -51,9 +51,9 @@ The site is not a recruitment agency advertising confirmed vacancies, a register
 
 ## Public site guide
 
-The 20 public pages comprise 17 current pages, including the five hub pages linked above, and three labelled earlier research pages. The remaining current pages are listed here. The organiser page is the 21st directory entry and remains closed pending access configuration.
+The 20 public pages comprise 17 current pages, including the five hub pages linked above, and three labelled earlier research pages. The remaining current pages are listed here. The member portal and organiser workspace are separate entries outside the public reading sequence; private records require an authorised sign-in.
 
-The **Co-op hub** menu groups Start a co-op, Queensland co-op law, Governance & decisions, Formation planner, Co-op network and Members & participation. **About** groups the project introduction, sources, site directory and three labelled earlier research pages. Events, Training & work, Notices & media, Grants, Support and Map have direct menu links, with **Take part** as the participation action.
+The **Co-op hub** menu groups Start a co-op, Queensland co-op law, Governance & decisions, Formation planner, Co-op network, Members & participation and Member portal & sign in. **About** groups the project introduction, sources, site directory and three labelled earlier research pages. Events, Training & work, Notices & media, Grants, Support and Map have direct menu links, with **Take part** as the participation action.
 
 | Page | Purpose |
 | --- | --- |
@@ -136,15 +136,33 @@ Personal and home information remains under the person's own authority. Public p
 
 The [community media pathway](docs/COMMUNITY-MEDIA-PATHWAY.md) proposes separate consent-controlled photo, panorama and 360-degree media records, building on the Gumpi ferry terminal and Ballow Road evidence maps. Permanent storage and publication require approval; media metadata, private object storage and verified contributor roles are future work, not features of the current map. See [Sensorium growth constraints](docs/SENSORIUM-GROWTH.md).
 
+## Functional member portal
+
+[Open the member portal](https://ready-setco.auraofintelligence.workers.dev/portal.html). It is part of the same Worker and dedicated D1 database.
+
+| Area | Working implementation |
+| --- | --- |
+| Accounts | Passkey registration and sign-in, multiple passkeys, eight-hour private sessions, one-use recovery codes, manual invitations and recovery links, account disable and session revocation |
+| Personal records | Own profile, contact and future-handover consent, versioned updates and own-data export |
+| Participation | Apply to a published local group, track responses, supply requested information, withdraw, and read saved history |
+| Local groups | Private notices, meeting information and document links; committee authoring and archival |
+| Committee | Review applications for assigned groups; accept participation separately from recording evidenced cooperative admission |
+| Webmaster | Manage accounts, local group listings and scoped access; use existing intake, map review and formation tools |
+| Public information | The same substantial guides, law sources, planner and public participation form remain open without signing in |
+
+Device authentication uses the browser's passkey prompt. Biometric information and device PINs stay with the authenticator. Recovery and invitation links are prepared inside the authorised portal; this release does not send emails. Contact email is not treated as verified identity. Group access, software account status, an admission record and current legal/voting rights are separate concepts.
+
+Read [the service and API guide](docs/MEMBER-SERVICES.md) and [authentication details](docs/MEMBER-AUTH.md). Accounts are initially operated by Strange But True. Later sharing or transfer to a cooperative still needs the recorded consent and agreed handover process.
+
 ## Participation and formation register
 
-The Cloudflare service provides public expression-of-interest intake. The private human-review workspace is implemented but awaits production Access configuration. An expression of interest remains separate from formal cooperative membership, employment and voting rights.
+The Cloudflare service provides public expression-of-interest intake. Native Webmaster accounts can use the private human-review workspace after initial activation. Existing configured Cloudflare Access organisers remain supported. An expression of interest remains separate from formal cooperative membership, employment and voting rights.
 
 The public form accepts an individual, local business, community organisation/leader or work/training enquiry, with relevant interests and optional context. An organisation representative confirms authority to enquire. The applicant separately agrees to contact by Strange But True and may opt in to future sharing with the registered cooperative.
 
 A server-confirmed receipt follows durable persistence; canonical retries reuse the reference instead of duplicating records. Submitting an expression of interest does not publish a map pin or confer membership, employment, partnership or funding rights.
 
-The organiser workspace code at `manage.html` includes participant review, follow-up status and notes, audit history and portable export, alongside the private map review queue. The Worker requires a verified Cloudflare Access identity and restricts administrative writes. On 27 November, live checks of `/manage.html` and `/api/admin/governance/workspaces` both returned `503 admin_unavailable`: “Private review is not configured.” Complete the [administrative access setup](docs/CLOUDFLARE-OPERATIONS.md#administrative-access), then verify signed-out protection and an authorised review, save and export before using these private tools operationally.
+The organiser workspace code at `manage.html` includes participant review, follow-up status and notes, audit history and portable export, alongside the private map review queue. The Worker accepts native Webmaster sessions or the existing verified Cloudflare Access organiser identity for global intake and map review. Native committee accounts see only their linked governance workspaces. Complete [native account activation](docs/MEMBER-SERVICES.md#activate-the-existing-service), then verify an authorised save and export before operational use. The earlier Access-only release returned `503 admin_unavailable` while its identity configuration was absent; native accounts provide a separate supported access route.
 
 No public participant lookup or register export is provided. Do not collect passport scans, tax file numbers, banking details or other unnecessary sensitive records through public intake.
 
@@ -154,11 +172,11 @@ The 27 November extension implements Luke's direction: Straddie is the first rea
 
 The five public pages provide a twelve-step formation pathway, the three cooperative configurations, Queensland legal and model-rule references, ongoing governance guidance, and a community replication approach. The public planner stores nothing until the visitor chooses to save on their device. It supports validated JSON import/export, a discussion brief, seven blank preparation workbooks and a first-year calculator that separates capital from trading income. It does not send drafts to a server or create an organiser record. Other jurisdictions are explicitly marked for local review.
 
-The protected `manage.html#governance` implementation includes multiple formation workspaces, eleven typed record areas, reusable formation actions, revision history, actor attribution, optimistic version checks, private JSON exports and printable document packs. Its production access remains pending as described above. These tools record evidence and human decisions; they do not register an entity, run a legal ballot, automatically admit a member, grant an office holder access, collect money or execute a handover.
+The protected `manage.html#governance` implementation includes multiple formation workspaces, eleven typed record areas, reusable formation actions, revision history, actor attribution, optimistic version checks, private JSON exports and printable document packs. It now accepts native Webmaster sessions and explicit committee assignments as well as the optional existing Access route. These tools record evidence and human decisions; they do not register an entity, run a legal ballot, automatically admit a member, grant an office holder access, collect money or execute a handover.
 
-The new `/api/admin/governance/*` routes require the existing Cloudflare Access identity and same-origin rules. Automatic deployment applies unrecorded migrations, including `0004_governance.sql`, to the existing dedicated database before deploying the Worker. No participants, memberships or legal statuses are seeded. A separate live governance schema check and authenticated save/export verification remain outstanding; the successful public deployment is not evidence of completed organiser setup.
+The `/api/admin/governance/*` routes enforce the signed-in account's workspace scope and same-origin rules. Native committee roles are checked when reading workspaces and inside mutation transactions; a Webmaster or configured Access organiser retains global stewardship access. Automatic deployment applies unrecorded migrations, including `0004_governance.sql`, to the existing dedicated database before deploying the Worker. No participants, memberships or legal statuses are seeded. Migrations `0005_member_accounts.sql` and `0006_member_services.sql` add account and participation services. Only a public listing for the proposed Minjerribah pilot is seeded, with no legal status, member or decision. Account activation and production authenticated verification remain distinct from deployment.
 
-Under the implemented access model, every authorised administrator can access all workspaces in this deployment. Workspace separation prevents mixing records and exports; it is not a finished tenant-permission system for thousands of independent communities. Independent deployments and a later scoped authorisation layer remain distinct implementation choices. Read [the governance API and data model](docs/GOVERNANCE-API.md) and [the implementation matrix](docs/FORMATION-GOVERNANCE-HUB.md).
+Native committee access is assigned per local group and extends to that group's linked governance workspace. Participants can read their own records and notices from groups they are allowed to access. Webmasters and configured legacy Access organisers remain trusted global operators. Pagination and scoped queries support growth without treating the proposed 3,000-site network as an already deployed or load-tested installation. Separate community deployments and data custody remain available choices. Read [the governance API and data model](docs/GOVERNANCE-API.md) and [the implementation matrix](docs/FORMATION-GOVERNANCE-HUB.md).
 
 Public source prompts live in `formation-data.js`; page content is maintained in `scripts/build-formation-pages.mjs`. After changing either source, regenerate and apply the shared navigation:
 
@@ -191,6 +209,7 @@ Each handover retains the original operator, receiving legal entity, approved sc
 | Formation pages and tools | `scripts/build-formation-pages.mjs` maintains the five pages; `formation-data.js`, `formation.js` and `formation.css` hold the public guidance, planner and presentation |
 | Private organiser interface | `manage.html`, `manage.js` and `governance-workspace.js` / `.css`; production access awaits configuration |
 | Cloudflare Worker | `cloudflare/worker.mjs`, shared HTTP API and protected asset routes |
+| Member accounts and services | `cloudflare/accounts.mjs`, `cloudflare/member-services.mjs`, `portal.html/js/css`, migrations `0005` and `0006`; passkeys, sessions, recovery, profiles, applications, local roles and notices |
 | Records and private governance | `cloudflare/repository.mjs`, `cloudflare/map-records.mjs` and `cloudflare/governance.mjs`, using SQLite-compatible queries and transactions |
 | Persistent database | Dedicated D1 database `ready-setco-operations`, bound as `DB` |
 | Migrations | `migrations/0001_intake.sql` through `0004_governance.sql`, tracked by Wrangler |
@@ -209,7 +228,7 @@ Read [Cloudflare operations](docs/CLOUDFLARE-OPERATIONS.md) before changing infr
 
 ## Automatic Cloudflare deployment
 
-The existing `ready-setco` Worker is connected to this GitHub repository. A push to `main` runs checks, tests and the public asset build, then verifies the production target, applies unrecorded D1 migrations and deploys to the existing Worker. A failed check or migration stops deployment. The deploy command retains dashboard-configured variables with `--keep-vars`; runtime Access configuration remains a separate requirement.
+The existing `ready-setco` Worker is connected to this GitHub repository. A push to `main` runs checks, tests and the public asset build, then verifies the production target, applies unrecorded D1 migrations and deploys to the existing Worker. A failed check or migration stops deployment. The deploy command retains dashboard-configured variables with `--keep-vars`; native account activation and any optional Access configuration remain separate runtime requirements.
 
 | Setting | Current value |
 | --- | --- |
@@ -288,14 +307,14 @@ These connections describe research, implementation lineage or potential coopera
 
 ## Further development and decisions
 
-- Complete the existing Worker's Cloudflare Access configuration, then verify signed-out protection, authorised participant/map review and governance saves, history and exports.
+- Activate the first native Webmaster with the one private Worker secret, then verify real passkey sign-in, recovery-code custody, account revocation, member applications and scoped committee access. Cloudflare Access remains optional.
 - Confirm the live governance schema and complete an approved live intake/receipt check; retain the distinction between a successful public deployment and verified private operations.
 - Establish the founding group and agree legal registration, primary activity, membership, employer/contract arrangements, insurance, safety, training and financial responsibilities.
 - Agree which services and assets may transfer from SBT, especially the proposed Noticeboard first project, with consent and a documented decision.
 - Develop community map stewardship, place verification and media approval policies, then separately implement the proposed media, C-Hour and wider Sensorium integrations when authorised.
 - Rehearse backups, exports and restores with the authorised production environment before a future local hosting cutover.
 
-The current release does not run payroll, verify accredited training, admit cooperative members, approve visa days, transfer employment, collect payments, administer cooperative votes or replace legal review.
+The current release can record an evidenced cooperative admission after registration. It does not itself perform legal admission, determine current active membership or voting eligibility, run payroll, verify accredited training, approve visa days, transfer employment, collect payments, administer cooperative votes or replace legal review.
 
 ## Licence and historical links
 

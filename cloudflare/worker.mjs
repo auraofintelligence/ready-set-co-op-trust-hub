@@ -2,6 +2,8 @@ import { createRemoteJWKSet, jwtVerify } from 'jose';
 import { createRepository, PARTICIPANT_STATUSES } from './repository.mjs';
 import { handleMapRequest } from './map-records.mjs';
 import { handleGovernanceRequest } from './governance.mjs';
+import { resolveAccountSession, handleAccountRequest } from './accounts.mjs';
+import { handleMemberServiceRequest, memberGovernanceScope } from './member-services.mjs';
 
 const BODY_LIMIT = 12 * 1024;
 const CONSENT_VERSION = '2026-11-19';
@@ -257,6 +259,7 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
       const url = new URL(request.url);
       const api = url.pathname === '/api' || url.pathname.startsWith('/api/');
       const privatePage = /^\/manage(?:\.html|\/.*)?$/i.test(url.pathname);
+      const portalPage = /^\/portal(?:\.html|\/.*)?$/i.test(url.pathname);
       let corsOrigin;
       try {
         const publicWrite = ['/api/intake', '/api/map/suggestions'].includes(url.pathname);
@@ -275,14 +278,44 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
         }
         if (url.pathname === '/api/health' && request.method === 'GET') return secure(json({ status: 'ok' }), { api });
         const admin = url.pathname === '/api/admin' || url.pathname.startsWith('/api/admin/');
-        let actor;
-        if (admin || (privatePage && !localDev(url, env))) actor = await authenticate(request, env, url, keyResolver);
+        // Auth and permission reads begin at the primary even when D1 read replication is enabled.
+        if ((api || privatePage || portalPage) && env.DB?.withSession) env = {...env,DB:env.DB.withSession('first-primary')};
+        let identity = (api || privatePage || portalPage) ? await resolveAccountSession(request,env,{now:now()}) : null;
+        let actor, workspaceScope = null;
+        const legacyCredential=request.headers.get('Cf-Access-Jwt-Assertion')||request.headers.get('Cookie')?.includes('CF_Authorization=')||(localDev(url,env)&&request.headers.get('Authorization'));
+        if(!identity&&legacyCredential&&(url.pathname.startsWith('/api/webmaster/')||url.pathname.startsWith('/api/committee/')||url.pathname==='/api/auth/session')){
+          const verified=await authenticate(request,env,url,keyResolver);
+          identity={accountId:verified,username:verified,displayName:verified,email:verified,webmaster:true,status:'active',authentication:localDev(url,env)?'local':'access'};
+        }
+        if (admin || (privatePage && !localDev(url, env))) {
+          if (identity) {
+            workspaceScope=await memberGovernanceScope(env.DB,identity);
+            const governanceRoute=url.pathname.startsWith('/api/admin/governance');
+            if (!identity.webmaster && (!workspaceScope.length || (!privatePage && !governanceRoute))) fail(403,'forbidden','This account does not have access to this organiser area.');
+            actor=`account:${identity.accountId}`;
+          } else {
+            if (privatePage && env.READY_AUTH_SECRET && !request.headers.get('Cf-Access-Jwt-Assertion') && !request.headers.get('Cookie')?.includes('CF_Authorization=')) {
+              return secure(new Response(null,{status:303,headers:{Location:'/portal.html'}}),{privatePage:true});
+            }
+            if(admin&&env.READY_AUTH_SECRET&&!legacyCredential)fail(401,'sign_in_required','Sign in through the member portal to use the organiser workspace.');
+            actor=await authenticate(request,env,url,keyResolver);
+            identity={accountId:actor,username:actor,displayName:actor,email:actor,webmaster:true,status:'active',authentication:localDev(url,env)?'local':'access'};
+          }
+        }
         if (api) {
           if (!env.DB?.prepare || !env.DB?.batch) fail(503, 'service_unavailable', 'The service is temporarily unavailable.');
+          if (url.pathname.startsWith('/api/auth/') || url.pathname.startsWith('/api/webmaster/accounts')) {
+            const response=await handleAccountRequest(request,env,{identity,now:now(),readJSON:()=>readJSON(request)});
+            if(response)return secure(response,{api});
+          }
+          if (url.pathname.startsWith('/api/member/') || url.pathname.startsWith('/api/committee/') || url.pathname.startsWith('/api/webmaster/sites')) {
+            const response=await handleMemberServiceRequest(request,env,{identity,now:now(),readJSON:()=>readJSON(request)});
+            if(response)return secure(response,{api});
+          }
           const repository = createRepository(env.DB);
           if (url.pathname.startsWith('/api/admin/governance')) {
             if (!['GET', 'HEAD'].includes(request.method)) requireSameOrigin(request, url, { required: true });
-            const response = await handleGovernanceRequest(request, env, { actor, now: now(), readJSON: () => readJSON(request) });
+            const response = await handleGovernanceRequest(request, env, { actor, workspaceScope, now: now(), readJSON: () => readJSON(request) });
             if (response) return secure(response, { api });
           }
           if (url.pathname.startsWith('/api/map/') || url.pathname.startsWith('/api/admin/map/')) {
@@ -328,8 +361,10 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
         if (!env.ASSETS?.fetch) fail(503, 'service_unavailable', 'The site is temporarily unavailable.');
         const assetUrl = new URL(url);
         if (assetUrl.pathname === '/') assetUrl.pathname = '/index.html';
+        if (assetUrl.pathname === '/portal') assetUrl.pathname = '/portal.html';
+        if (assetUrl.pathname === '/manage') assetUrl.pathname = '/manage.html';
         const assetRequest = assetUrl.href === url.href ? request : new Request(assetUrl, request);
-        return secure(await env.ASSETS.fetch(assetRequest), { privatePage, allowLocation: url.pathname === '/map.html' });
+        return secure(await env.ASSETS.fetch(assetRequest), { privatePage:privatePage||portalPage, allowLocation: url.pathname === '/map.html' });
       } catch (error) {
         const known = error instanceof HttpError;
         const status = known ? error.status : 503;
@@ -338,7 +373,7 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
         status === 429 ? { 'Retry-After': String(Math.max(1, Math.ceil((3600000 - (Date.parse(now()) % 3600000)) / 1000))) } : {});
         // Never send exception details, database messages, submitted values or
         // request headers to the client or application logs.
-        return secure(response, { api, privatePage, origin: corsOrigin });
+        return secure(response, { api, privatePage:privatePage||portalPage, origin: corsOrigin });
       }
     },
   };

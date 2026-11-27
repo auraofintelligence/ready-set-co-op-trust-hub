@@ -19,11 +19,13 @@
     "check": "node scripts/check.mjs"
   },
   "dependencies": {
+    "@simplewebauthn/browser": "14.0.0",
+    "@simplewebauthn/server": "14.1.0",
     "jose": "^6.0.0"
   },
   "devDependencies": {
+    "esbuild": "0.28.1",
     "jsdom": "^26.1.0",
     "wrangler": "4.119.0"
   }
 }
-

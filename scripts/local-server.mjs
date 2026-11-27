@@ -90,6 +90,7 @@ const environment = {
   ASSETS: { fetch: assetFetch },
   LOCAL_DEV: 'true',
   LOCAL_ADMIN_TOKEN: localAdminToken,
+  READY_AUTH_SECRET: process.env.READY_AUTH_SECRET,
   ALLOWED_ORIGINS: origin,
   INTAKE_RATE_LIMIT: '10'
 };
@@ -147,3 +148,4 @@ function close() {
 }
 process.on('SIGINT', close);
 process.on('SIGTERM', close);
+

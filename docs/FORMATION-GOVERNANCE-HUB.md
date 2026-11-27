@@ -18,10 +18,10 @@ The public experience introduces the local purpose first, then connects it to th
 | Founder planner | Explicit device save, restore, validated import, JSON export, Markdown discussion brief and unsaved-change warning | No network transmission or automatic private record creation |
 | Financial scenario | Member capital, annual fee revenue, other revenue, operating costs, reserves and start-up funding balance | No tax, payroll, dividend, grant eligibility or full cash-flow engine |
 | Preparation workbooks | Founder brief, rules, disclosure, formation meeting, decision record, handover and local replication | Editable prompts; official regulator forms and model rules remain separate |
-| Private workspaces | Blank community creation, locality, jurisdiction, proposed structure and formation stage | Existing authorised organisers can access all workspaces on this deployment |
+| Private workspaces | Blank community creation, locality, jurisdiction, proposed structure and formation stage | Native committee accounts are scoped to assigned local groups; Webmasters and legacy Access organisers retain global stewardship |
 | Rules | Typed section, proposed text, rationale and model reference, with version history and document packs | No claim that a saved draft is approved or registered |
 | Meetings and decisions | Agenda, notice/date/location, chair, attendance count, quorum evidence, motion, votes, result and references | Records human processes; does not run a statutory ballot or collect signatures |
-| Membership | Prospective/applicant/admitted/exit evidence records and participation basis | No auto-admission from public EOI; no member sign-in or payment collection |
+| Membership | Prospective/applicant/admitted/exit evidence records and participation basis | No auto-admission from public EOI; member passkeys and applications are implemented separately, with no payment collection |
 | Directors and roles | Appointment, term, delegation, conflicts and responsible person | Recording a role does not grant technical access or make a legal appointment |
 | Finance and reporting | Typed records for budgets, shares, fees, reserves, reporting, amounts and approval references | Maintained accounts/payroll and official reporting remain separate |
 | Service handover and assets | Original and receiving parties, scope, consent, acceptance, effective dates, ownership, custody and renewal | Contracts, property transfers and employment obligations require their actual agreements |
@@ -33,7 +33,7 @@ The public experience introduces the local purpose first, then connects it to th
 
 The Worker identity and database are unchanged: `ready-setco`, `ready-setco-operations`, existing `DB` and `ASSETS` bindings. Four empty governance tables are added by migration `0004_governance.sql`. Governance routes inherit authentication from `/api/admin/*` and reject cross-origin writes. The private interface remains inside `manage.html`.
 
-Every current authorised organiser can access every workspace. This release provides useful separation of community records, not independent tenant access control. Before unrelated communities share one deployment, implement explicit workspace memberships, scoped permissions, invitations, revocation and audited role changes, or give each cooperative its own deployment and data custody. Do not market the pilot as a completed 3,000-tenant platform.
+Member accounts and scoped committee permissions were added on 27 November through migrations `0005` and `0006`. A local group can link to a governance workspace; the server filters and protects that workspace for its assigned committee. Webmasters and legacy Access organisers remain global operators. This is a working pilot foundation, not evidence that 3,000 independent sites have been installed or load-tested. See [member services](MEMBER-SERVICES.md).
 
 The participant EOI and public map are preserved. Their original exports keep their original scope. A workspace's private JSON export includes its current records and revision history; full database backup includes all domains. The public planner stores only when requested and does not call the private API.
 
@@ -53,7 +53,7 @@ npm test
 npm run build
 ```
 
-The shared navigation generator adds the hub, keeps Map visible, retains reading/language controls and updates the full Previous/Next sequence. The site directory includes 17 current public pages, three earlier research pages and one private organiser page.
+The shared navigation generator adds the hub, keeps Map visible, retains reading/language controls and updates the full Previous/Next sequence. The site directory includes 17 current public pages, three earlier research pages and a member portal and one protected organiser page.
 
 Focused tests exercise the real Worker/SQLite path, authentication, origin restrictions, immutable attribution, idempotent creates, stale writes, rollback on audit failure, cross-workspace record substitution, complete exports, registration/admission/handover evidence, planner persistence and budget separation. Interface tests cover actual saves, reloads, safe document packs and repeated checklist imports.
 
@@ -63,8 +63,8 @@ Release verification on 27 November 2026: all 93 tests passed, the static build 
 
 The public release was verified on 27 November 2026. The automatic Cloudflare build for commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e` succeeded and deployed the existing Worker and assets. All five new hub pages and their supporting files returned HTTP 200, the directory listed 21 pages, and the public sitemap included all 20 public page URLs. See [automatic deployment and release evidence](../README.md#automatic-cloudflare-deployment).
 
-Private organiser access remains pending. Live requests to `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable`, with “Private review is not configured.” Complete the existing service's Cloudflare Access configuration, independently confirm the governance schema, and verify signed-out protection plus authorised saves, history and exports before using the workspace operationally. There are no new public record endpoints.
+Before the native member extension, private requests returned `503 admin_unavailable` because Access was not configured. Native account setup is now an alternative: activate the first Webmaster with the private Worker secret, then verify real sign-in, private saves and scoped access. Deployment alone does not establish that owner activation is complete. Personal and group records remain protected; the public group listing contains service descriptions only.
 
 ## Further development for the wider network
 
-Future work can add jurisdiction packs, formal member accounts, scoped office-holder permissions, secure evidence attachments, statutory register completeness reviews, properly designed ballots, regulator-form assembly, approved-publication workflows, finance integrations and federation agreements. Build each against the real local requirements and authority. The pilot's immediate service work and founding discussions can use the delivered tools independently of those later capabilities.
+Future work can add jurisdiction packs, statutory membership lifecycle integration, secure evidence attachments, statutory register completeness reviews, properly designed ballots, regulator-form assembly, approved-publication workflows, finance integrations and federation agreements. Build each against the real local requirements and authority. The pilot's immediate service work and founding discussions can use the delivered tools independently of those later capabilities.

@@ -2,6 +2,7 @@ import { cp, lstat, mkdir, readdir, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { generateMapIcons } from './generate-map-icons.mjs';
+import { build } from 'esbuild';
 
 const projectRoot = fileURLToPath(new URL('..', import.meta.url));
 const publicNames = new Set(['robots.txt', 'sitemap.xml', 'site.webmanifest', 'LICENCE.md']);
@@ -51,6 +52,11 @@ export async function buildSite() {
     await cp(assets, path.join(destination, 'assets'), { recursive: true, dereference: false });
   }
 
+  // Pin and serve the passkey helper from our own origin. No CDN sees account activity.
+  await mkdir(path.join(destination, 'vendor'), { recursive: true });
+  await build({ entryPoints:[path.join(projectRoot,'node_modules/@simplewebauthn/browser/esm/index.js')], bundle:true, minify:true, format:'iife', globalName:'SimpleWebAuthnBrowser', target:['es2020'], outfile:path.join(destination,'vendor/simplewebauthn-browser.js'), legalComments:'eof' });
+  await cp(path.join(projectRoot,'node_modules/@simplewebauthn/browser/LICENSE.md'),path.join(destination,'vendor/SimpleWebAuthn-LICENSE.md'));
+
   const count = await countFiles(destination);
   console.log(`Built ${count} public files in dist. Private records and server files are excluded.`);
   return destination;
@@ -59,3 +65,4 @@ export async function buildSite() {
 if (process.argv[1] && pathToFileURL(path.resolve(process.argv[1])).href === import.meta.url) {
   await buildSite();
 }
+

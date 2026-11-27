@@ -14,9 +14,11 @@ npm run build
 npx wrangler deploy
 ```
 
-Use the existing `wrangler.jsonc`, account, Worker, database binding and approved Cloudflare Access identity configuration. Do not create a replacement database or hosting project. The organiser interface remains within protected `manage.html`; all new endpoints sit below `/api/admin/governance/` and inherit verified Access JWT identity, the administrator allowlist, same-origin protection and no-store responses. Missing production identity configuration continues to fail closed. A missing governance migration returns `503 governance_setup_required` to an authenticated organiser; it never triggers automatic database changes.
+Use the existing `wrangler.jsonc`, account, Worker and database. The organiser interface remains inside `manage.html`. Native Webmaster accounts can manage all workspaces. Native committee accounts can manage only workspaces linked to their explicitly assigned local groups. Workspace lists, individual reads and writes enforce that scope; permission checks inside write transactions also prevent a concurrent role revocation from authorising a stale operation. Global intake and map moderation remain Webmaster functions.
 
-Every current authorised administrator can access every workspace on this deployment. Workspace IDs separate records and exports, but are not tenant-specific permission assignments. Future independent community deployments can reuse the source with their own database and identity policy. Do not invite separate communities into this deployment on the assumption that their records are hidden from its administrators. Site-specific roles and separate member accounts require a further authorisation layer before multi-tenant operation.
+The existing verified Cloudflare Access allowlist and loopback development token remain optional global operator routes. Missing authentication fails closed. Account activation uses one private Worker secret and a one-use Webmaster setup. See [member services](MEMBER-SERVICES.md) and [authentication](MEMBER-AUTH.md). A missing governance migration returns `503 governance_setup_required` rather than changing the schema during a public request.
+
+Software committee access is separate from a legal appointment. A governance role record does not grant login access. Webmasters explicitly assign that access in the portal, preserving its audit history. Webmasters and configured legacy Access organisers are trusted global operators, so communities sharing this deployment also share that stewardship boundary.
 
 ## Requests and responses
 

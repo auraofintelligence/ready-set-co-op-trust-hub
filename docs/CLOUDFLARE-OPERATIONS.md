@@ -51,6 +51,9 @@ Before publishing real intake, set the public origin allowlist to the exact HTTP
 
 ## Administrative access
 
+Native Webmaster and committee access is now available through `portal.html`. The shortest setup uses one private runtime secret and the one-time owner passkey flow in [MEMBER-SERVICES.md](MEMBER-SERVICES.md#activate-the-existing-service). The Access instructions below are retained as an optional legacy operator route. Do not put the public portal or its registration endpoints behind an administrator-only Access policy.
+
+
 Retain the existing Ready SETCO Cloudflare Access application. If initial Access configuration has not yet been completed, configure an application for the deployed hostname and these private paths:
 
 - `/manage.html`
@@ -129,10 +132,17 @@ The 19 November 2026 rehearsal passed with migrations `0001_intake.sql` and `000
 
 The existing `manage.html` now includes private formation and governance workspaces. Apply `migrations/0004_governance.sql` to `ready-setco-operations` before deploying the extended Worker. It adds empty governance tables only; the participant and map tables retain their existing scope. Do not create another Worker, database or hosting project for this extension.
 
-New routes are under `/api/admin/governance/*` and use the existing Access audience and administrator allowlist. The current authorised administrators can access all workspaces on this deployment. Workspace IDs are not individual community access policies. See [GOVERNANCE-API.md](GOVERNANCE-API.md) for request schemas, immutable revision history, export limits and the further authorisation needed for separate community tenants.
+Routes under `/api/admin/governance/*` now accept native Webmaster sessions and scoped local committee assignments as well as the existing Access audience/allowlist. A committee can see only its linked workspaces; Webmasters and configured legacy organisers remain global operators. See [GOVERNANCE-API.md](GOVERNANCE-API.md) for schemas and [MEMBER-SERVICES.md](MEMBER-SERVICES.md) for account activation, local roles, applications, notices and private export.
 
 The existing participant export and map export do not include governance records. Each formation workspace has its own complete JSON export. A full D1/SQLite database backup includes all four governance tables and their revision histories. Retain access restrictions on every export.
 
 The public `formation-planner.html` uses optional browser-local storage and downloads only. It sends no draft to the server and does not change the cooperative's records. The other new public pages are `formation.html`, `cooperative-law.html`, `governance.html` and `cooperative-network.html`.
 
 Source implementation and local tests do not establish production deployment. Verify the final Cloudflare version, the applied migration and authorised/signed-out access before describing the private workspace as live.
+
+
+## Member account extension, 27 November 2026
+
+Automatic deployment applies additive migrations `0005_member_accounts.sql` and `0006_member_services.sql` to this same database. The portal uses WebAuthn passkeys, opaque HttpOnly sessions, single-use recovery codes and audited local-group permissions. It needs `READY_AUTH_SECRET` as a Worker runtime secret; it does not need a new database, email provider, build token or Cloudflare Access configuration. The first Webmaster must complete the owner setup personally and save the recovery codes.
+
+The local server accepts `READY_AUTH_SECRET` from the process environment for isolated development. Keep it outside source. Existing local organiser-token tests remain supported. A future domain or host move needs a passkey relying-party continuity or verified re-enrolment plan in addition to data portability.

@@ -123,8 +123,14 @@ function pagination(url, allowed = []) {
   return { page: integer('page', 1, 1000000), pageSize: integer('pageSize', 100, 100) };
 }
 function noQuery(url) { if (url.search) fail(400, 'invalid_query', 'This action does not accept list filters.'); }
-async function getWorkspace(db, workspaceId) {
-  const row = await db.prepare('SELECT * FROM governance_workspaces WHERE id = ?').bind(workspaceId).first();
+function accountPermission(actor,workspaceId=null,workspaceColumn=false) {
+  if(!actor.startsWith('account:'))return {sql:'1',values:[]};
+  const assignment=workspaceId===null?'':` OR EXISTS(SELECT 1 FROM member_site_roles r JOIN member_sites s ON s.id=r.site_id WHERE r.account_id=a.id AND r.role='committee' AND s.governance_workspace_id=${workspaceColumn?'governance_workspaces.id':'?'})`;
+  return {sql:`EXISTS(SELECT 1 FROM member_accounts a WHERE a.id=? AND a.status='active' AND (a.webmaster=1${assignment}))`,values:[actor.slice(8),...(workspaceId!==null&&!workspaceColumn?[workspaceId]:[])]};
+}
+async function getWorkspace(db, workspaceId,actor) {
+  const access=accountPermission(actor,workspaceId);
+  const row = await db.prepare(`SELECT * FROM governance_workspaces WHERE id = ? AND ${access.sql}`).bind(workspaceId,...access.values).first();
   if (!row) fail(404, 'workspace_not_found', 'The formation workspace was not found.');
   return row;
 }
@@ -136,24 +142,26 @@ async function getRecord(db, workspaceId, recordId) {
 async function createWorkspace(db, source, actor, now) {
   const workspaceId = id(source.id), data = workspaceData(source, true), payload = JSON.stringify(data), operation = crypto.randomUUID();
   const snapshot = { id: workspaceId, ...data, jurisdictionReview: data.jurisdiction === 'QLD' ? 'qld-guide-available' : 'local-review-required', version: 1, createdAt: now, createdBy: actor, updatedAt: now, updatedBy: actor };
+  const access=accountPermission(actor);
   const result = await db.batch([
     db.prepare(`INSERT INTO governance_workspaces (id, name, jurisdiction, stage, data_json, original_payload_json, version, created_at, created_by, updated_at, updated_by, last_operation_id)
-      VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).bind(workspaceId, data.name, data.jurisdiction, data.stage, payload, payload, now, actor, now, actor, operation),
+      SELECT ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ? WHERE ${access.sql} ON CONFLICT(id) DO NOTHING`).bind(workspaceId, data.name, data.jurisdiction, data.stage, payload, payload, now, actor, now, actor, operation,...access.values),
     db.prepare(`INSERT INTO governance_workspace_revisions (id, workspace_id, version, actor, created_at, snapshot_json)
       SELECT ?, id, version, ?, ?, ? FROM governance_workspaces WHERE id = ? AND last_operation_id = ?`).bind(operation, actor, now, JSON.stringify(snapshot), workspaceId, operation),
-    db.prepare('SELECT * FROM governance_workspaces WHERE id = ?').bind(workspaceId),
+    db.prepare(`SELECT * FROM governance_workspaces WHERE id = ? AND ${access.sql}`).bind(workspaceId,...access.values),
   ]);
   const row = rows(result[2])[0];
-  if (!row) throw new Error('Workspace persistence failed');
+  if (!row) fail(409,'access_changed','Your access changed before this workspace could be saved. Refresh before trying again.');
   if (row.original_payload_json !== payload) fail(409, 'submission_conflict', 'This reference already belongs to a different workspace submission. Refresh before creating another.');
   return json({ workspace: workspaceFromRow(row) }, row.last_operation_id === operation ? 201 : 200);
 }
 async function updateWorkspace(db, previous, source, actor, now) {
   const version = expectedVersion(source), data = workspaceData(source), operation = crypto.randomUUID();
   const snapshot = { ...workspaceFromRow(previous), ...data, jurisdictionReview: data.jurisdiction === 'QLD' ? 'qld-guide-available' : 'local-review-required', version: version + 1, updatedAt: now, updatedBy: actor };
+  const access=accountPermission(actor,previous.id);
   const result = await db.batch([
-    db.prepare(`UPDATE governance_workspaces SET name = ?, jurisdiction = ?, stage = ?, data_json = ?, version = version + 1, updated_at = ?, updated_by = ?, last_operation_id = ? WHERE id = ? AND version = ?`)
-      .bind(data.name, data.jurisdiction, data.stage, JSON.stringify(data), now, actor, operation, previous.id, version),
+    db.prepare(`UPDATE governance_workspaces SET name = ?, jurisdiction = ?, stage = ?, data_json = ?, version = version + 1, updated_at = ?, updated_by = ?, last_operation_id = ? WHERE id = ? AND version = ? AND ${access.sql}`)
+      .bind(data.name, data.jurisdiction, data.stage, JSON.stringify(data), now, actor, operation, previous.id, version,...access.values),
     db.prepare(`INSERT INTO governance_workspace_revisions (id, workspace_id, version, actor, created_at, snapshot_json)
       SELECT ?, id, version, ?, ?, ? FROM governance_workspaces WHERE id = ? AND last_operation_id = ?`).bind(operation, actor, now, JSON.stringify(snapshot), previous.id, operation),
     db.prepare('SELECT * FROM governance_workspaces WHERE id = ?').bind(previous.id),
@@ -165,12 +173,13 @@ async function updateWorkspace(db, previous, source, actor, now) {
 async function createRecord(db, workspace, source, actor, now) {
   const recordId = id(source.id), kind = source.kind, data = recordData(source, kind, workspace, true), payload = JSON.stringify({ kind, ...data }), operation = crypto.randomUUID();
   const snapshot = { id: recordId, workspaceId: workspace.id, kind, ...data, version: 1, createdAt: now, createdBy: actor, updatedAt: now, updatedBy: actor };
+  const access=accountPermission(actor,workspace.id);
   const result = await db.batch([
     db.prepare(`INSERT INTO governance_records (id, workspace_id, kind, title, status, data_json, original_payload_json, version, created_at, created_by, updated_at, updated_by, last_operation_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?) ON CONFLICT(id) DO NOTHING`).bind(recordId, workspace.id, kind, data.title, data.status, JSON.stringify(data), payload, now, actor, now, actor, operation),
+      SELECT ?, ?, ?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ? WHERE ${access.sql} ON CONFLICT(id) DO NOTHING`).bind(recordId, workspace.id, kind, data.title, data.status, JSON.stringify(data), payload, now, actor, now, actor, operation,...access.values),
     db.prepare(`INSERT INTO governance_record_revisions (id, workspace_id, record_id, version, actor, created_at, snapshot_json)
       SELECT ?, workspace_id, id, version, ?, ?, ? FROM governance_records WHERE workspace_id = ? AND id = ? AND last_operation_id = ?`).bind(operation, actor, now, JSON.stringify(snapshot), workspace.id, recordId, operation),
-    db.prepare('SELECT * FROM governance_records WHERE workspace_id = ? AND id = ?').bind(workspace.id, recordId),
+    db.prepare(`SELECT * FROM governance_records WHERE workspace_id = ? AND id = ? AND ${access.sql}`).bind(workspace.id, recordId,...access.values),
   ]);
   const row = rows(result[2])[0];
   if (!row || row.original_payload_json !== payload) fail(409, 'submission_conflict', 'This record reference has already been used. Refresh before creating another.');
@@ -179,9 +188,10 @@ async function createRecord(db, workspace, source, actor, now) {
 async function updateRecord(db, workspace, previous, source, actor, now) {
   const version = expectedVersion(source), data = recordData(source, previous.kind, workspace), operation = crypto.randomUUID();
   const snapshot = { ...recordFromRow(previous), ...data, version: version + 1, updatedAt: now, updatedBy: actor };
+  const access=accountPermission(actor,workspace.id);
   const result = await db.batch([
-    db.prepare(`UPDATE governance_records SET title = ?, status = ?, data_json = ?, version = version + 1, updated_at = ?, updated_by = ?, last_operation_id = ? WHERE workspace_id = ? AND id = ? AND version = ?`)
-      .bind(data.title, data.status, JSON.stringify(data), now, actor, operation, workspace.id, previous.id, version),
+    db.prepare(`UPDATE governance_records SET title = ?, status = ?, data_json = ?, version = version + 1, updated_at = ?, updated_by = ?, last_operation_id = ? WHERE workspace_id = ? AND id = ? AND version = ? AND ${access.sql}`)
+      .bind(data.title, data.status, JSON.stringify(data), now, actor, operation, workspace.id, previous.id, version,...access.values),
     db.prepare(`INSERT INTO governance_record_revisions (id, workspace_id, record_id, version, actor, created_at, snapshot_json)
       SELECT ?, workspace_id, id, version, ?, ?, ? FROM governance_records WHERE workspace_id = ? AND id = ? AND last_operation_id = ?`).bind(operation, actor, now, JSON.stringify(snapshot), workspace.id, previous.id, operation),
     db.prepare('SELECT * FROM governance_records WHERE workspace_id = ? AND id = ?').bind(workspace.id, previous.id),
@@ -210,7 +220,7 @@ async function exportWorkspace(db, workspaceId, now) {
   return json({ schemaVersion: 1, exportedAt: now, workspace: workspaceFromRow(rows(result[0])[0]), records: rows(result[1]).map(recordFromRow), workspaceRevisions: rows(result[2]).map(revisionFromRow), recordRevisions: rows(result[3]).map(revisionFromRow) }, 200, { 'Content-Disposition': `attachment; filename="ready-setco-governance-${workspaceId}.json"` });
 }
 
-export async function handleGovernanceRequest(request, env, { actor, now, readJSON }) {
+export async function handleGovernanceRequest(request, env, { actor, now, readJSON, workspaceScope=null }) {
   const url = new URL(request.url);
   if (!url.pathname.startsWith('/api/admin/governance')) return null;
   try {
@@ -222,16 +232,20 @@ export async function handleGovernanceRequest(request, env, { actor, now, readJS
     const db = env.DB;
     if (!workspaceKey) {
       if (resource || recordKey || history) fail(404, 'not_found', 'The formation workspace action was not found.');
-      if (request.method === 'POST') { noQuery(url); return await createWorkspace(db, await readJSON(), actor, now); }
+      if (request.method === 'POST') { if(workspaceScope!==null)fail(403,'forbidden','Creating a cooperative workspace requires Webmaster access.');noQuery(url); return await createWorkspace(db, await readJSON(), actor, now); }
       if (request.method !== 'GET') fail(405, 'method_not_allowed', 'This action supports reading and creating workspaces.');
       const { page, pageSize } = pagination(url);
+      const scopeAccess=actor.startsWith('account:')?accountPermission(actor,'id',true):{sql:workspaceScope===null?'1':"id IN (SELECT value FROM json_each(?))",values:workspaceScope===null?[]:[JSON.stringify(workspaceScope)]};
+      const scopeClause=scopeAccess.sql,scopeValues=scopeAccess.values;
       const result = await db.batch([
-        db.prepare('SELECT * FROM governance_workspaces ORDER BY name, id LIMIT ? OFFSET ?').bind(pageSize, (page - 1) * pageSize),
-        db.prepare('SELECT COUNT(*) AS total FROM governance_workspaces'),
+        db.prepare(`SELECT * FROM governance_workspaces WHERE ${scopeClause} ORDER BY name, id LIMIT ? OFFSET ?`).bind(...scopeValues,pageSize, (page - 1) * pageSize),
+        db.prepare(`SELECT COUNT(*) AS total FROM governance_workspaces WHERE ${scopeClause}`).bind(...scopeValues),
       ]);
       return json({ workspaces: rows(result[0]).map(workspaceFromRow), total: rows(result[1])[0].total, page, pageSize });
     }
-    const workspaceId = id(workspaceKey), workspaceRow = await getWorkspace(db, workspaceId), workspace = workspaceFromRow(workspaceRow);
+    const workspaceId = id(workspaceKey);
+    if(workspaceScope!==null&&!workspaceScope.includes(workspaceId))fail(404,'not_found','The formation workspace was not found.');
+    const workspaceRow = await getWorkspace(db, workspaceId,actor), workspace = workspaceFromRow(workspaceRow);
     if (!resource) {
       noQuery(url);
       if (request.method === 'GET') return json({ workspace });

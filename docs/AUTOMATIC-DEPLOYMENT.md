@@ -1,6 +1,6 @@
 # Automatic deployment of the existing Cloudflare service
 
-Verified 27 November 2026: pushes to `main` now trigger the existing Cloudflare Worker automatically. The first successful automatic release deployed commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e`; all five public hub pages were checked live. See the [release evidence](../README.md#automatic-cloudflare-deployment). Private organiser Access configuration and authenticated workflow verification remain outstanding.
+Verified 27 November 2026: pushes to `main` now trigger the existing Cloudflare Worker automatically. The first successful automatic release deployed commit `2ba425f42f948ffbccd99b4ba09d8c19062bc19e`; all five public hub pages were checked live. See the [release evidence](../README.md#automatic-cloudflare-deployment). The later member extension adds native passkeys as an alternative to Access. One-time owner activation and an authenticated production workflow check remain separate from automatic deployment; see [member services](MEMBER-SERVICES.md).
 
 ## One-time dashboard settings
 
@@ -29,7 +29,7 @@ Use the dedicated `ready-set-co-op-trust-hub` token for this Worker. Keep the wi
 
 Inspect an actual build failure before changing token permissions. If a build reports missing D1 write access, open [User API tokens](https://dash.cloudflare.com/profile/api-tokens), edit this token's existing **Account policy** for the Cloudflare account, and enable the D1 write permission. Preserve the Worker deployment permissions. Empty additional policies do not grant access. Save the token changes and retry the failed build; if Cloudflare reports a stale token, select a valid token in Builds settings. Never place a token value in source, public variables or chat.
 
-Keep the existing Worker Access configuration and runtime secrets. Build variables and runtime secrets are different settings. The deploy command uses `--keep-vars` to retain dashboard-configured variables; committed variables are still applied by Wrangler.
+Keep the existing Worker runtime secrets and any configured optional Access settings. Native accounts use the runtime secret `READY_AUTH_SECRET`. Build variables and runtime secrets are different settings. The deploy command uses `--keep-vars` to retain dashboard-configured variables; committed variables are still applied by Wrangler.
 
 ## What runs after a push to main
 
@@ -46,7 +46,7 @@ Keep migrations compatible with the currently running Worker. A failed check or 
 
 Push the intended changes to `main`, then follow the **Workers Builds: ready-setco** check in GitHub or open the Worker's **Deployments → View build history**. Check that the successful build is for the intended commit and produces an active deployment of `ready-setco`. Use the available retry action after correcting a failed build.
 
-Verify the affected pages on the existing workers.dev hostname. The first public release passed these checks, while `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable` because private review is not configured. Complete the existing service's Access configuration, then verify signed-out protection and authorised organiser saves and exports. A successful public deployment does not establish private workflow readiness or independently validate the live database schema.
+Verify the affected pages on the existing workers.dev hostname. The first public release passed these checks, while `/manage.html` and `/api/admin/governance/workspaces` returned `503 admin_unavailable` because private review is not configured. Activate native Webmaster access using [the one-secret setup](MEMBER-SERVICES.md#activate-the-existing-service), or retain the optional existing Access route, then verify signed-out protection and authorised saves and exports. A successful public deployment does not establish private workflow readiness or independently validate the live database schema.
 
 ## Sources
 

@@ -19,6 +19,7 @@ const navigationGroups = [
     ['formation-planner.html', 'Formation planner'],
     ['cooperative-network.html', 'Co-op network'],
     ['members.html', 'Members & participation'],
+    ['portal.html', 'Member portal & sign in'],
   ] },
   { id: 'about', label: 'About', links: [
     ['about.html', 'About ready SET Co-op'],
@@ -47,7 +48,7 @@ function dock(file) {
 const footer = `<div class="footer-inner"><div class="footer-brand">${brand}<p>Ready Sustainable Employment and Training Cooperative.<br>A proposed local cooperative for skills, paid work and shared resources. Help shape it from the beginning.</p></div><div class="footer-links"><a href="about.html">About Ready SETCO</a><a href="members.html">Members & decisions</a><a href="formation.html">Formation & governance</a><a href="boundaries.html">Permissions & support</a><a href="ecosystem-links.html">Sources & connected work</a><a href="site-map.html">Site directory</a><a href="mailto:sbt4183@gmail.com">Contact Luke</a></div></div><div class="footer-bottom"><span>Initially operated by Luke Hayes, trading as Strange But True · ABN 81 913 657 174.<br>Ready SETCO is still forming. Joining as a member or transferring services will require separate agreements.</span><a href="https://auraofintelligence.github.io/strange-but-true/">Strange But True</a></div>`;
 
 let count = 0;
-for (const name of (await readdir(root)).filter(name => name.endsWith('.html'))) {
+for (const name of (await readdir(root)).filter(name => name.endsWith('.html') && !['manage.html','portal.html'].includes(name))) {
   const dom = new JSDOM(await readFile(path.join(root, name), 'utf8'));
   const doc = dom.window.document;
   const head = doc.head;
