@@ -73,6 +73,8 @@
 .home-lesson-card h2 { font-size: clamp(1.2rem, 3vw, 1.65rem); }
 .home-lesson-card .studio-thumb { width: clamp(4rem, 8vw, 5.5rem); }
 .studio-hero .home-lesson-card a:focus-visible { outline-color: #762db0; }
+.studio-hero.home-hero .hero-lede { max-width: 48ch; }
+.studio-hero.home-hero .home-hero-visual { align-self: start; }
 .home-page .service-directory {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 1fr));
@@ -186,6 +188,9 @@
   .studio-hero-with-art > img, .studio-hero-side { justify-self: end; }
   #main .formation-hero.studio-hero-with-art { grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); }
   .studio-hero-side .formation-status { width: 100%; }
+}
+@media (min-width: 800px) {
+  .studio-hero.home-hero .home-hero-visual > img { aspect-ratio: 4 / 3; }
 }
 @media (max-width: 440px) {
   .studio-side-card { align-items: flex-start; gap: .75rem; }
