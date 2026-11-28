@@ -108,6 +108,7 @@ test('the five training groups start with private, editable drafts and completio
   const counts = { 'plfc-training':15, 'sandy-sports-training':18, 'noticeboard-training':8, 'msmn-training':10, 'ready-setco-training':12 };
   const { groups } = await saved(await f.call('/course-staff/groups','GET',undefined,f.admin));
   let assessed = 0;
+  let lessons = 0;
   for (const [site,count] of Object.entries(counts)) {
     assert.ok(groups.some(group => group.id === site));
     const { versions } = await saved(await f.call(`/course-staff/groups/${site}`,'GET',undefined,f.admin));
@@ -118,6 +119,9 @@ test('the five training groups start with private, editable drafts and completio
     for (const version of versions) {
       assert.equal(version.state,'draft');
       if (version.practical) assessed++;
+      lessons += version.lessons.length;
+      assert.ok(version.lessons.length >= (version.practical ? 6 : 5));
+      assert.ok(version.lessons.length <= 8);
       assert.ok(version.lessons.every(lesson => version.practical ? lesson.questions?.length === 2 : !lesson.questions?.length));
       for (const lesson of version.lessons) assert.deepEqual(draftLesson(lesson),lesson);
       if (!['plfc-officer-handover','plfc-volunteer-onboarding'].includes(version.id)) {
@@ -126,10 +130,21 @@ test('the five training groups start with private, editable drafts and completio
     }
   }
   assert.equal(assessed,35);
+  assert.equal(lessons,371);
   const migration = readFileSync(new URL('../migrations/0012_project_course_drafts.sql',import.meta.url),'utf8');
   f.sqlite.exec("UPDATE learning_course_versions SET title='Editor update' WHERE course_id='sandy-site-tour'");
   f.sqlite.exec(migration);
   assert.equal(f.sqlite.prepare("SELECT title FROM learning_course_versions WHERE course_id='sandy-site-tour'").get().title,'Editor update');
+  f.sqlite.prepare(`UPDATE learning_course_versions SET edit_version=1, edited_by=?,
+    lessons_json=json_set(lessons_json,'$[0].body',?) WHERE course_id='plfc-president'`)
+    .run(f.admin.accountId,"Officer's draft kept here.");
+  f.sqlite.exec("UPDATE learning_course_versions SET state='published',edit_version=1 WHERE course_id='sandy-president'");
+  const readVersion = f.sqlite.prepare('SELECT state,lessons_json,edit_version FROM learning_course_versions WHERE course_id=? AND revision=1');
+  const edited = readVersion.get('plfc-president'), released = readVersion.get('sandy-president');
+  const curriculumFiles = readdirSync(new URL('../migrations/',import.meta.url)).filter(file => /^001[3-6]_/.test(file)).sort();
+  for (const file of curriculumFiles) f.sqlite.exec(readFileSync(new URL(`../migrations/${file}`,import.meta.url),'utf8'));
+  assert.deepEqual(readVersion.get('plfc-president'),edited);
+  assert.deepEqual(readVersion.get('sandy-president'),released);
   assert.deepEqual((await saved(await f.call('/courses'))).courses,[]);
   const complete = () => f.sqlite.prepare('INSERT INTO learning_completions(account_id,course_id,revision,completed_at) VALUES(?,?,1,?)').run(f.member.accountId, 'plfc-officer-handover', NOW);
   assert.throws(complete, /released version/);
