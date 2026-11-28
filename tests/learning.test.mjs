@@ -119,6 +119,16 @@ test('the five training groups start with private, editable drafts and completio
       assert.equal(walkthrough.category,'site-tours');
       assert.equal(walkthrough.practical,'');
       assert.equal(walkthrough.lessons.length,5);
+      assert.match(walkthrough.lessons[4].body,/Rule 4B/i);
+      const crew = versions.find(version => version.id === 'sandy-live-broadcast-crew');
+      assert.match(crew.practical,/uplink failure while the capture continues/);
+      assert.match(crew.lessons[4].body,/complete public meeting replay/);
+    }
+    if (site === 'ready-setco-training') {
+      const media = versions.find(version => version.id === 'meeting-media-operator');
+      assert.match(media.lessons[0].body,/from opening to close without pausing/);
+      assert.match(media.lessons[3].body,/committee’s approved minutes correction/);
+      assert.match(media.lessons[5].body,/recordings and transcripts permanently/);
     }
     assert.equal((await f.call(`/course-staff/groups/${site}`)).status,404);
     assert.equal(f.sqlite.prepare('SELECT published + applications_open AS open FROM member_sites WHERE id=?').get(site).open,0);
@@ -155,12 +165,21 @@ test('the five training groups start with private, editable drafts and completio
   const edited = readVersion.get('plfc-president'), released = readVersion.get('sandy-president');
   const assistantDraft = readVersion.get('sandy-assistant-secretary');
   const filmDraft = readVersion.get('sandy-film-lead');
-  const curriculumFiles = readdirSync(new URL('../migrations/',import.meta.url)).filter(file => /^001[3-7]_/.test(file)).sort();
+  f.sqlite.prepare(`UPDATE learning_course_versions SET edit_version=3, edited_by=?,
+    lessons_json=json_set(lessons_json,'$[2].body',?) WHERE course_id='sandy-secretary'`)
+    .run(f.admin.accountId,"Secretary's existing draft.");
+  f.sqlite.exec("UPDATE learning_course_versions SET state='published',edit_version=1 WHERE course_id='sandy-live-broadcast-crew'");
+  const authoredSecretary = readVersion.get('sandy-secretary'), releasedBroadcast = readVersion.get('sandy-live-broadcast-crew');
+  const plfcSecretary = readVersion.get('plfc-secretary');
+  const curriculumFiles = readdirSync(new URL('../migrations/',import.meta.url)).filter(file => /^001[3-8]_/.test(file)).sort();
   for (const file of curriculumFiles) f.sqlite.exec(readFileSync(new URL(`../migrations/${file}`,import.meta.url),'utf8'));
   assert.deepEqual(readVersion.get('plfc-president'),edited);
   assert.deepEqual(readVersion.get('sandy-president'),released);
   assert.deepEqual(readVersion.get('sandy-assistant-secretary'),assistantDraft);
   assert.deepEqual(readVersion.get('sandy-film-lead'),filmDraft);
+  assert.deepEqual(readVersion.get('sandy-secretary'),authoredSecretary);
+  assert.deepEqual(readVersion.get('sandy-live-broadcast-crew'),releasedBroadcast);
+  assert.deepEqual(readVersion.get('plfc-secretary'),plfcSecretary);
   assert.deepEqual((await saved(await f.call('/courses'))).courses,[]);
   const complete = () => f.sqlite.prepare('INSERT INTO learning_completions(account_id,course_id,revision,completed_at) VALUES(?,?,1,?)').run(f.member.accountId, 'plfc-officer-handover', NOW);
   assert.throws(complete, /released version/);
