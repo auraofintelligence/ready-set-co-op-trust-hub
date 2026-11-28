@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { createSqliteD1 } from '../scripts/sqlite-d1.mjs';
 import { handleLearningRequest, LearningRequestError } from '../cloudflare/learning.mjs';
+import { handleCourseRequest } from '../cloudflare/learning-courses.mjs';
 import { handleMemberServiceRequest } from '../cloudflare/member-services.mjs';
 
 const ORIGIN = 'https://ready-setco.example';
@@ -29,7 +30,8 @@ function fixture(t) {
   const admin = account('webmaster', true);
   async function call(path, method = 'GET', data = undefined, identity = member, now = NOW) {
     const request = new Request(`${ORIGIN}/api/learning${path}`, { method });
-    try { return await handleLearningRequest(request, db, { identity, now, readJSON: async () => data }); }
+    const handler = /^\/(courses|course-staff)(\/|$)/.test(path) ? handleCourseRequest : handleLearningRequest;
+    try { return await handler(request, db, { identity, now, readJSON: async () => data }); }
     catch (error) {
       if (!(error instanceof LearningRequestError)) throw error;
       return Response.json({ code: error.code }, { status: error.status });
@@ -107,4 +109,75 @@ test('PLFC is the only draft provider and a completion requires a released versi
   assert.throws(() => f.sqlite.exec("UPDATE learning_course_versions SET title='new' WHERE course_id='plfc-officer-handover'"), /versioned/);
   assert.equal((await saved(await f.call('/completions'))).completions[0].revision, 1);
   assert.deepEqual((await saved(await f.call('/completions', 'GET', undefined, f.other))).completions, []);
+});
+
+test('PLFC staff publish privately and learners progress through a revised practical to completion', async t => {
+  const f = fixture(t);
+  const site = 'plfc-training', course = 'plfc-officer-handover', target = `/courses/${course}/1`;
+  function grant(account, role) {
+    f.sqlite.prepare(`INSERT INTO member_site_roles (site_id,account_id,role,created_at,updated_at,updated_by,write_id)
+      VALUES (?,?,?,?,?,?,?)`).run(site,account.accountId,role,NOW,NOW,'test',crypto.randomUUID());
+  }
+  grant(f.member,'participant');
+  grant(f.admin,'committee');
+  assert.equal((await f.call('/courses', 'GET', undefined, null)).status,401);
+  assert.deepEqual((await saved(await f.call('/courses'))).courses, []);
+  assert.equal((await f.call(target)).status,404);
+  assert.equal((await f.call(`/course-staff/groups/${site}`)).status,404);
+  const staff = await saved(await f.call(`/course-staff/groups/${site}`,'GET',undefined,f.admin));
+  assert.equal(staff.versions.length,2);
+  assert.ok(staff.versions.every(v => v.state === 'draft' && v.practical));
+  const versionPath = `/course-staff/drafts/${course}/1`;
+  await saved(await f.call(versionPath, 'PATCH', { action:'publish',editVersion:1 }, f.admin));
+  assert.equal((await saved(await f.call('/courses'))).courses.length,1);
+  assert.deepEqual((await saved(await f.call('/courses','GET',undefined,f.other))).courses,[]);
+  assert.equal((await f.call(target,'GET',undefined,f.other)).status,404);
+  const enrolled = (await saved(await f.call(target + '/enrol','POST',{}))).course;
+  assert.equal((await saved(await f.call(target + '/enrol','POST',{}))).course.enrolmentId,enrolled.enrolmentId);
+  const practical = { response:'Fictional meeting, three actions and a follow-up date.',previousAttempt:0 };
+  assert.equal((await f.call(target + '/practical','POST',practical)).status,409);
+  for (const number of enrolled.lessons.map((_,i) => i+1)) await saved(await f.call(target + '/progress','POST',{number}));
+  assert.equal((await saved(await f.call(target + '/progress','POST',{number:1}))).course.progress.length,enrolled.lessons.length);
+  await saved(await f.call(target + '/practical','POST',practical));
+  assert.equal((await saved(await f.call(target + '/practical','POST',practical))).course.assessment.attempt,1);
+  assert.equal((await saved(await f.call(`/course-staff/groups/${site}`,'GET',undefined,f.admin))).queue[0].response,practical.response);
+  const review = `/course-staff/practical/${enrolled.enrolmentId}`;
+  assert.equal((await f.call(review + '/1','PATCH',{decision:'passed',feedback:''},f.other)).status,404);
+  f.sqlite.prepare('UPDATE member_site_roles SET role=? WHERE account_id=?').run('committee',f.member.accountId);
+  assert.equal((await f.call(review + '/1','PATCH',{decision:'passed',feedback:''})).status,403);
+  await saved(await f.call(review + '/1','PATCH',{decision:'revise',feedback:'Give each open action a named owner.'},f.admin));
+  assert.match((await saved(await f.call(target))).course.assessment.feedback,/named owner/);
+  await saved(await f.call(target + '/practical','POST',{response:'Fictional actions A, B and C have named owners.',previousAttempt:1}));
+  await saved(await f.call(review + '/2','PATCH',{decision:'passed',feedback:'Ready for the first week.'},f.admin));
+  assert.equal((await f.call(review + '/2','PATCH',{decision:'passed',feedback:''},f.admin)).status,409);
+  assert.equal((await saved(await f.call('/completions'))).completions[0].courseId,course);
+  const exported = await f.ownExport();
+  assert.deepEqual(exported.practicals.map(p => p.status),['revise','passed']);
+  assert.equal(exported.enrolments[0].progress.length,enrolled.lessons.length);
+
+  await saved(await f.call(versionPath,'PATCH',{action:'revise'},f.admin));
+  const secondPath = `/course-staff/drafts/${course}/2`;
+  await saved(await f.call(secondPath,'PATCH',{action:'publish',editVersion:1},f.admin));
+  assert.deepEqual(new Set((await saved(await f.call('/courses'))).courses.map(c=>c.revision)),new Set([1,2]));
+  assert.equal((await saved(await f.call(target))).course.assessment.status,'passed');
+  f.sqlite.prepare('UPDATE member_site_roles SET role=? WHERE account_id=?').run('none',f.member.accountId);
+  assert.equal((await f.call(target)).status,404);
+  assert.equal((await saved(await f.call('/completions'))).completions[0].revision,1);
+});
+
+test('course builder saves draft content and rejects stale changes and unrelated staff', async t => {
+  const f = fixture(t);
+  const siteId = 'plfc-training';
+  const data = { id:crypto.randomUUID(),siteId,category:'volunteers',title:'Fictional role course',
+    description:'Practice for a fictional event.', lessons:[{title:'Brief the team',body:'Confirm the meeting point.'}],
+    practical:'Write a fictional event briefing.' };
+  const route = '/course-staff/drafts';
+  assert.equal((await f.call(route,'POST',data,f.other)).status,409);
+  await saved(await f.call(route,'POST',data,f.admin));
+  await saved(await f.call(route,'POST',data,f.admin));
+  const changes = { action:'save',editVersion:1,title:data.title,description:'Updated overview',lessons:data.lessons,practical:data.practical };
+  await saved(await f.call(`${route}/${data.id}/1`,'PATCH',changes,f.admin));
+  assert.equal((await f.call(`${route}/${data.id}/1`,'PATCH',changes,f.admin)).status,409);
+  const group = await saved(await f.call(`/course-staff/groups/${siteId}`,'GET',undefined,f.admin));
+  assert.equal(group.versions.find(course => course.id === data.id).description,'Updated overview');
 });

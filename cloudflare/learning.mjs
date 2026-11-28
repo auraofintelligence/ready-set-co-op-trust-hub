@@ -224,23 +224,32 @@ async function completions(db, accountId, page = 1, size = PAGE_SIZE) {
 }
 
 export async function exportLearning(db, accountId, now) {
-  const [profile, records, courseHistory, history] = await Promise.all([
+  const [profile, records, courseHistory, history, enrolments, practicals] = await Promise.all([
     db.prepare('SELECT * FROM learning_profiles WHERE account_id=?').bind(accountId).first(),
     db.prepare(`SELECT ${EVIDENCE_FIELDS} FROM learning_evidence e WHERE e.account_id=?
       ORDER BY e.created_at,e.id LIMIT 1001`).bind(accountId).all(),
     completions(db, accountId, 1, 1000),
     db.prepare(`SELECT h.evidence_id AS evidenceId,h.status,h.method,h.expires_on AS expiresOn,h.note,h.recorded_at AS recordedAt
       FROM learning_evidence_history h JOIN learning_evidence e ON e.id=h.evidence_id WHERE e.account_id=?
-      ORDER BY h.recorded_at,h.id LIMIT 2001`).bind(accountId).all()
+      ORDER BY h.recorded_at,h.id LIMIT 2001`).bind(accountId).all(),
+    db.prepare(`SELECT e.id,e.course_id AS courseId,e.revision,e.enrolled_at AS enrolledAt,
+      (SELECT json_group_array(lesson_number) FROM learning_lesson_progress WHERE enrolment_id=e.id) AS progress
+      FROM learning_enrolments e WHERE e.account_id=? ORDER BY e.enrolled_at,e.id LIMIT 1001`).bind(accountId).all(),
+    db.prepare(`SELECT p.enrolment_id AS enrolmentId,p.attempt,p.response,p.status,p.feedback,p.submitted_at AS submittedAt,p.reviewed_at AS reviewedAt
+      FROM learning_practicals p JOIN learning_enrolments e ON e.id=p.enrolment_id WHERE e.account_id=?
+      ORDER BY p.enrolment_id,p.attempt LIMIT 201`).bind(accountId).all()
   ]);
-  if (courseHistory.more || records.results.length > 1000 || history.results.length > 2000) {
+  if (courseHistory.more || records.results.length > 1000 || history.results.length > 2000 ||
+      enrolments.results.length > 1000 || practicals.results.length > 200) {
     fail(413, 'export_too_large', 'Contact the site organiser for a complete copy of your learning records.');
   }
   return {
     profile: profileFrom(profile),
     evidence: records.results.map(row => ({ ...evidenceFrom(row, now), reviewConsentVersion: row.consent_version })),
     completions: courseHistory.completions,
-    history: history.results
+    history: history.results,
+    enrolments: enrolments.results.map(entry => ({ ...entry, progress: JSON.parse(entry.progress) })),
+    practicals: practicals.results
   };
 }
 

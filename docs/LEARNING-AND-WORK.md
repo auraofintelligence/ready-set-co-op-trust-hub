@@ -7,8 +7,15 @@ ReadySETCO is a proposed cooperative. Strange But True is the initial operator. 
 - **Learning & work** is available in the participant view. A person can save paid work, working holiday work, community volunteering, training, employer participation and grant-writing interests separately. The profile also records availability, self-described workplace English, skills and licence types.
 - **Evidence reviews** takes a credential name and optional issuer with explicit consent to internal review. Reviewers record the method, decision, expiry where applicable, and a member-visible note. Members can withdraw a request or ask for another review after more information is requested. An expiry or withdrawal is reflected on the private profile.
 - **Webmaster → Learning and evidence desk** gives the native Webmaster a review queue and separate preview of the two PLFC drafts. This is a ReadySETCO operator responsibility. Club committee access by itself leaves those records private. Self-review is blocked.
-- **Completed courses** reads version-linked completion records. The personal export includes these records, the work and learning profile, evidence metadata and decision history.
-- The draft PLFC officer course covers incoming and outgoing responsibilities, first duties, access, tasks and a practical handover pack. The volunteer course covers choosing and briefing a task, safeguards, escalation and a practice shift. Course editing, publishing, assignments and practical assessment are later workflows.
+- **Your courses**, inside **Learning & work**, lists courses published to the learner's groups. Members can enrol, resume lessons and submit a practical using fictional examples. Assessors can pass a practical or give feedback and request changes. A pass posts a version-linked completion on the member's profile.
+- **Course builder** lets the native Webmaster and the committee for a training group create, edit, reorder and preview lessons, publish a version and assess practicals from that group. Current learners can keep working in the release they started after a new version is published. The personal export includes the learner's enrolments, progress, practicals and completions alongside evidence reviews.
+
+## Starting PLFC training
+
+1. Sign in and open **Course builder**. Select **Point Lookout Fishing Club training**.
+2. Choose **Edit or preview draft**. The officer course covers preparing a changeover, running a first meeting rehearsal, handing over access and equipment, and checking in after the first week. The volunteer induction covers agreeing on a shift, briefing and safeguards, and handing over at the end of the shift. Each course ends with a written practical and assessment criteria.
+3. After the club clears the material for use, select **Publish course**, then **Publish to this group**. The group is private and has no public applications.
+4. Give the intended learner **Participant** access to the PLFC training group under **Webmaster → Manage account → Group responsibilities**. Assign **Committee** access to trusted course authors or assessors. People can then open the course from **Learning & work**. Another authorised assessor must review a course assessor's own practical.
 
 ## Other pathways
 
@@ -27,6 +34,6 @@ Reviewers can record observed workplace communication and practical skills again
 
 ## Implementation
 
-Migration `0009_learning_profiles.sql` extends the existing D1 database and seeds categories and two PLFC drafts. It creates no accounts or group permissions. ReadySETCO's existing authenticated Worker routes `/api/learning/*`, and the signed-in portal uses the same-origin session. Member writes carry a record version. Evidence creation is retry-safe using a client request ID. Every evidence decision writes its audit event in the same transaction. Released course content is protected against in-place edits.
+Migration `0009_learning_profiles.sql` seeds categories and draft records. Migration `0010_learning_courses.sql` creates the private tutor and learner workflow, adds the PLFC training group and gives both drafts lesson and assessment content. The migrations create no accounts or grant anyone group membership. ReadySETCO's existing authenticated Worker routes `/api/learning/*`, and the signed-in portal uses the same-origin session. Draft writes require a current edit version. Evidence and practical requests are retry-safe. Evidence decisions and practical passes record their outcomes atomically. Released course content is protected against in-place edits.
 
 Run `npm run check` and `npm test` from the checkout. The production release path applies the migration before deploying the Worker; use the existing [Cloudflare release procedure](AUTOMATIC-DEPLOYMENT.md). Before admitting real evidence, verify the member, unrelated account and native Webmaster views against a controlled deployment and confirm operational data handling with the operator.

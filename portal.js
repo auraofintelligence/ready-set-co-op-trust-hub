@@ -238,6 +238,8 @@
     $('tab-webmaster').hidden = !administration;
     $('portal-learning-desk').hidden = !administration || ['access', 'local'].includes(state.identity?.authentication);
     $('tab-committee').hidden = webmaster ? !administration : !state.committeeSites.length;
+    $('tab-course-staff').hidden = ['access','local'].includes(state.identity?.authentication) ||
+      (webmaster ? !administration : !state.committeeSites.length);
     $('portal-participant-view').hidden = !webmaster;
     $('portal-participant-view').textContent = state.participantView ? 'Back to administration' : 'Open participant view (optional)';
     $('portal-participant-view').setAttribute('aria-pressed', String(webmaster && state.participantView));
@@ -357,11 +359,12 @@
   const learning = { profile: null, profileDirty: false, review: null };
 
   function clearLearning() {
+    clearCourses();
     learning.profile = null;
     learning.profileDirty = false;
     learning.review = null;
     for (const id of ['portal-learning-profile', 'portal-learning-evidence-form', 'portal-learning-review-form']) $(id).reset();
-    for (const id of ['portal-learning-completions', 'portal-learning-evidence', 'portal-learning-drafts', 'portal-learning-reviews']) $(id).replaceChildren();
+    for (const id of ['portal-learning-completions', 'portal-learning-evidence', 'portal-learning-reviews']) $(id).replaceChildren();
     for (const id of ['portal-learning-desk', 'portal-learning-request-panel']) $(id).open = false;
     $('portal-learning-review-form').hidden = true;
     $('portal-learning-content').hidden = true;
@@ -443,7 +446,7 @@
   }
 
   async function loadLearning() {
-    await Promise.all([learning.profile ? null : reloadLearningProfile(), loadLearningCompletions(), loadLearningEvidence()]);
+    await Promise.all([learning.profile ? null : reloadLearningProfile(), loadLearningCompletions(), loadLearningEvidence(), loadCourses()]);
     $('portal-learning-content').hidden = false;
   }
 
@@ -489,23 +492,304 @@
     }, loadLearningReviews, 'There are no evidence records to review.');
   }
 
-  async function loadLearningDrafts() {
-    const { drafts } = await api('/api/learning/drafts');
-    const container = $('portal-learning-drafts');
-    container.replaceChildren();
-    for (const item of drafts) {
-      const card = node('details', undefined, 'portal-record');
-      card.append(node('summary', item.title), badge(`Draft · Version ${item.revision}`), node('p', item.description));
-      const lessons = node('ol');
-      for (const lesson of item.lessons) {
-        const entry = node('li');
-        entry.append(node('strong', lesson.title), node('p', lesson.body));
-        lessons.append(entry);
-      }
-      card.append(lessons);
-      container.append(card);
+  const courses = { groups: [], site: '', categories: [], editorDirty: false };
+  const practicalStates = { submitted: 'Awaiting assessment', revise: 'Changes requested', passed: 'Completed' };
+  const courseField = (name, title, max, rows = 0, initial = '', required = true) => {
+    const label = node('label', title);
+    const input = node(rows ? 'textarea' : 'input');
+    input.name = name;
+    input.maxLength = max;
+    input.required = required;
+    if (rows) input.rows = rows;
+    input.value = initial;
+    label.append(input);
+    return label;
+  };
+  function courseSubmit(label) {
+    const control = node('button', label, 'button primary');
+    control.type = 'submit';
+    return control;
+  }
+  function courseForm(form, action, message) {
+    form.addEventListener('submit', event => {
+      event.preventDefault();
+      if (!state.busy && form.reportValidity()) run(() => action(form), message);
+    });
+  }
+  async function courseApi(path, options) {
+    const revision = authRevision;
+    const result = await api('/api/learning/' + path, options);
+    checkAuthRevision(revision);
+    return result;
+  }
+  function courseSlug(course) { return `courses/${course.id}/${course.revision}`; }
+  function draftSlug(course) { return `course-staff/drafts/${course.id}/${course.revision}`; }
+
+  function clearCourses() {
+    Object.assign(courses, { groups: [], site: '', categories: [], editorDirty: false });
+    for (const id of ['portal-courses-group-actions','portal-courses-versions','portal-courses-editor',
+      'portal-courses-assessments','portal-courses-catalogue','portal-courses-reader']) $(id).replaceChildren();
+    fillOptions($('portal-courses-group'), []);
+    $('portal-courses-staff').hidden = true;
+    $('tab-course-staff').hidden = true;
+  }
+
+  async function loadCourses(page = 1) {
+    const result = await courseApi(`courses?page=${page}`);
+    renderLearningPage('portal-courses-catalogue', page, result.more, result.courses, item => {
+      const card = record(item.title);
+      card.append(node('p', `${item.provider} · ${item.categoryName} · Version ${item.revision}`, 'portal-hint'));
+      card.append(node('p', item.description));
+      if (item.practicalStatus) card.append(badge(practicalStates[item.practicalStatus], item.practicalStatus));
+      else if (item.enrolmentId) card.append(node('p', `${item.lessonsDone} of ${item.lessonCount} lessons complete`));
+      const label = item.practicalStatus === 'passed' ? 'Open completed course' : item.enrolmentId ? 'Continue course' : 'Open course';
+      card.append(actionRow(button(label, () => run(async () => {
+        const dirty = $('portal-courses-reader').querySelector('form[data-dirty="true"]');
+        if (dirty && !window.confirm('Discard your unsaved practical response?')) return;
+        drawCourse((await courseApi(courseSlug(item))).course);
+      }))));
+      return card;
+    }, loadCourses, 'Courses will appear here when your training group publishes them.');
+  }
+
+  function drawCourse(course, openLesson = 0) {
+    const card = node('article', undefined, 'portal-record portal-course-reader');
+    const heading = node('h3', course.title);
+    heading.tabIndex = -1;
+    const close = button('Close course', () => {
+      if (card.querySelector('form[data-dirty="true"]') && !window.confirm('Discard your unsaved practical response?')) return;
+      $('portal-courses-reader').replaceChildren();
+      $('portal-courses-catalogue').querySelector('button')?.focus();
+    });
+    card.append(heading, node('p', course.description), actionRow(close));
+    const target = courseSlug(course);
+    if (!course.enrolmentId) {
+      const outline = node('ol');
+      for (const item of course.lessons) outline.append(node('li', item.title));
+      card.append(outline, actionRow(button('Start course', () => run(async () => {
+        const result = await courseApi(target + '/enrol', { method:'POST', data:{} });
+        await loadCourses();
+        drawCourse(result.course, 1);
+      }, 'You’re enrolled. Your progress is saved as you go.'), 'primary')));
+    } else {
+      card.append(node('p', `${course.progress.length} of ${course.lessons.length} lessons complete`, 'portal-hint'));
+      course.lessons.forEach((lesson, index) => {
+        const number = index + 1;
+        const done = course.progress.includes(number);
+        const detail = node('details', undefined, 'portal-record portal-course-lesson');
+        detail.open = openLesson === number;
+        detail.append(node('summary', `${number}. ${lesson.title}${done ? ' · Complete' : ''}`), node('p', lesson.body, 'portal-preserve'));
+        if (!done) detail.append(actionRow(button('Mark lesson complete', () => run(async () => {
+          const result = await courseApi(target + '/progress', { method:'POST', data:{ number } });
+          await loadCourses();
+          const next = result.course.lessons.findIndex((_, position) => !result.course.progress.includes(position + 1)) + 1;
+          drawCourse(result.course, next);
+        }, 'Lesson marked complete.'))));
+        card.append(detail);
+      });
+      if (course.practical) drawPractical(card, course, target);
     }
-    if (!drafts.length) empty(container, 'There are no course drafts to preview.');
+    $('portal-courses-reader').replaceChildren(card);
+    heading.focus();
+  }
+
+  function drawPractical(card, course, target) {
+    const practical = node('section', undefined, 'portal-record portal-course-lesson');
+    practical.append(node('h4', 'Practical activity'), node('p', course.practical, 'portal-preserve'));
+    const submitted = course.assessment;
+    if (submitted) {
+      practical.append(badge(practicalStates[submitted.status], submitted.status));
+      if (submitted.feedback) practical.append(node('p', submitted.feedback, 'portal-preserve'));
+    }
+    if (submitted?.status === 'submitted' || submitted?.status === 'passed') {
+      const copy = node('details');
+      copy.append(node('summary', 'Your submitted response'), node('p', submitted.response, 'portal-preserve'));
+      practical.append(copy);
+    } else if (course.progress.length < course.lessons.length) {
+      practical.append(node('p', 'Complete the lessons to submit your practical.', 'portal-hint'));
+    } else {
+      const form = node('form', undefined, 'portal-form');
+      form.append(node('p', 'Use fictional names and situations. Your response goes to the group’s course assessors.', 'portal-hint'),
+        courseField('response', 'Your practical response', 2700, 6, submitted?.response ?? ''), courseSubmit(submitted ? 'Resubmit practical' : 'Submit practical'));
+      form.addEventListener('input', () => { form.dataset.dirty = 'true'; });
+      courseForm(form, async current => {
+        const result = await courseApi(target + '/practical', { method:'POST', data:{ response:value(current,'response'), previousAttempt:submitted?.attempt ?? 0 } });
+        await loadCourses();
+        drawCourse(result.course);
+      }, 'Your practical was sent to the course assessors.');
+      practical.append(form);
+    }
+    card.append(practical);
+  }
+
+  async function loadCourseGroups(page = 1) {
+    const result = await courseApi(`course-staff/groups?page=${page}`);
+    courses.groups = mergeRows(courses.groups, result.groups, page);
+    if (!courses.groups.some(group => group.id === courses.site)) {
+      courses.site = courses.groups.find(group => group.id === 'plfc-training')?.id ?? courses.groups[0]?.id ?? '';
+    }
+    fillOptions($('portal-courses-group'), courses.groups, 'Choose a group', courses.site);
+    const actions = $('portal-courses-group-actions');
+    actions.replaceChildren();
+    if (result.more) actions.append(button('Load more groups', () => run(() => loadCourseGroups(page + 1))));
+    if (page === 1 && courses.site) await loadCourseStaff();
+    $('portal-courses-staff').hidden = !courses.site;
+  }
+
+  async function loadCourseStaff(versionsPage = 1, queuePage = 1, part = '') {
+    const result = await courseApi(`course-staff/groups/${courses.site}?page=${versionsPage}&queue=${queuePage}`);
+    courses.categories = result.categories;
+    if (part !== 'queue') renderLearningPage('portal-courses-versions', versionsPage, result.moreVersions, result.versions, item => {
+      const card = record(item.title);
+      card.append(badge(`${item.state === 'draft' ? 'Draft' : 'Published'} · Version ${item.revision}`, item.state));
+      card.append(node('p', item.description));
+      const controls = [button(item.state === 'draft' ? 'Edit or preview draft' : 'Preview course', () => openCourseEditor(item))];
+      if (item.state === 'draft') {
+        const publish = button('Publish to this group', () => {
+          if (!permitEditorClose()) return;
+          run(async () => {
+            await courseApi(draftSlug(item), { method:'PATCH', data:{ action:'publish', editVersion:item.editVersion } });
+            closeCourseEditor();
+            await loadCourseStaff();
+          }, 'Course published to the selected group.');
+        }, 'primary');
+        const disclosure = node('details', undefined, 'portal-course-release');
+        disclosure.append(node('summary', 'Publish course'), node('p', `Members with access to ${result.group.name} will be able to enrol in this version.`), actionRow(publish));
+        card.append(disclosure);
+      } else {
+        controls.push(button('Draft next version', () => {
+          if (!permitEditorClose()) return;
+          run(async () => {
+            const version = await courseApi(draftSlug(item), { method:'PATCH', data:{ action:'revise' } });
+            closeCourseEditor();
+            await loadCourseStaff();
+            openCourseEditor({ ...item, ...version, state:'draft', editVersion:1 });
+          }, 'A new draft version is ready.');
+        }));
+      }
+      card.append(actionRow(...controls));
+      return card;
+    }, next => loadCourseStaff(next, 1, 'versions'), 'This group has no courses yet.');
+    if (part !== 'versions') renderLearningPage('portal-courses-assessments', queuePage, result.moreQueue, result.queue,
+      courseAssessmentCard, next => loadCourseStaff(1, next, 'queue'), 'There are no practicals awaiting assessment.');
+  }
+
+  function closeCourseEditor() {
+    courses.editorDirty = false;
+    $('portal-courses-editor').replaceChildren();
+  }
+
+  function permitEditorClose() {
+    return !courses.editorDirty || window.confirm('Discard your unsaved course draft edits?');
+  }
+
+  function previewCourse(course) {
+    const preview = node('details', undefined, 'portal-record');
+    preview.append(node('summary', 'Preview as a learner'), node('p', course.description));
+    for (const [index, lesson] of course.lessons.entries()) {
+      const detail = node('details', undefined, 'portal-record portal-course-lesson');
+      detail.append(node('summary', `${index + 1}. ${lesson.title}`), node('p', lesson.body, 'portal-preserve'));
+      preview.append(detail);
+    }
+    preview.append(node('h4', 'Practical activity'), node('p', course.practical, 'portal-preserve'));
+    return preview;
+  }
+
+  function courseLessonEditor(lesson = { title:'',body:'' }) {
+    const item = node('fieldset', undefined, 'portal-record portal-course-lesson');
+    const move = direction => {
+      const sibling = direction < 0 ? item.previousElementSibling : item.nextElementSibling;
+      if (sibling) sibling.insertAdjacentElement(direction < 0 ? 'beforebegin' : 'afterend', item);
+      courses.editorDirty = true;
+    };
+    item.append(node('legend', 'Lesson'), courseField('lessonTitle','Lesson title',140,0,lesson.title),
+      courseField('lessonBody','Lesson text',900,4,lesson.body),
+      actionRow(button('Move up', () => move(-1)), button('Move down', () => move(1)), button('Remove lesson', () => {
+        if (item.parentElement.childElementCount === 1) { setStatus('A course needs at least one lesson.', 'error'); return; }
+        item.remove();
+        courses.editorDirty = true;
+      })));
+    return item;
+  }
+
+  function openCourseEditor(item) {
+    if (!permitEditorClose()) return;
+    closeCourseEditor();
+    const panel = node('section', undefined, 'portal-record portal-course-lesson');
+    const heading = node('h3', item ? item.title : 'New course draft');
+    heading.tabIndex = -1;
+    panel.append(heading, actionRow(button('Close', () => { if (permitEditorClose()) closeCourseEditor(); })));
+    if (item) panel.append(previewCourse(item));
+    if (item?.state === 'published') {
+      $('portal-courses-editor').replaceChildren(panel);
+      heading.focus();
+      return;
+    }
+    const form = node('form', undefined, 'portal-form');
+    const lessons = node('div');
+    for (const lesson of item?.lessons ?? [undefined]) lessons.append(courseLessonEditor(lesson));
+    if (!item) {
+      const label = node('label', 'Course category');
+      const select = node('select');
+      select.name = 'category';
+      select.required = true;
+      fillOptions(select, courses.categories, 'Choose a category');
+      label.append(select);
+      form.append(label);
+    }
+    form.append(courseField('title','Course title',140,0,item?.title), courseField('description','Overview',360,3,item?.description),
+      lessons, actionRow(button('Add lesson', () => {
+        if (lessons.childElementCount >= 8) { setStatus('This version can have up to eight lessons.', 'error'); return; }
+        const lesson = courseLessonEditor();
+        lessons.append(lesson);
+        courses.editorDirty = true;
+        lesson.querySelector('input').focus();
+      })),
+      courseField('practical','Practical activity and assessment criteria',1200,5,item?.practical), courseSubmit('Save draft'));
+    form.addEventListener('input', () => { courses.editorDirty = true; });
+    courseForm(form, async current => {
+      const values = { title:value(current,'title'), description:value(current,'description'), practical:value(current,'practical'),
+        lessons:[...lessons.children].map(lesson => ({
+          title:lesson.querySelector('[name="lessonTitle"]').value.trim(), body:lesson.querySelector('[name="lessonBody"]').value.trim()
+        })) };
+      if (item) await courseApi(draftSlug(item), { method:'PATCH', data:{ ...values, action:'save', editVersion:item.editVersion } });
+      else {
+        const data = { ...values, siteId:courses.site, category:value(current,'category') };
+        await courseApi('course-staff/drafts', { method:'POST', data:stableCreate('course-draft',data) });
+        retries.delete('course-draft');
+      }
+      closeCourseEditor();
+      await loadCourseStaff();
+    }, 'Course draft saved.');
+    panel.append(form);
+    $('portal-courses-editor').replaceChildren(panel);
+    heading.focus();
+  }
+
+  function courseAssessmentCard(item) {
+    const card = node('details', undefined, 'portal-record');
+    card.append(node('summary', `${item.learner} · ${item.title}`),
+      node('p', `Version ${item.revision} · Attempt ${item.attempt} · Submitted ${date(item.submittedAt)}`, 'portal-hint'),
+      node('h4','Practical instructions'), node('p',item.practical,'portal-preserve'),
+      node('h4','Learner response'), node('p',item.response,'portal-preserve'));
+    const form = node('form', undefined, 'portal-form');
+    const label = node('label', 'Assessment decision');
+    const select = node('select');
+    select.name = 'decision';
+    select.required = true;
+    option(select,'Choose a decision','');
+    option(select,'Pass and record completion','passed');
+    option(select,'Request changes','revise');
+    label.append(select);
+    form.append(label, courseField('feedback','Feedback for the learner',1400,4,'',false), courseSubmit('Save assessment'));
+    form.addEventListener('change', () => { field(form,'feedback').required = value(form,'decision') === 'revise'; });
+    courseForm(form, async current => {
+      await courseApi(`course-staff/practical/${item.enrolmentId}/${item.attempt}`, { method:'PATCH',
+        data:{ decision:value(current,'decision'), feedback:value(current,'feedback') } });
+      await loadCourseStaff(1, 1, 'queue');
+    }, 'Practical assessment saved.');
+    card.append(form);
+    return card;
   }
 
   function profileData() {
@@ -821,6 +1105,7 @@
     if (state.busy || tab.hidden) return; const panel = tab.dataset.panel; selectPanel(panel);
     if (panel === 'webmaster') run(loadWebmasterLists); if (panel === 'security') run(loadPasskeys);
     if (panel === 'learning') run(loadLearning);
+    if (panel === 'course-staff' && !courses.site) run(loadCourseGroups);
   });
 
   listenForm('portal-learning-profile', form => run(async () => {
@@ -845,7 +1130,21 @@
     await loadLearningEvidence();
   }, 'Your private evidence request is recorded.'));
   $('portal-learning-review-load').addEventListener('click', () => run(loadLearningReviews));
-  $('portal-learning-drafts-load').addEventListener('click', () => run(loadLearningDrafts));
+  $('portal-learning-drafts-load').addEventListener('click', () => {
+    $('tab-course-staff').focus();
+    $('tab-course-staff').click();
+  });
+  $('portal-courses-group').addEventListener('change', event => {
+    if (!permitEditorClose()) { event.target.value = courses.site; return; }
+    closeCourseEditor();
+    courses.site = event.target.value;
+    $('portal-courses-staff').hidden = !courses.site;
+    $('portal-courses-versions').replaceChildren();
+    $('portal-courses-assessments').replaceChildren();
+    if (courses.site) run(loadCourseStaff);
+  });
+  $('portal-courses-new').addEventListener('click', () => openCourseEditor());
+  $('portal-courses-refresh').addEventListener('click', () => run(() => loadCourseStaff(1, 1, 'queue')));
   field($('portal-learning-review-form'), 'status').addEventListener('change', updateLearningReviewFields);
   $('portal-learning-review-cancel').addEventListener('click', () => {
     learning.review = null;

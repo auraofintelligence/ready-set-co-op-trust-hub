@@ -5,6 +5,7 @@ import { handleGovernanceRequest } from './governance.mjs';
 import { resolveAccountSession, handleAccountRequest } from './accounts.mjs';
 import { handleMemberServiceRequest, memberGovernanceScope } from './member-services.mjs';
 import { handleLearningRequest, LearningRequestError } from './learning.mjs';
+import { handleCourseRequest } from './learning-courses.mjs';
 
 const BODY_LIMIT = 12 * 1024;
 const CONSENT_VERSION = '2026-11-19';
@@ -315,7 +316,8 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
           }
           if (url.pathname.startsWith('/api/learning/')) {
             if (!['GET', 'HEAD'].includes(request.method)) requireSameOrigin(request, url, { required: true });
-            const response = await handleLearningRequest(request, env.DB, { identity, now: now(), readJSON: () => readJSON(request) });
+            const handler = /^\/api\/learning\/(?:courses|course-staff)(?:\/|$)/.test(url.pathname) ? handleCourseRequest : handleLearningRequest;
+            const response = await handler(request, env.DB, { identity, now: now(), readJSON: () => readJSON(request) });
             return secure(response, { api });
           }
           const repository = createRepository(env.DB);

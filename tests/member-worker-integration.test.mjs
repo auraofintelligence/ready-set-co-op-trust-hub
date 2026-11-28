@@ -21,6 +21,31 @@ function fixture(t){
   return {sqlite,env,client,enrol,sessions};
 }
 
+test('the live Worker routes keep PLFC training private and honour group permissions with real sessions',async t=>{
+  const f=fixture(t),owner=f.client(),learner=f.client(),visitor=f.client();
+  await f.enrol(owner,'plfc.webmaster',true);
+  const member=await f.enrol(learner,'plfc.learner');
+  const base='/api/learning', group='plfc-training', course=base+'/courses/plfc-volunteer-onboarding/1';
+  for(const path of [base+'/courses',base+'/course-staff/groups',course]) {
+    const response=await visitor.request(path);
+    assert.equal(response.status,401);
+    assert.equal(response.headers.get('Cache-Control'),'no-store');
+  }
+  assert.equal((await learner.request(base+'/course-staff/groups/'+group)).status,404);
+  const visible=await okay(await owner.request(base+'/course-staff/groups/'+group));
+  assert.equal(visible.versions.length,2);
+  await okay(await owner.request(base+'/course-staff/drafts/plfc-volunteer-onboarding/1','PATCH',{action:'publish',editVersion:1}));
+  assert.equal((await learner.request(course)).status,404);
+  await okay(await owner.request('/api/webmaster/sites/'+group+'/roles','PUT',{accountId:member.identity.accountId,role:'participant',expectedVersion:0}));
+  const before=await okay(await learner.request(course));
+  assert.equal(before.course.enrolmentId,null);
+  assert.equal((await learner.request(course+'/enrol','POST',{},'https://foreign.example')).status,403);
+  const enrolment=await okay(await learner.request(course+'/enrol','POST',{}));
+  assert.ok(enrolment.course.enrolmentId);
+  await okay(await owner.request('/api/webmaster/sites/'+group+'/roles','PUT',{accountId:member.identity.accountId,role:'none',expectedVersion:1}));
+  assert.equal((await learner.request(course+'/progress','POST',{number:1})).status,404);
+});
+
 test('real Worker passkeys unlock own records and Webmaster tools while ordinary accounts stay scoped',async t=>{
   const f=fixture(t),owner=f.client(),person=f.client(),visitor=f.client();
   const shell=await visitor.request('/portal.html');assert.equal(shell.status,200);assert.equal(shell.headers.get('Cache-Control'),'no-store');assert.match(shell.headers.get('X-Robots-Tag'),/noindex/);

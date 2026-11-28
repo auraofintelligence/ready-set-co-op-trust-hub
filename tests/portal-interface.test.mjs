@@ -80,6 +80,7 @@ function fixture(t, { signedIn = true, account = identity, hash = '', override, 
     if (url.pathname === '/api/webmaster/committee-invitations') return json({ invitations: [], total: 0, page: 1, pageSize: 25 });
     if (url.pathname === '/api/auth/passkeys') return json({ hasPassword: data.hasPassword, passkeys: [{ id: 'test-key', name: 'Fictional device', createdAt: '2026-11-27' }] });
     if (url.pathname === '/api/member/export') return json({ profile: data.profile, applications: data.applications });
+    if (url.pathname === '/api/learning/courses') return json({ courses: [] });
     return json({ error: `Test route not configured: ${url.pathname}`, code: 'not_found' }, 404);
   };
   const $ = id => window.document.getElementById(id);
@@ -143,6 +144,79 @@ test('Learning & work loads privately, saves preferences and clears the view on 
   assert.equal(form.elements.skills.value, '');
   assert.equal(f.$('portal-learning-completions').textContent, '');
   assert.equal(f.$('portal-learning-content').hidden, true);
+});
+
+test('members start a private course, mark a lesson and submit the practical from Learning & work', async t => {
+  const course = { id:'plfc-officer-handover', revision:1, title:'PLFC handover', description:'Practise an officer handover.',
+    categoryName:'Committee roles and handovers', provider:'PLFC', lessonCount:1, lessonsDone:0, enrolmentId:null,
+    lessons:[{ title:'First meeting',body:'Prepare a handover list.' }], practical:'Write a fictional handover.',
+    progress:[], assessment:null, practicalStatus:null };
+  const target = '/api/learning/courses/plfc-officer-handover/1';
+  const f = fixture(t, { override: ({ path,body }) => {
+    if (path === '/api/learning/profile') return json({ profile:{ pathways:[],availableFrom:'',availableUntil:'',english:'',skills:'',licences:'',version:0 } });
+    if (path === '/api/learning/evidence') return json({ evidence:[] });
+    if (path === '/api/learning/completions') return json({ completions:[] });
+    if (path === '/api/learning/courses') return json({ courses:[course] });
+    if (path === target + '/enrol') course.enrolmentId = 'fictional-enrolment';
+    if (path === target + '/progress') { course.progress.push(body.number); course.lessonsDone = 1; }
+    if (path === target + '/practical') {
+      course.assessment = { status:'submitted',attempt:1,response:body.response };
+      course.practicalStatus = 'submitted';
+    }
+    if (path.startsWith(target)) return json({ course });
+    return null;
+  } });
+  const click = async (container, label) => {
+    const buttons = [...f.$(container).querySelectorAll('button')];
+    const selected = buttons.find(item => item.textContent === label);
+    assert.ok(selected, label);
+    selected.click();
+    await f.idle();
+  };
+  await f.idle();
+  f.$('tab-learning').click();
+  await f.idle();
+  await click('portal-courses-catalogue','Open course');
+  await click('portal-courses-reader','Start course');
+  await click('portal-courses-reader','Mark lesson complete');
+  const form = f.$('portal-courses-reader').querySelector('form');
+  f.set(form,'response','A fictional handover with named actions.');
+  f.submit(form);
+  await f.idle();
+  assert.match(f.$('portal-courses-reader').textContent,/Awaiting assessment/);
+  assert.deepEqual(f.calls.find(call => call.path === target + '/practical').body,
+    { response:'A fictional handover with named actions.',previousAttempt:0 });
+});
+
+test('the Webmaster can edit a PLFC draft and publish from the scoped course builder', async t => {
+  const draft = { id:'plfc-officer-handover',revision:1,title:'PLFC handover',description:'Prepare for an officer handover.',
+    state:'draft',editVersion:1,lessons:[{title:'Handover list',body:'Read the minutes.'}],practical:'Draft a fictional handover.' };
+  const group = { id:'plfc-training',name:'Point Lookout Fishing Club training' };
+  const f = fixture(t, { account:{ ...identity,webmaster:true,authentication:'password' }, override:({path,body}) => {
+    if (path === '/api/learning/course-staff/groups') return json({ groups:[group] });
+    if (path === '/api/learning/course-staff/groups/plfc-training') return json({group,versions:[draft],categories:[],queue:[]});
+    if (path === '/api/learning/course-staff/drafts/plfc-officer-handover/1') {
+      assert.equal(body.editVersion,draft.editVersion);
+      if (body.action === 'save') { draft.title = body.title; draft.editVersion++; }
+      if (body.action === 'publish') draft.state = 'published';
+      return json({id:draft.id,revision:1});
+    }
+    return null;
+  } });
+  await f.idle();
+  f.$('tab-course-staff').click();
+  await f.idle();
+  const versions = f.$('portal-courses-versions');
+  versions.querySelectorAll('button')[1].click();
+  const form = f.$('portal-courses-editor').querySelector('form');
+  f.set(form,'title','PLFC officer handover');
+  f.submit(form);
+  await f.idle();
+  assert.match(versions.textContent,/PLFC officer handover/);
+  versions.querySelector('details').open = true;
+  versions.querySelector('details button').click();
+  await f.idle();
+  assert.match(versions.textContent,/Published/);
 });
 
 test('registration accepts a simple one-character password with explicit consent and privately displayed recovery codes', async t => {
