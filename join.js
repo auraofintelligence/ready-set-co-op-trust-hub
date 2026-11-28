@@ -1,6 +1,30 @@
 (() => {
   const form = document.querySelector('#interest-form');
   if (!form) return;
+
+  const demoNav = document.querySelector('#join-demo-nav');
+  const demoButtons = [...demoNav.querySelectorAll('[data-demo-target]')];
+  function showDemoPanel(active) {
+    for (const button of demoButtons) {
+      button.setAttribute('aria-pressed', String(button === active));
+      document.getElementById(button.dataset.demoTarget).hidden = button !== active;
+    }
+  }
+  for (const button of demoButtons) button.addEventListener('click', () => showDemoPanel(button));
+  showDemoPanel(demoButtons[0]);
+  demoNav.hidden = false;
+  const answers = document.querySelector('#join-demo-answers');
+  const feedback = document.querySelector('#join-demo-feedback');
+  answers.hidden = false;
+  answers.addEventListener('change', event => {
+    const correct = event.target.value === 'check';
+    feedback.hidden = false;
+    feedback.dataset.correct = String(correct);
+    feedback.textContent = correct
+      ? 'That’s right. Checking in first lets you agree on the task and find out where to get help.'
+      : 'Have another go. Who can tell you what needs doing and how to do it safely?';
+  });
+
   if (/(^|\.)translate\.goog$/i.test(location.hostname)) {
     form.hidden = true;
     for (const control of form.elements) control.disabled = true;
@@ -36,7 +60,8 @@
     status.hidden = false;
     status.focus();
   }
-  field('participantType').addEventListener('change', () => {
+  form.addEventListener('change', event => {
+    if (event.target.name !== 'participantType') return;
     const representing = ['business', 'community'].includes(field('participantType').value);
     organisation.hidden = !representing;
     field('organisation').required = field('participantType').value === 'business';
@@ -74,4 +99,5 @@
     const link = document.createElement('a'); link.href = url; link.download = `ready-setco-receipt-${receipt.reference}.json`; link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   });
+  form.hidden = false;
 })();
