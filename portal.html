@@ -11,6 +11,7 @@
   <link rel="icon" href="assets/ready-setco-tide.ico?v=20261119" sizes="16x16 32x32 48x48">
   <link rel="stylesheet" href="styles.css">
   <link rel="stylesheet" href="portal.css">
+  <link rel="stylesheet" href="course-builder.css">
   <script src="vendor/simplewebauthn-browser.js" defer></script>
   <script src="portal.js" defer></script>
 </head>
@@ -133,24 +134,47 @@
 
           <section id="panel-committee" class="portal-card" role="tabpanel" aria-labelledby="tab-committee" tabindex="0" hidden><h2>Committee workspace</h2><p>Review applications and share group information within the responsibilities assigned to you.</p><label class="portal-field">Manage a group<select id="portal-committee-workspace"><option value="">Choose a group</option></select></label><div id="portal-committee-content" hidden><div class="portal-section-heading"><h3>Applications to review</h3><button class="button secondary" id="portal-refresh-queue" type="button">Refresh applications</button></div><div id="portal-review-list" class="portal-record-list"></div><section id="portal-review-editor" class="portal-inset" hidden aria-labelledby="review-title"><h3 id="review-title">Review application</h3><p id="portal-review-applicant"></p><p id="portal-review-statement" class="portal-preserve"></p><form id="portal-review" class="portal-form"><label>Response<select name="status"><option value="in_review">Under review</option><option value="more_info">Ask for more information</option><option value="accepted_participant">Accept for participation</option><option value="declined">Decline application</option><option value="admitted">Record cooperative admission</option></select></label><label>Message for the applicant<textarea name="reviewNote" rows="4" maxlength="2000"></textarea></label><div id="portal-admission-fields" hidden><label>Admission date<input type="date" name="admissionDate"></label><label>Decision reference<input name="decisionRef" maxlength="500"></label><label>Evidence reference<input name="evidenceRef" maxlength="600"></label><p class="portal-hint">Admission needs a linked, registered cooperative workspace and actual admission evidence.</p></div><button class="button primary" type="submit">Save response</button></form><p class="portal-hint">Accepting participation gives group access. Formal cooperative admission must be separately evidenced.</p></section><details class="portal-details"><summary>Publish a group notice or document</summary><form id="portal-post" class="portal-form"><label>Title<input name="title" required maxlength="160"></label><label>Label<select name="label"><option value="Notice">Notice</option><option value="Document">Document</option><option value="Meeting">Meeting</option><option value="Opportunity">Opportunity</option></select></label><label>Text<textarea name="body" rows="5" required maxlength="6000"></textarea></label><label>Document link <span class="portal-optional">(optional)</span><input name="link" type="url" maxlength="2000" placeholder="https://" aria-describedby="post-url-help"></label><p class="portal-hint" id="post-url-help">Use a link that the intended group can access. The linked service controls its own document permissions.</p><button class="button primary" type="submit">Publish to this group</button></form></details><h3 class="portal-subheading">Published group information</h3><div id="portal-committee-posts" class="portal-record-list"></div></div></section>
 
-+          <section id="panel-course-staff" class="portal-card" role="tabpanel" aria-labelledby="tab-course-staff" tabindex="0" hidden>
-            <h2>Course builder</h2>
-            <p>Prepare lessons and a practical activity, preview the course and publish it to your training group. Review submitted practicals below.</p>
-            <label class="portal-field">Training group<select id="portal-courses-group"><option value="">Choose a group</option></select></label>
-            <div id="portal-courses-group-actions" class="portal-actions"></div>
-            <div id="portal-courses-staff" hidden>
-              <div class="portal-section-heading">
-                <h3>Courses</h3>
-                <button type="button" class="button primary" id="portal-courses-new">Create course draft</button>
+          <section id="panel-course-staff" class="portal-card course-builder" role="tabpanel" aria-labelledby="tab-course-staff" tabindex="0" hidden>
+            <div id="portal-courses-home">
+              <header class="course-builder-banner">
+                <div>
+                  <h2 id="course-builder-title" tabindex="-1">Course builder</h2>
+                  <p>Build a lesson, show how it’s done and give your group a chance to practise.</p>
+                </div>
+                <span class="course-sprite course-sprite--library" aria-hidden="true"></span>
+              </header>
+              <div class="course-group-picker">
+                <h3>Training group</h3>
+                <div id="portal-courses-group" class="course-group-buttons" aria-label="Training group"></div>
+                <div id="portal-courses-group-actions" class="portal-actions"></div>
               </div>
-              <div id="portal-courses-versions" class="portal-record-list"></div>
-              <div id="portal-courses-editor"></div>
-              <div class="portal-section-heading">
-                <h3>Practicals to assess</h3>
-                <button type="button" class="button secondary" id="portal-courses-refresh">Refresh assessments</button>
+              <div id="portal-courses-staff" hidden>
+                <nav class="course-home-switch" aria-label="Course builder sections">
+                  <button type="button" id="portal-course-home-courses" class="course-tool" aria-pressed="true" aria-controls="portal-course-course-list">
+                    <span class="course-sprite course-sprite--library" aria-hidden="true"></span> Courses
+                  </button>
+                  <button type="button" id="portal-course-home-assessments" class="course-tool" aria-pressed="false" aria-controls="portal-course-assessment-list">
+                    <span class="course-sprite course-sprite--assess" aria-hidden="true"></span> Assessments
+                  </button>
+                </nav>
+                <section id="portal-course-course-list" aria-label="Courses">
+                  <div class="portal-section-heading">
+                    <h3>Courses</h3>
+                    <button type="button" class="button primary" id="portal-courses-new">Create course draft</button>
+                  </div>
+                  <div id="portal-courses-versions" class="course-card-grid"></div>
+                </section>
+                <section id="portal-course-assessment-list" aria-label="Assessments" hidden>
+                  <div class="portal-section-heading">
+                    <h3>Practicals to assess</h3>
+                    <button type="button" class="button secondary" id="portal-courses-refresh">Refresh assessments</button>
+                  </div>
+                  <div id="portal-courses-assessments" class="portal-record-list"></div>
+                  <div id="portal-courses-assessment-editor" hidden></div>
+                </section>
               </div>
-              <div id="portal-courses-assessments" class="portal-record-list"></div>
             </div>
+            <div id="portal-courses-editor" hidden></div>
           </section>
 
           <section id="panel-webmaster" class="portal-card" role="tabpanel" aria-labelledby="tab-webmaster" tabindex="0" hidden><h2>Webmaster</h2><p>Manage account access and assign responsibilities explicitly. A website role does not appoint a cooperative director or confer legal authority.</p>

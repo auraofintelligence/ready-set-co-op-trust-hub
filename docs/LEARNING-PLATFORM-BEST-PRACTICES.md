@@ -44,7 +44,7 @@ Keep the input, initial model output, observed capture, human corrections and ap
 
 ## Apply this in ReadySETCO
 
-Open **Course builder**, edit a draft and expand **Screen recording, media and practice questions** in a lesson. Download the lesson prompt, run it in a model you choose, then paste the returned JSON into that lesson. The import fills draft text and questions for review. Luke can attach the captured screenshot, add a video link and transcript, save the version and preview it. Publishing uses the existing course approval and group access.
+Open **Course builder**, edit a draft and choose a lesson from the outline. In **AI draft**, download the lesson prompt, run it in a model you choose, then paste the returned JSON into that lesson. The import fills draft text and questions for review. Luke can attach the captured screenshot, add a video link and transcript, save the version and preview it. Publishing uses the existing course approval and group access.
 
 For the first test, run the [PLFC handover brief](learning/PLFC-HANDOVER-PILOT-BRIEF.md) through two available models. With Luke's help, follow the output against the recorded workflow. Compare exact screen labels, action order, whether the recording instructions were usable, whether the answers match the example, and which changes took the most effort. An approved pilot becomes the first reference for volunteer onboarding and the Noticeboard and Screen & Media pathways.
 

@@ -2,7 +2,7 @@
 
 Copy the prompts below into any model, one at a time. Fill in the input at the bottom of each prompt. Save the actual prompt and reply with the lesson. Record the date, prompt revision, model or provider when known, and the main human correction. The [PLFC handover pilot brief](PLFC-HANDOVER-PILOT-BRIEF.md) is ready to use with Prompt 1.
 
-In the portal, go to **Course builder → Edit or preview draft** and expand **Screen recording, media and practice questions** inside a lesson. **Download lesson prompt** exports a ready-to-use version of the template. Paste the model's JSON into **Import into this lesson** to fill the draft. The import accepts the question-only example below too. Copy any practical task or rubric you want to adopt into the course's practical field during review.
+In the portal, go to **Course builder → Edit draft**, pick a lesson and open **AI draft**. **Download lesson prompt** exports a ready-to-use version of the template. Paste the model's JSON into **Import into this lesson** to fill the draft. The import accepts the question-only example below too. Copy any practical task or rubric you want to adopt into the course's practical field during review.
 
 ## 1. Draft the lesson and plan the recording
 

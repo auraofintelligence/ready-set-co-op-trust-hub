@@ -516,6 +516,7 @@
   }
   function courseForm(form, action, message) {
     form.addEventListener('invalid', event => {
+      if (form.revealCourseField) form.revealCourseField(event.target);
       for (let element = event.target.parentElement; element && element !== form; element = element.parentElement) {
         if (element.tagName === 'DETAILS') element.open = true;
       }
@@ -534,11 +535,47 @@
   function courseSlug(course) { return `courses/${course.id}/${course.revision}`; }
   function draftSlug(course) { return `course-staff/drafts/${course.id}/${course.revision}`; }
 
+  function courseSprite(name) {
+    const art = node('span', undefined, `course-sprite course-sprite--${name}`);
+    art.setAttribute('aria-hidden','true');
+    return art;
+  }
+
+  function courseTool(label, sprite, activate) {
+    const control = button(label, activate);
+    control.className = 'course-tool';
+    if (sprite) control.prepend(courseSprite(sprite));
+    return control;
+  }
+
+  function addLessonOrder(control, number, title) {
+    const order = node('span',number,'course-outline-order');
+    order.setAttribute('aria-hidden','true');
+    control.setAttribute('aria-label',`Lesson ${number}, ${title}`);
+    control.prepend(order);
+  }
+
+  function courseArtwork(course) {
+    if (course.id === 'plfc-officer-handover') return 'handover';
+    if (course.id === 'plfc-volunteer-onboarding') return 'volunteer';
+    return 'library';
+  }
+
+  function courseHomeSection(section) {
+    for (const name of ['courses','assessments']) {
+      const active = section === name;
+      $(`portal-course-home-${name}`).setAttribute('aria-pressed', String(active));
+      $((name === 'courses') ? 'portal-course-course-list' : 'portal-course-assessment-list').hidden = !active;
+    }
+  }
+
   function clearCourses() {
     Object.assign(courses, { groups: [], site: '', categories: [], editorDirty: false });
-    for (const id of ['portal-courses-group-actions','portal-courses-versions','portal-courses-editor',
+    for (const id of ['portal-courses-group','portal-courses-group-actions','portal-courses-versions',
       'portal-courses-assessments','portal-courses-catalogue','portal-courses-reader']) $(id).replaceChildren();
-    fillOptions($('portal-courses-group'), []);
+    closeCourseEditor();
+    closeCourseAssessment();
+    courseHomeSection('courses');
     $('portal-courses-staff').hidden = true;
     $('tab-course-staff').hidden = true;
   }
@@ -547,6 +584,8 @@
     const result = await courseApi(`courses?page=${page}`);
     renderLearningPage('portal-courses-catalogue', page, result.more, result.courses, item => {
       const card = record(item.title);
+      card.classList.add('course-learner-card');
+      card.prepend(courseSprite(courseArtwork(item)));
       card.append(node('p', `${item.provider} · ${item.categoryName} · Version ${item.revision}`, 'portal-hint'));
       card.append(node('p', item.description));
       if (item.practicalStatus) card.append(badge(practicalStates[item.practicalStatus], item.practicalStatus));
@@ -744,7 +783,7 @@
     if (!courses.groups.some(group => group.id === courses.site)) {
       courses.site = courses.groups.find(group => group.id === 'plfc-training')?.id ?? courses.groups[0]?.id ?? '';
     }
-    fillOptions($('portal-courses-group'), courses.groups, 'Choose a group', courses.site);
+    renderCourseGroups();
     const actions = $('portal-courses-group-actions');
     actions.replaceChildren();
     if (result.more) actions.append(button('Load more groups', () => run(() => loadCourseGroups(page + 1))));
@@ -752,27 +791,45 @@
     $('portal-courses-staff').hidden = !courses.site;
   }
 
+  function renderCourseGroups() {
+    const holder = $('portal-courses-group');
+    holder.replaceChildren();
+    if (!courses.groups.length) { empty(holder,'You don’t have any training groups to manage yet.'); return; }
+    for (const group of courses.groups) {
+      const select = button(group.name, () => {
+        if (state.busy || group.id === courses.site) return;
+        if (!closeCourseAssessment(true)) return;
+        run(async () => {
+          courses.site = group.id;
+          renderCourseGroups();
+          $('portal-courses-versions').replaceChildren();
+          $('portal-courses-assessments').replaceChildren();
+          courseHomeSection('courses');
+          await loadCourseStaff();
+          holder.querySelector('[aria-pressed="true"]')?.focus();
+        });
+      });
+      select.setAttribute('aria-pressed',String(group.id === courses.site));
+      holder.append(select);
+    }
+  }
+
   async function loadCourseStaff(versionsPage = 1, queuePage = 1, part = '') {
     const result = await courseApi(`course-staff/groups/${courses.site}?page=${versionsPage}&queue=${queuePage}`);
     courses.categories = result.categories;
     if (part !== 'queue') renderLearningPage('portal-courses-versions', versionsPage, result.moreVersions, result.versions, item => {
-      const card = record(item.title);
-      card.append(badge(`${item.state === 'draft' ? 'Draft' : 'Published'} · Version ${item.revision}`, item.state));
+      const card = node('article',undefined,'course-library-card');
+      const artwork = courseArtwork(item);
+      const art = node('div',undefined,'course-library-art');
+      art.dataset.sprite = artwork;
+      art.append(courseSprite(artwork));
+      const status = node('div');
+      status.append(badge(`${item.state === 'draft' ? 'Draft' : 'Published'} · Version ${item.revision}`, item.state));
+      card.append(art,status,node('h4',item.title),
+        node('p', `${item.lessons.length} ${item.lessons.length === 1 ? 'lesson' : 'lessons'} · Practical task`, 'portal-hint'));
       card.append(node('p', item.description));
-      const controls = [button(item.state === 'draft' ? 'Edit or preview draft' : 'Preview course', () => openCourseEditor(item))];
-      if (item.state === 'draft') {
-        const publish = button('Publish to this group', () => {
-          if (!permitEditorClose()) return;
-          run(async () => {
-            await courseApi(draftSlug(item), { method:'PATCH', data:{ action:'publish', editVersion:item.editVersion } });
-            closeCourseEditor();
-            await loadCourseStaff();
-          }, 'Course published to the selected group.');
-        }, 'primary');
-        const disclosure = node('details', undefined, 'portal-course-release');
-        disclosure.append(node('summary', 'Publish course'), node('p', `Members with access to ${result.group.name} will be able to enrol in this version.`), actionRow(publish));
-        card.append(disclosure);
-      } else {
+      const controls = [button(item.state === 'draft' ? 'Edit draft' : 'Preview course', () => openCourseEditor(item), 'primary')];
+      if (item.state === 'published') {
         controls.push(button('Draft next version', () => {
           if (!permitEditorClose()) return;
           run(async () => {
@@ -792,24 +849,48 @@
 
   function closeCourseEditor() {
     courses.editorDirty = false;
-    $('portal-courses-editor').replaceChildren();
+    const editor = $('portal-courses-editor');
+    editor.replaceChildren();
+    editor.hidden = true;
+    $('portal-courses-home').hidden = false;
   }
 
   function permitEditorClose() {
     return !courses.editorDirty || window.confirm('Discard your unsaved course draft edits?');
   }
 
-  function previewCourse(course) {
-    const preview = node('details', undefined, 'portal-record');
-    preview.append(node('summary', 'Preview as a learner'), node('p', course.description));
-    for (const [index, lesson] of course.lessons.entries()) {
-      const detail = node('details', undefined, 'portal-record portal-course-lesson');
-      detail.append(node('summary', `${index + 1}. ${lesson.title}`), node('p', lesson.body, 'portal-preserve'));
-      lessonMedia(detail,course,lesson,index+1);
-      lessonQuestions(detail,lesson.questions,{preview:true});
-      preview.append(detail);
+  function previewCourse(course, initial = 0) {
+    const preview = node('div', undefined, 'course-learn-preview');
+    const row = node('div',undefined,'course-workspace');
+    const outline = node('nav',undefined,'course-outline');
+    outline.setAttribute('aria-label','Preview lesson outline');
+    const content = node('section',undefined,'course-work-paper');
+    const entries = course.lessons.map((lesson,index) => ({
+      title:lesson.title || 'Untitled lesson', sprite:'write', number:index+1,
+      paint:() => {
+        content.append(node('h3',lesson.title || 'Untitled lesson'), node('p',lesson.body,'portal-preserve'));
+        lessonMedia(content,course,lesson,index+1);
+        lessonQuestions(content,lesson.questions,{preview:true});
+      }
+    }));
+    if (course.practical) entries.push({title:'Practical task',sprite:'practical',paint:() => {
+      content.append(node('h3','Practical task'),node('p',course.practical,'portal-preserve'));
+    }});
+    const controls = entries.map((entry,index) => {
+      const control = courseTool(entry.title,entry.sprite,() => show(index,true));
+      if (entry.number) addLessonOrder(control,entry.number,entry.title);
+      return control;
+    });
+    function show(index, focus = false) {
+      controls.forEach((control,i) => control.setAttribute('aria-pressed',String(i===index)));
+      content.replaceChildren();
+      entries[index]?.paint();
+      if (focus) focusCourseHeading(content.querySelector('h3'));
     }
-    preview.append(node('h4', 'Practical activity'), node('p', course.practical, 'portal-preserve'));
+    outline.append(node('h3','Course outline'),...controls);
+    show(Math.min(initial,entries.length-1));
+    row.append(outline,content);
+    preview.append(node('p',course.description,'portal-hint'),row);
     return preview;
   }
 
@@ -874,50 +955,44 @@
   function questionEditor(question = {}) {
     const block = node('fieldset', undefined, 'portal-record portal-course-question-edit');
     const id = question.id ?? `q-${crypto.randomUUID()}`;
+    const radioName = `answer-${crypto.randomUUID()}`;
     const choices = node('div');
-    const choiceOptions = node('select');
-    choiceOptions.name = 'answerKey';
-    choiceOptions.required = true;
-    const correct = node('label','Correct choice');
-    correct.append(choiceOptions);
-    const addChoice = (choice = {}) => {
-      const label = courseField('answerText','Choice',240,0,choice.text ?? '');
-      label.dataset.id = choice.id ?? `c-${crypto.randomUUID()}`;
-      choices.append(label);
-    };
-    function reflectChoices(selection = choiceOptions.value) {
-      choiceOptions.replaceChildren();
-      option(choiceOptions,'Choose the correct answer','');
-      [...choices.children].forEach((child,index) => {
-        const content = lessonText(child,'answerText');
-        option(choiceOptions,content || `Choice ${index+1}`,child.dataset.id);
-      });
-      choiceOptions.value = selection;
+    function addChoice(choice = {}) {
+      const row = node('div',undefined,'course-question-choice');
+      row.dataset.id = choice.id ?? `c-${crypto.randomUUID()}`;
+      const correct = node('label',undefined,'portal-check');
+      const radio = node('input');
+      radio.type = 'radio';
+      radio.name = radioName;
+      radio.value = row.dataset.id;
+      radio.checked = radio.value === question.correct_choice_id;
+      radio.required = true;
+      radio.dataset.answerKey = '';
+      correct.append(radio,node('span','Correct answer'));
+      row.append(courseField('answerText','Choice',240,0,choice.text ?? ''),correct);
+      choices.append(row);
     }
     for (const choice of question.choices ?? [{ id:'a' },{ id:'b' }]) addChoice(choice);
-    choices.addEventListener('input', () => reflectChoices());
     const removeChoice = button('Remove last choice', () => {
       if (choices.childElementCount <= 2) return setStatus('A question needs at least two choices.','error');
       choices.lastElementChild.remove();
-      reflectChoices();
       courses.editorDirty = true;
     });
     const moreChoice = button('Add choice', () => {
       if (choices.childElementCount >= 4) return setStatus('A question can have up to four choices.','error');
       addChoice();
-      reflectChoices();
       choices.lastElementChild.querySelector('input').focus();
       courses.editorDirty = true;
     });
     block.append(node('legend','Practice question'), courseField('questionPrompt','Question',480,2,question.prompt ?? ''),
-      choices, actionRow(moreChoice,removeChoice), correct,
+      choices, actionRow(moreChoice,removeChoice),
       courseField('answerExplanation','Explain the correct answer',650,3,question.explanation ?? ''),
       actionRow(button('Remove question', () => { block.remove(); courses.editorDirty = true; })));
-    reflectChoices(question.correct_choice_id);
     block.readQuestion = () => ({
       id, type:'single_choice', mode:'practice', prompt:lessonText(block,'questionPrompt'),
       choices:[...choices.children].map(child => ({ id:child.dataset.id,text:lessonText(child,'answerText') })),
-      correct_choice_id:choiceOptions.value, explanation:lessonText(block,'answerExplanation'), source_refs:question.source_refs ?? []
+      correct_choice_id:choices.querySelector('input[data-answer-key]:checked')?.value ?? '',
+      explanation:lessonText(block,'answerExplanation'), source_refs:question.source_refs ?? []
     });
     return block;
   }
@@ -975,7 +1050,6 @@
   }
 
   function lessonProductionEditor(item, lesson) {
-    const production = node('details', undefined, 'portal-record portal-course-lesson');
     const notes = courseField('captureNotes','Recording plan and private capture notes',2200,5,lesson.captureNotes ?? '',false);
     const shot = screenshotEditor(lesson);
     const video = node('fieldset', undefined, 'portal-record');
@@ -1009,11 +1083,10 @@
       block.querySelector('textarea').focus();
       courses.editorDirty = true;
     }
-    const exchange = node('details',undefined,'portal-record portal-course-lesson');
+    const exchange = node('div',undefined,'course-draft-exchange');
     const importBox = courseField('lessonPacket','Paste the JSON returned by your model',64000,5,'',false);
     const paste = lessonField(importBox,'lessonPacket');
-    exchange.append(node('summary','Export or import an AI lesson draft'),
-      node('p','Use the exported prompt in a model you choose. Remove private records before sharing it.','portal-hint'),
+    exchange.append(node('p','Copy the prompt into a model you choose, then bring its draft back here. Remove private records before sharing.','portal-hint'),
       actionRow(button('Download lesson prompt', () => download(lessonPrompt(item,questions),'readysetco-lesson-prompt.txt','text/plain;charset=utf-8'))),
       importBox, actionRow(button('Import into this lesson', () => {
         try {
@@ -1025,11 +1098,15 @@
           if ('questions' in packet) questions.replaceChildren(...packet.questions.map(questionEditor));
           paste.value = '';
           courses.editorDirty = true;
+          item.refreshOutline?.();
+          item.showMode('write');
           setStatus('AI draft imported. Review the lesson, then save it.','success');
         } catch (error) { setStatus(error.message,'error'); }
       })));
-    production.append(node('summary','Screen recording, media and practice questions'), exchange, notes, shot.box, video,
-      node('h4','Practice questions'), questions, actionRow(button('Add practice question',addQuestion)));
+    const questionArea = node('div');
+    questionArea.append(questions,actionRow(button('Add practice question',addQuestion,'primary')));
+    const aiArea = node('div',undefined,'course-field-stack');
+    aiArea.append(exchange,notes);
     item.readLesson = () => {
       const screenshot = shot.read();
       const url = lessonText(video,'videoUrl');
@@ -1045,103 +1122,344 @@
         questions:[...questions.children].map(question => question.readQuestion())
       };
     };
-    return production;
+    return { screenshot:shot.box, video, questions:questionArea, ai:aiArea };
   }
 
   function courseLessonEditor(lesson = { title:'',body:'' }) {
-    const item = node('fieldset', undefined, 'portal-record portal-course-lesson');
-    const move = direction => {
-      const sibling = direction < 0 ? item.previousElementSibling : item.nextElementSibling;
-      if (sibling) sibling.insertAdjacentElement(direction < 0 ? 'beforebegin' : 'afterend', item);
-      courses.editorDirty = true;
+    const item = node('section',undefined,'course-lesson-piece');
+    const sections = lessonProductionEditor(item,lesson);
+    const write = node('div',undefined,'course-field-stack');
+    write.append(courseField('lessonTitle','Lesson title',140,0,lesson.title),courseField('lessonBody','Lesson instructions',2200,8,lesson.body));
+    const tools = [
+      { id:'write',label:'Write',panel:write },
+      { id:'screenshot',label:'Screenshot',panel:sections.screenshot },
+      { id:'video',label:'Video',panel:sections.video },
+      { id:'questions',label:'Questions',panel:sections.questions },
+      { id:'ai',label:'AI draft',panel:sections.ai }
+    ];
+    const modes = node('nav',undefined,'course-mode-bar');
+    modes.setAttribute('aria-label','Lesson tools');
+    for (const tool of tools) {
+      tool.pane = node('section',undefined,'course-work-paper');
+      tool.pane.append(node('h3',tool.id === 'write' ? 'Write the lesson' : tool.label),tool.panel);
+      tool.toggle = courseTool(tool.label,tool.id,() => item.showMode(tool.id));
+      modes.append(tool.toggle);
+    }
+    item.showMode = name => {
+      for (const tool of tools) {
+        const active = tool.id === name;
+        tool.pane.hidden = !active;
+        tool.toggle.setAttribute('aria-pressed',String(active));
+      }
     };
-    item.append(node('legend', 'Lesson'), courseField('lessonTitle','Lesson title',140,0,lesson.title),
-      courseField('lessonBody','Lesson text',2200,4,lesson.body),
-      lessonProductionEditor(item,lesson),
-      actionRow(button('Move up', () => move(-1)), button('Move down', () => move(1)), button('Remove lesson', () => {
-        if (item.parentElement.childElementCount === 1) { setStatus('A course needs at least one lesson.', 'error'); return; }
-        item.remove();
-        courses.editorDirty = true;
-      })));
+    item.revealField = field => {
+      const tool = tools.find(option => option.pane.contains(field));
+      if (tool) item.showMode(tool.id);
+    };
+    item.moveTools = actionRow();
+    item.moveTools.classList.add('course-outline-tools');
+    item.append(modes,...tools.map(tool => tool.pane),item.moveTools);
+    item.showMode('write');
     return item;
+  }
+
+  function focusCourseHeading(heading) {
+    if (!heading) return;
+    heading.tabIndex = -1;
+    heading.focus();
+  }
+
+  function courseCategoryPicker(categories) {
+    const options = node('fieldset',undefined,'portal-record course-category-options');
+    options.append(node('legend','Course category'));
+    for (const category of categories) {
+      const label = node('label',undefined,'portal-check');
+      const input = node('input');
+      input.type = 'radio';
+      input.name = 'category';
+      input.value = category.id;
+      input.required = true;
+      label.append(input,node('span',category.name));
+      options.append(label);
+    }
+    return options;
+  }
+
+  function previewVideo(video, saved) {
+    if (!video) return undefined;
+    try {
+      const url = new URL(video.url);
+      if (url.protocol !== 'https:' || url.username || url.password || url.port) return undefined;
+      const parts = url.pathname.split('/').filter(Boolean);
+      if (['www.youtube.com','youtube.com','m.youtube.com','youtu.be','www.youtube-nocookie.com','youtube-nocookie.com'].includes(url.hostname)) {
+        const id = url.hostname === 'youtu.be' ? parts[0] : url.pathname === '/watch' ? url.searchParams.get('v') : parts[1];
+        if (!/^[A-Za-z0-9_-]{11}$/.test(id ?? '')) return undefined;
+        return { url:`https://www.youtube-nocookie.com/embed/${id}`,transcript:video.transcript };
+      }
+      if (!/\.(mp4|webm)$/i.test(url.pathname)) return undefined;
+      const captions = saved?.url === url.href && saved.captions === video.captions ? saved.captions : '';
+      return { url:url.href,transcript:video.transcript,captions };
+    } catch { return undefined; }
   }
 
   function openCourseEditor(item) {
     if (!permitEditorClose()) return;
     closeCourseEditor();
-    const panel = node('section', undefined, 'portal-record portal-course-lesson');
-    const heading = node('h3', item ? item.title : 'New course draft');
+    let saved = item;
+    const editor = $('portal-courses-editor');
+    const panel = node('section');
+    const toolbar = node('div',undefined,'course-toolbar');
+    const leave = button('Back to courses', () => {
+      if (!permitEditorClose()) return;
+      closeCourseEditor();
+      $('course-builder-title').focus();
+    });
+    const studioTitle = node('header',undefined,'course-studio-title course-course-heading');
+    const titles = node('div');
+    const heading = node('h2',item?.title ?? 'New course draft');
     heading.tabIndex = -1;
-    panel.append(heading, actionRow(button('Close', () => { if (permitEditorClose()) closeCourseEditor(); })));
-    if (item) panel.append(previewCourse(item));
-    if (item?.state === 'published') {
-      $('portal-courses-editor').replaceChildren(panel);
+    const stateLabel = badge(item ? `${item.state === 'draft' ? 'Draft' : 'Published'} · Version ${item.revision}` : 'New draft',item?.state ?? 'draft');
+    titles.append(heading,stateLabel);
+    studioTitle.append(courseSprite(item ? courseArtwork(item) : 'library'),titles);
+    panel.append(toolbar,studioTitle);
+    const mounted = () => {
+      editor.replaceChildren(panel);
+      editor.hidden = false;
+      $('portal-courses-home').hidden = true;
       heading.focus();
+    };
+    if (item?.state === 'published') {
+      toolbar.append(leave,courseSprite('preview'),node('p','Learner preview'));
+      panel.append(previewCourse(item));
+      mounted();
       return;
     }
-    const form = node('form', undefined, 'portal-form');
+    const form = node('form',undefined,'portal-form course-studio-form');
+    const workspace = node('div',undefined,'course-workspace');
+    const outline = node('nav',undefined,'course-outline');
+    outline.setAttribute('aria-label','Course outline');
+    const list = node('div',undefined,'course-outline-list');
+    const main = node('div',undefined,'course-main-work');
+    const settings = node('section',undefined,'course-work-paper course-field-stack');
+    const category = item ? null : courseCategoryPicker(courses.categories);
+    settings.append(node('h3','Course details'),courseField('title','Course title',140,0,item?.title),
+      courseField('description','What will people learn?',360,3,item?.description));
+    if (category) settings.append(category);
+    const practical = node('section',undefined,'course-work-paper course-field-stack');
+    practical.append(node('h3','Practical task'),courseField('practical','What should learners do, and what will you look for?',1200,7,item?.practical));
     const lessons = node('div');
-    for (const lesson of item?.lessons ?? [undefined]) lessons.append(courseLessonEditor(lesson));
-    if (!item) {
-      const label = node('label', 'Course category');
-      const select = node('select');
-      select.name = 'category';
-      select.required = true;
-      fillOptions(select, courses.categories, 'Choose a category');
-      label.append(select);
-      form.append(label);
-    }
-    form.append(courseField('title','Course title',140,0,item?.title), courseField('description','Overview',360,3,item?.description),
-      lessons, actionRow(button('Add lesson', () => {
-        if (lessons.childElementCount >= 8) { setStatus('This version can have up to eight lessons.', 'error'); return; }
-        const lesson = courseLessonEditor();
-        lessons.append(lesson);
-        courses.editorDirty = true;
-        lesson.querySelector('input').focus();
-      })),
-      courseField('practical','Practical activity and assessment criteria',1200,5,item?.practical), courseSubmit('Save draft'));
-    form.addEventListener('input', () => { courses.editorDirty = true; });
-    courseForm(form, async current => {
-      const values = { title:value(current,'title'), description:value(current,'description'), practical:value(current,'practical'),
-        lessons:[...lessons.children].map(lesson => lesson.readLesson()) };
-      if (item) await courseApi(draftSlug(item), { method:'PATCH', data:{ ...values, action:'save', editVersion:item.editVersion } });
-      else {
-        const data = { ...values, siteId:courses.site, category:value(current,'category') };
-        await courseApi('course-staff/drafts', { method:'POST', data:stableCreate('course-draft',data) });
-        retries.delete('course-draft');
+    const preview = node('section');
+    preview.hidden = true;
+    const save = courseSubmit('Save draft');
+    save.setAttribute('form','course-studio-draft');
+    form.id = 'course-studio-draft';
+    const feedback = node('p',undefined,'portal-hint');
+    feedback.setAttribute('role','status');
+    const change = courseTool('Preview as a learner','preview',togglePreview);
+    const actions = actionRow(change,save);
+    toolbar.append(leave,feedback,actions);
+    let active = settings;
+    const settingTab = courseTool('Course details','settings',() => show(settings,true));
+    const taskTab = courseTool('Practical task','practical',() => show(practical,true));
+    const add = button('Add lesson',() => {
+      if (lessons.childElementCount >= 8) { setStatus('A course version can have up to eight lessons.','error'); return; }
+      const lesson = installLesson();
+      courses.editorDirty = true;
+      show(lesson);
+      lessonField(lesson,'lessonTitle').focus();
+    });
+    add.classList.add('course-outline-add');
+
+    function show(section, focus = false) {
+      active = section;
+      settings.hidden = section !== settings;
+      practical.hidden = section !== practical;
+      lessons.hidden = !lessons.contains(section);
+      for (const lesson of lessons.children) {
+        lesson.hidden = lesson !== section;
+        lesson.outlineButton?.setAttribute('aria-pressed',String(lesson === section));
       }
-      closeCourseEditor();
+      settingTab.setAttribute('aria-pressed',String(section === settings));
+      taskTab.setAttribute('aria-pressed',String(section === practical));
+      if (focus) focusCourseHeading(section.querySelector('h3:not([hidden] h3)'));
+    }
+    function renderOutline() {
+      list.replaceChildren();
+      for (const [index,lesson] of [...lessons.children].entries()) {
+        const title = lessonText(lesson,'lessonTitle') || 'Untitled lesson';
+        const control = courseTool(title,null,() => show(lesson,true));
+        addLessonOrder(control,index + 1,title);
+        lesson.outlineButton = control;
+        control.setAttribute('aria-pressed',String(lesson === active));
+        list.append(control);
+      }
+    }
+    function installLesson(data) {
+      const lesson = courseLessonEditor(data);
+      lesson.refreshOutline = renderOutline;
+      lessons.append(lesson);
+      function move(direction) {
+        const sibling = direction < 0 ? lesson.previousElementSibling : lesson.nextElementSibling;
+        if (!sibling) return;
+        sibling.insertAdjacentElement(direction < 0 ? 'beforebegin' : 'afterend',lesson);
+        courses.editorDirty = true;
+        renderOutline();
+      }
+      lesson.moveTools.append(button('Move up',() => move(-1)),button('Move down',() => move(1)),button('Remove lesson',() => {
+        if (lessons.childElementCount === 1) { setStatus('A course needs at least one lesson.','error'); return; }
+        if (!window.confirm('Remove this lesson from the draft?')) return;
+        const next = lesson.nextElementSibling ?? lesson.previousElementSibling;
+        lesson.remove();
+        courses.editorDirty = true;
+        renderOutline();
+        show(next);
+        next.outlineButton.focus();
+      }));
+      lessonField(lesson,'lessonTitle').addEventListener('input',renderOutline);
+      renderOutline();
+      return lesson;
+    }
+    function readDraft() {
+      return {title:value(form,'title'),description:value(form,'description'),practical:value(form,'practical'),
+        lessons:[...lessons.children].map(lesson => lesson.readLesson())};
+    }
+    function togglePreview() {
+      if (!preview.hidden) {
+        preview.hidden = true;
+        preview.replaceChildren();
+        workspace.hidden = false;
+        change.lastChild.textContent = 'Preview as a learner';
+        save.hidden = false;
+        return;
+      }
+      let draft;
+      try {
+        draft = readDraft();
+        draft.lessons = draft.lessons.map((lesson,index) => ({
+          ...lesson, video:previewVideo(lesson.video,saved?.lessons[index]?.video)
+        }));
+      } catch (error) { setStatus(error.message,'error'); return; }
+      const view = previewCourse({ ...saved,...draft },Math.max(0,[...lessons.children].indexOf(active)));
+      const publish = button('Publish to this group',() => {
+        if (!saved || courses.editorDirty) return;
+        const group = courses.groups.find(item => item.id === courses.site)?.name ?? 'this group';
+        if (!window.confirm(`Publish version ${saved.revision} to ${group}?`)) return;
+        run(async () => {
+          await courseApi(draftSlug(saved),{method:'PATCH',data:{action:'publish',editVersion:saved.editVersion}});
+          closeCourseEditor();
+          await loadCourseStaff();
+          $('course-builder-title').focus();
+        },'Course published to the selected group.');
+      },'primary');
+      publish.disabled = !saved || courses.editorDirty;
+      const comment = publish.disabled ? node('p','Save the draft before publishing.','portal-hint') : null;
+      preview.replaceChildren(view,actionRow(publish));
+      if (comment) preview.append(comment);
+      preview.hidden = false;
+      workspace.hidden = true;
+      save.hidden = true;
+      change.lastChild.textContent = 'Back to editing';
+    }
+
+    for (const lesson of item?.lessons ?? [undefined]) installLesson(lesson);
+    outline.append(node('h3','Course outline'),settingTab,list,add,taskTab);
+    main.append(settings,lessons,practical);
+    workspace.append(outline,main);
+    form.append(workspace);
+    panel.append(form,preview);
+    show(item ? lessons.firstElementChild : settings);
+    form.revealCourseField = field => {
+      if (settings.contains(field)) { show(settings); return; }
+      if (practical.contains(field)) { show(practical); return; }
+      const lesson = [...lessons.children].find(item => item.contains(field));
+      if (lesson) {
+        show(lesson);
+        lesson.revealField(field);
+      }
+    };
+    form.addEventListener('input',() => {
+      courses.editorDirty = true;
+      if (feedback.textContent) feedback.textContent = '';
+    });
+    courseForm(form,async () => {
+      const values = readDraft();
+      if (saved) {
+        await courseApi(draftSlug(saved),{method:'PATCH',data:{...values,action:'save',editVersion:saved.editVersion}});
+        saved = {...saved,...values,editVersion:saved.editVersion+1};
+      } else {
+        const data = {...values,siteId:courses.site,category:value(form,'category')};
+        const created = await courseApi('course-staff/drafts',{method:'POST',data:stableCreate('course-draft',data)});
+        retries.delete('course-draft');
+        saved = {...values,...created,state:'draft',editVersion:1};
+        category.remove();
+      }
+      courses.editorDirty = false;
+      heading.textContent = saved.title;
+      stateLabel.textContent = `Draft · Version ${saved.revision}`;
+      feedback.textContent = 'Draft saved.';
       await loadCourseStaff();
-    }, 'Course draft saved.');
-    panel.append(form);
-    $('portal-courses-editor').replaceChildren(panel);
-    heading.focus();
+    },'Course draft saved.');
+    mounted();
+  }
+
+  function closeCourseAssessment(confirm = false) {
+    const editor = $('portal-courses-assessment-editor');
+    if (confirm && editor.querySelector('form[data-dirty="true"]') && !window.confirm('Discard your unsaved assessment?')) return false;
+    editor.replaceChildren();
+    editor.hidden = true;
+    $('portal-courses-assessments').hidden = false;
+    return true;
   }
 
   function courseAssessmentCard(item) {
-    const card = node('details', undefined, 'portal-record');
-    card.append(node('summary', `${item.learner} · ${item.title}`),
-      node('p', `Version ${item.revision} · Attempt ${item.attempt} · Submitted ${date(item.submittedAt)}`, 'portal-hint'),
-      node('h4','Practical instructions'), node('p',item.practical,'portal-preserve'),
-      node('h4','Learner response'), node('p',item.response,'portal-preserve'));
+    const card = node('article', undefined, 'portal-record');
+    const summary = node('div',undefined,'course-assessor-summary');
+    summary.append(courseSprite('assess'),node('h4',`${item.learner} · ${item.title}`));
+    const review = button('Review practical',() => openCourseAssessment(item),'primary');
+    card.append(summary,node('p',`Version ${item.revision} · Attempt ${item.attempt} · Submitted ${date(item.submittedAt)}`,'portal-hint'),
+      actionRow(review));
+    return card;
+  }
+
+  function openCourseAssessment(item) {
+    const editor = $('portal-courses-assessment-editor');
+    const heading = node('h3',`${item.learner} · ${item.title}`);
+    const task = node('div',undefined,'course-work-paper');
+    const back = button('Back to assessments',() => {
+      if (closeCourseAssessment(true)) $('portal-courses-assessments').querySelector('button')?.focus();
+    });
+    task.append(actionRow(back),heading,
+      node('h4','Practical instructions'),node('p',item.practical,'portal-preserve'),
+      node('h4','Learner response'),node('p',item.response,'portal-preserve'));
     const form = node('form', undefined, 'portal-form');
-    const label = node('label', 'Assessment decision');
-    const select = node('select');
-    select.name = 'decision';
-    select.required = true;
-    option(select,'Choose a decision','');
-    option(select,'Pass and record completion','passed');
-    option(select,'Request changes','revise');
-    label.append(select);
-    form.append(label, courseField('feedback','Feedback for the learner',1400,4,'',false), courseSubmit('Save assessment'));
-    form.addEventListener('change', () => { field(form,'feedback').required = value(form,'decision') === 'revise'; });
+    const decisions = node('fieldset',undefined,'portal-record course-category-options');
+    decisions.append(node('legend','Assessment decision'));
+    for (const [key,title] of [['passed','Pass and record completion'],['revise','Request changes']]) {
+      const label = node('label',undefined,'portal-check');
+      const input = node('input');
+      input.type = 'radio';
+      input.name = 'decision';
+      input.value = key;
+      input.required = true;
+      label.append(input,node('span',title));
+      decisions.append(label);
+    }
+    form.append(decisions, courseField('feedback','Feedback for the learner',1400,4,'',false), courseSubmit('Save assessment'));
+    form.addEventListener('input', () => {
+      form.dataset.dirty = 'true';
+      field(form,'feedback').required = value(form,'decision') === 'revise';
+    });
     courseForm(form, async current => {
       await courseApi(`course-staff/practical/${item.enrolmentId}/${item.attempt}`, { method:'PATCH',
         data:{ decision:value(current,'decision'), feedback:value(current,'feedback') } });
+      closeCourseAssessment();
       await loadCourseStaff(1, 1, 'queue');
     }, 'Practical assessment saved.');
-    card.append(form);
-    return card;
+    task.append(form);
+    editor.replaceChildren(task);
+    editor.hidden = false;
+    $('portal-courses-assessments').hidden = true;
+    focusCourseHeading(heading);
   }
 
   function profileData() {
@@ -1486,17 +1804,12 @@
     $('tab-course-staff').focus();
     $('tab-course-staff').click();
   });
-  $('portal-courses-group').addEventListener('change', event => {
-    if (!permitEditorClose()) { event.target.value = courses.site; return; }
-    closeCourseEditor();
-    courses.site = event.target.value;
-    $('portal-courses-staff').hidden = !courses.site;
-    $('portal-courses-versions').replaceChildren();
-    $('portal-courses-assessments').replaceChildren();
-    if (courses.site) run(loadCourseStaff);
-  });
+  $('portal-course-home-courses').addEventListener('click', () => courseHomeSection('courses'));
+  $('portal-course-home-assessments').addEventListener('click', () => courseHomeSection('assessments'));
   $('portal-courses-new').addEventListener('click', () => openCourseEditor());
-  $('portal-courses-refresh').addEventListener('click', () => run(() => loadCourseStaff(1, 1, 'queue')));
+  $('portal-courses-refresh').addEventListener('click', () => {
+    if (closeCourseAssessment(true)) run(() => loadCourseStaff(1, 1, 'queue'));
+  });
   field($('portal-learning-review-form'), 'status').addEventListener('change', updateLearningReviewFields);
   $('portal-learning-review-cancel').addEventListener('click', () => {
     learning.review = null;

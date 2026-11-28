@@ -190,7 +190,9 @@ test('members start a private course, mark a lesson and submit the practical fro
 
 test('the Webmaster can edit a PLFC draft and publish from the scoped course builder', async t => {
   const draft = { id:'plfc-officer-handover',revision:1,title:'PLFC handover',description:'Prepare for an officer handover.',
-    state:'draft',editVersion:1,lessons:[{title:'Handover list',body:'Read the minutes.'}],practical:'Draft a fictional handover.' };
+    state:'draft',editVersion:1,lessons:[
+      {title:'Handover list',body:'Read the minutes.'},{title:'First week',body:'Check the open actions.'}
+    ],practical:'Draft a fictional handover.' };
   const group = { id:'plfc-training',name:'Point Lookout Fishing Club training' };
   const f = fixture(t, { account:{ ...identity,webmaster:true,authentication:'password' }, override:({path,body}) => {
     if (path === '/api/learning/course-staff/groups') return json({ groups:[group] });
@@ -207,14 +209,26 @@ test('the Webmaster can edit a PLFC draft and publish from the scoped course bui
   f.$('tab-course-staff').click();
   await f.idle();
   const versions = f.$('portal-courses-versions');
-  versions.querySelectorAll('button')[1].click();
+  assert.ok(versions.querySelector('.course-sprite--handover'));
+  versions.querySelector('button').click();
+  const editor = f.$('portal-courses-editor');
   const form = f.$('portal-courses-editor').querySelector('form');
+  const control = label => [...editor.querySelectorAll('button')].find(button => button.textContent === label);
+  const lessons = [...editor.querySelectorAll('.course-lesson-piece')];
+  assert.deepEqual(lessons.map(lesson => lesson.hidden),[false,true]);
+  assert.equal(editor.querySelector('details, select'),null);
+  editor.querySelector('button[aria-label="Lesson 2, First week"]').click();
+  assert.deepEqual(lessons.map(lesson => lesson.hidden),[true,false]);
+  control('Course details').click();
   f.set(form,'title','PLFC officer handover');
-  f.submit(form);
+  control('Save draft').click();
   await f.idle();
   assert.match(versions.textContent,/PLFC officer handover/);
-  versions.querySelector('details').open = true;
-  versions.querySelector('details button').click();
+  assert.equal(editor.hidden,false);
+  assert.match(editor.textContent,/Draft saved/);
+  control('Preview as a learner').click();
+  assert.equal(form.querySelector('.course-workspace').hidden,true);
+  control('Publish to this group').click();
   await f.idle();
   assert.match(versions.textContent,/Published/);
 });
@@ -233,9 +247,14 @@ test('the lesson editor exports a portable prompt and imports AI text and questi
   await f.idle();
   f.$('tab-course-staff').click();
   await f.idle();
-  f.$('portal-courses-versions').querySelectorAll('button')[1].click();
+  f.$('portal-courses-versions').querySelector('button').click();
   const form = f.$('portal-courses-editor').querySelector('form');
   const action = label => [...form.querySelectorAll('button')].find(control => control.textContent === label);
+  const tools = ['Write','Screenshot','Video','Questions','AI draft'];
+  assert.deepEqual([...form.querySelectorAll('.course-mode-bar button')].map(button => button.textContent),tools);
+  action('AI draft').click();
+  assert.equal(action('AI draft').getAttribute('aria-pressed'),'true');
+  assert.equal(action('Write').getAttribute('aria-pressed'),'false');
   action('Download lesson prompt').click();
   assert.match(await f.downloads[0].text(),/Read the handover list/);
   assert.match(await f.downloads[0].text(),/Needs capture/);
@@ -245,8 +264,10 @@ test('the lesson editor exports a portable prompt and imports AI text and questi
     capture_notes:'S01 shows the fictional record.',questions:[question]}));
   action('Import into this lesson').click();
   assert.equal(form.elements.lessonTitle.value,'Hand over an open action');
-  assert.equal(form.elements.answerKey.value,'a');
+  assert.equal(form.querySelector('input[data-answer-key]:checked').value,'a');
+  assert.equal(action('Write').getAttribute('aria-pressed'),'true');
   assert.match(f.$('portal-status').textContent,/imported/);
+  action('Video').click();
   f.set(form,'videoUrl','https://www.youtube.com/watch?v=abcdefghijk');
   f.set(form,'transcript','A fictional action has an owner.');
   f.submit(form);
