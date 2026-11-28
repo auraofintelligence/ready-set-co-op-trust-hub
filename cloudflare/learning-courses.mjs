@@ -145,8 +145,9 @@ async function staffData(db, identity, now, siteId, currentPage, queuePage) {
   const access = gate(identity, now, 'c.site_id', 'staff');
   const [versions, categories, queue] = await db.batch([
     db.prepare(`SELECT ${courseSelect} FROM learning_courses c JOIN learning_course_versions v ON v.course_id=c.id
+      JOIN learning_categories category ON category.id=c.category_id
       WHERE c.site_id=? AND v.state IN ('draft','published') AND ${access.sql}
-      ORDER BY v.title,c.id,v.revision DESC LIMIT ? OFFSET ?`).bind(siteId, ...access.values, PAGE_SIZE + 1, (currentPage - 1) * PAGE_SIZE),
+      ORDER BY category.position,v.title,c.id,v.revision DESC LIMIT ? OFFSET ?`).bind(siteId, ...access.values, PAGE_SIZE + 1, (currentPage - 1) * PAGE_SIZE),
     db.prepare('SELECT id,name FROM learning_categories ORDER BY position'),
     db.prepare(`SELECT p.enrolment_id AS enrolmentId,p.attempt,p.response,p.submitted_at AS submittedAt,v.title,v.practical,
         a.display_name AS learner,v.revision

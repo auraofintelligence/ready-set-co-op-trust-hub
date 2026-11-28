@@ -54,7 +54,15 @@
   display: flex; flex-direction: column; gap: .75rem; padding: 1rem;
   border: 1px solid var(--studio-line); border-radius: .9rem; background: #fff;
 }
-.course-library-card h4 { margin: 0; font-size: 1.15rem; line-height: 1.4; }
+.course-library-card :is(h4, h5), .course-learner-card h5 {
+  margin: 0; font-family: var(--heading); font-size: 1.15rem; line-height: 1.4;
+}
+.course-shelves { display: grid; gap: 1.4rem; margin-block: 1rem; }
+.course-shelf-heading {
+  margin: 0 0 .65rem; padding: .55rem .8rem;
+  border-inline-start: 3px solid #5b2d86; border-radius: .4rem;
+  background: #f1e7fa; color: #271541; font-size: 1.12rem;
+}
 .course-library-card p { margin: 0; }
 .course-library-card .portal-actions { margin-top: auto; padding-top: .35rem; }
 .course-library-art {

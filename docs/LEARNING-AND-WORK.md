@@ -1,12 +1,12 @@
 # Learning and work records
 
-ReadySETCO is a proposed cooperative. Strange But True is the initial operator. Point Lookout Fishing Club (PLFC) is an existing club. Luke Hayes is its Secretary. Sandy Sports is a project Luke is developing towards club formation. The learning example is for PLFC, with its own approval and learner group required before assignment.
+ReadySETCO is a proposed cooperative. Strange But True is the initial operator. Point Lookout Fishing Club (PLFC) is an existing club. Luke Hayes is its Secretary. Sandy Sports is a project Luke is developing towards club formation. Each training group can edit its drafts privately and decide which versions to publish for its learners.
 
 ## Working in the portal
 
 - **Learning & work** is available in the participant view. A person can save paid work, working holiday work, community volunteering, training, employer participation and grant-writing interests separately. The profile also records availability, self-described workplace English, skills and licence types.
 - **Evidence reviews** takes a credential name and optional issuer with explicit consent to internal review. Reviewers record the method, decision, expiry where applicable, and a member-visible note. Members can withdraw a request or ask for another review after more information is requested. An expiry or withdrawal is reflected on the private profile.
-- **Webmaster → Learning and evidence desk** gives the native Webmaster a review queue and separate preview of the two PLFC drafts. This is a ReadySETCO operator responsibility. Club committee access by itself leaves those records private. Self-review is blocked.
+- **Webmaster → Learning and evidence desk** gives the native Webmaster an evidence review queue and a shortcut to Course builder. Evidence review is a ReadySETCO operator responsibility. Club committee access by itself leaves those records private. Self-review is blocked.
 - **Your courses**, inside **Learning & work**, lists courses published to the learner's groups. Members can enrol, resume lessons and submit a practical using fictional examples. Assessors can pass a practical or give feedback and request changes. A pass posts a version-linked completion on the member's profile.
 - **Course builder** lets the native Webmaster and the committee for a training group create, edit, reorder and preview lessons, publish a version and assess practicals from that group. Current learners can keep working in the release they started after a new version is published. The personal export includes the learner's enrolments, progress, practicals and completions alongside evidence reviews.
 
@@ -21,12 +21,19 @@ Practice questions have a correct choice and explanation. Learners can retry bef
 3. After the club clears the material for use, select **Preview as a learner**, then **Publish to this group**. The group is private and has no public applications.
 4. Give the intended learner **Participant** access to the PLFC training group under **Webmaster → Manage account → Group responsibilities**. Assign **Committee** access to trusted course authors or assessors. People can then open the course from **Learning & work**. Another authorised assessor must review a course assessor's own practical.
 
-## Other pathways
+## Draft catalogue
 
-- Straddie Noticeboard Network training can use its [publishing guide and practice board](https://straddie-noticeboard-cloudflare.auraofintelligence.workers.dev/). Proposed modules include drafting, issuer approval, consent, approved outlets, review, correction and withdrawal.
-- [Minjerribah Screen & Media Network](https://auraofintelligence.github.io/minjerribah-screen-media-network/) supplies the setting for production, media permissions, captioning, event crew work and community screening. Its local source is `G:\GithubLocal-PC\minjerribah-screen-media-network`.
-- Local employer onboarding will cover forming ReadySETCO and joining after formation, the club and business relationship, work opportunities, recruitment responsibilities and participation agreements. A training record and any future legal admission record serve different purposes.
-- Working holiday preparation, volunteer organisation inductions, grant writing, events, and Cultural Intelligence Node digital stewardship have course categories ready. Sandy Sports course content can follow when its own formation and training needs are defined.
+Choose a training group in **Course builder**. Courses are grouped by site tours, member welcomes, office-holder handovers and skills. The new drafts start with two short lessons, a practice question, a fictional practical task and notes to guide a screenshot or screen recording.
+
+| Training group | Drafts | Coverage |
+| --- | ---: | --- |
+| Point Lookout Fishing Club | 15 | Site tour, the five named offices, Webmaster, six membership categories, a shared officer handover and volunteer onboarding |
+| Sandy Sports | 18 | Proposal tour, prospective officers and committee, sport, film and facilities leads, founding participation, five proposed membership or participation routes and volunteer induction |
+| Straddie Noticeboard Network | 8 | Site tour, community contributors, business publishers, reviewers, feed stewards, venue hosts, screen caretakers and visitor welcome volunteers |
+| Minjerribah Screen & Media Network | 10 | Site tour, story contributors, trainees, production, research, camera and sound, editing and captions, permissions, screenings and venue hosts |
+| Ready SETCO Skills & Work | 12 | Site tour, paid work, working holidays, founding and future employer participation, grant writing and reporting, community volunteering, event crew, place records, digital and AI skills, committee basics |
+
+Check the reference site and the relevant person's current workflow before recording a lesson. Sandy Sports lessons rehearse formation and possible roles. Noticeboard and media lessons distinguish public examples from agreed publishing, cultural permissions, venues and partnerships.
 
 ## Screening and future employer referrals
 
@@ -38,6 +45,6 @@ Reviewers can record observed workplace communication and practical skills again
 
 ## Implementation
 
-Migration `0009_learning_profiles.sql` seeds categories and draft records. Migration `0010_learning_courses.sql` creates the private tutor and learner workflow, adds the PLFC training group and gives both drafts lesson and assessment content. The migrations create no accounts or grant anyone group membership. ReadySETCO's existing authenticated Worker routes `/api/learning/*`, and the signed-in portal uses the same-origin session. Draft writes require a current edit version. Evidence and practical requests are retry-safe. Evidence decisions and practical passes record their outcomes atomically. Released course content is protected against in-place edits.
+Migration `0009_learning_profiles.sql` seeds categories and draft records. Migration `0010_learning_courses.sql` creates the private tutor and learner workflow and adds the PLFC training group. Migration `0012_project_course_drafts.sql` adds the other private training groups, adds draft courses and names the catalogue categories. The migrations create no accounts or grant anyone group membership. ReadySETCO's existing authenticated Worker routes `/api/learning/*`, and the signed-in portal uses the same-origin session. Draft writes require a current edit version. Evidence and practical requests are retry-safe. Evidence decisions and practical passes record their outcomes atomically. Released course content is protected against in-place edits.
 
 Run `npm run check` and `npm test` from the checkout. The production release path applies the migration before deploying the Worker; use the existing [Cloudflare release procedure](AUTOMATIC-DEPLOYMENT.md). Before admitting real evidence, verify the member, unrelated account and native Webmaster views against a controlled deployment and confirm operational data handling with the operator.

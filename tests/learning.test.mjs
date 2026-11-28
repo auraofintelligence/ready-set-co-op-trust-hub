@@ -5,6 +5,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { createSqliteD1 } from '../scripts/sqlite-d1.mjs';
 import { handleLearningRequest, LearningRequestError } from '../cloudflare/learning.mjs';
 import { handleCourseRequest } from '../cloudflare/learning-courses.mjs';
+import { draftLesson } from '../cloudflare/learning-course-content.mjs';
 import { handleMemberServiceRequest } from '../cloudflare/member-services.mjs';
 
 const ORIGIN = 'https://ready-setco.example';
@@ -97,13 +98,37 @@ test('private evidence uses consent, idempotent submission, reviewer checks, exp
   assert.deepEqual((await f.ownExport(f.other)).evidence, []);
 });
 
-test('PLFC is the only draft provider and a completion requires a released version', async t => {
+test('the five training groups start with private, editable drafts and completion requires a release', async t => {
   const f = fixture(t);
   assert.equal((await f.call('/drafts')).status, 403);
   const { drafts, categories } = await saved(await f.call('/drafts', 'GET', undefined, f.admin));
-  assert.deepEqual(drafts.map(item => item.id), ['plfc-officer-handover', 'plfc-volunteer-onboarding']);
-  assert.ok(drafts.every(item => item.provider === 'Point Lookout Fishing Club' && item.lessons.length >= 3));
-  assert.ok(categories.some(item => item.id === 'grants'));
+  assert.equal(drafts.length,63);
+  assert.ok(drafts.some(item => item.id === 'plfc-officer-handover' && item.lessons.length >= 3));
+  assert.ok(['site-tours','member-start','committee','grants'].every(id => categories.some(item => item.id === id)));
+  const counts = { 'plfc-training':15, 'sandy-sports-training':18, 'noticeboard-training':8, 'msmn-training':10, 'ready-setco-training':12 };
+  const { groups } = await saved(await f.call('/course-staff/groups','GET',undefined,f.admin));
+  for (const [site,count] of Object.entries(counts)) {
+    assert.ok(groups.some(group => group.id === site));
+    const { versions } = await saved(await f.call(`/course-staff/groups/${site}`,'GET',undefined,f.admin));
+    assert.equal(versions.length,count);
+    assert.equal(versions[0].category,'site-tours');
+    assert.equal((await f.call(`/course-staff/groups/${site}`)).status,404);
+    assert.equal(f.sqlite.prepare('SELECT published + applications_open AS open FROM member_sites WHERE id=?').get(site).open,0);
+    for (const version of versions) {
+      assert.equal(version.state,'draft');
+      assert.ok(version.practical);
+      for (const lesson of version.lessons) assert.deepEqual(draftLesson(lesson),lesson);
+      if (!['plfc-officer-handover','plfc-volunteer-onboarding'].includes(version.id)) {
+        assert.ok(version.lessons.some(lesson => lesson.captureNotes));
+        assert.ok(version.lessons.some(lesson => lesson.questions?.length));
+      }
+    }
+  }
+  const migration = readFileSync(new URL('../migrations/0012_project_course_drafts.sql',import.meta.url),'utf8');
+  f.sqlite.exec("UPDATE learning_course_versions SET title='Editor update' WHERE course_id='sandy-site-tour'");
+  f.sqlite.exec(migration);
+  assert.equal(f.sqlite.prepare("SELECT title FROM learning_course_versions WHERE course_id='sandy-site-tour'").get().title,'Editor update');
+  assert.deepEqual((await saved(await f.call('/courses'))).courses,[]);
   const complete = () => f.sqlite.prepare('INSERT INTO learning_completions(account_id,course_id,revision,completed_at) VALUES(?,?,1,?)').run(f.member.accountId, 'plfc-officer-handover', NOW);
   assert.throws(complete, /released version/);
   f.sqlite.exec("UPDATE learning_courses SET site_id='minjerribah' WHERE id='plfc-officer-handover'; UPDATE learning_course_versions SET state='published' WHERE course_id='plfc-officer-handover'");
@@ -127,7 +152,7 @@ test('PLFC staff publish privately and learners progress through a revised pract
   assert.equal((await f.call(target)).status,404);
   assert.equal((await f.call(`/course-staff/groups/${site}`)).status,404);
   const staff = await saved(await f.call(`/course-staff/groups/${site}`,'GET',undefined,f.admin));
-  assert.equal(staff.versions.length,2);
+  assert.equal(staff.versions.length,15);
   assert.ok(staff.versions.every(v => v.state === 'draft' && v.practical));
   const versionPath = `/course-staff/drafts/${course}/1`;
   await saved(await f.call(versionPath, 'PATCH', { action:'publish',editVersion:1 }, f.admin));

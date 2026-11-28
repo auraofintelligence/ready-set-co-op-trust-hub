@@ -189,14 +189,16 @@ test('members start a private course, mark a lesson and submit the practical fro
 });
 
 test('the Webmaster can edit a PLFC draft and publish from the scoped course builder', async t => {
-  const draft = { id:'plfc-officer-handover',revision:1,title:'PLFC handover',description:'Prepare for an officer handover.',
+  const draft = { id:'plfc-officer-handover',category:'committee',revision:1,title:'PLFC handover',description:'Prepare for an officer handover.',
     state:'draft',editVersion:1,lessons:[
       {title:'Handover list',body:'Read the minutes.'},{title:'First week',body:'Check the open actions.'}
     ],practical:'Draft a fictional handover.' };
   const group = { id:'plfc-training',name:'Point Lookout Fishing Club training' };
+  const tour = { ...draft,id:'plfc-site-tour',title:'PLFC site tour',category:'site-tours' };
+  const categories = [{ id:'committee',name:'Office-holder handovers' },{ id:'site-tours',name:'Site tours & first steps' }];
   const f = fixture(t, { account:{ ...identity,webmaster:true,authentication:'password' }, override:({path,body}) => {
     if (path === '/api/learning/course-staff/groups') return json({ groups:[group] });
-    if (path === '/api/learning/course-staff/groups/plfc-training') return json({group,versions:[draft],categories:[],queue:[]});
+    if (path === '/api/learning/course-staff/groups/plfc-training') return json({group,versions:[draft,tour],categories,queue:[]});
     if (path === '/api/learning/course-staff/drafts/plfc-officer-handover/1') {
       assert.equal(body.editVersion,draft.editVersion);
       if (body.action === 'save') { draft.title = body.title; draft.editVersion++; }
@@ -209,6 +211,8 @@ test('the Webmaster can edit a PLFC draft and publish from the scoped course bui
   f.$('tab-course-staff').click();
   await f.idle();
   const versions = f.$('portal-courses-versions');
+  assert.deepEqual([...versions.querySelectorAll('.course-shelf-heading')].map(heading => heading.textContent),
+    ['Office-holder handovers','Site tours & first steps']);
   assert.ok(versions.querySelector('.course-sprite--handover'));
   versions.querySelector('button').click();
   const editor = f.$('portal-courses-editor');

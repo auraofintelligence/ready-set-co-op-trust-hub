@@ -141,9 +141,9 @@
     control.id = id; control.dataset.pageMore = 'true'; (anchor.matches('select') ? anchor.closest('label') || anchor : anchor).insertAdjacentElement('afterend', control);
   }
   function actionRow(...children) { const result = node('div', undefined, 'portal-actions'); result.append(...children); return result; }
-  function record(title, status) {
+  function record(title, status, heading = 'h3') {
     const result = node('article', undefined, 'portal-record');
-    result.append(node('h3', title));
+    result.append(node(heading, title));
     if (status) result.append(badge(STATUS[status] || status, status));
     return result;
   }
@@ -387,13 +387,17 @@
     renderLearningProfile((await api('/api/learning/profile')).profile);
   }
 
-  function renderLearningPage(id, page, more, entries, format, next, noEntries) {
+  function renderLearningPage(id, page, more, entries, format, next, noEntries, appendEntry) {
     const container = $(id);
     const moreId = `${id}-more`;
     $(moreId)?.remove();
     if (page === 1) container.replaceChildren();
     if (!entries.length && page === 1) empty(container, noEntries);
-    for (const entry of entries) container.append(format(entry));
+    for (const entry of entries) {
+      const card = format(entry);
+      if (appendEntry) appendEntry(container, entry, card);
+      else container.append(card);
+    }
     if (more) {
       const control = button('Load more', () => run(() => next(page + 1)));
       control.id = moreId;
@@ -555,10 +559,34 @@
     control.prepend(order);
   }
 
+  const categoryArtwork = {
+    'site-tours': 'preview', 'member-start': 'library', committee: 'handover', volunteers: 'volunteer',
+    'community-media': 'video', noticeboard: 'screenshot', 'working-holiday': 'practical',
+    employers: 'handover', grants: 'write', events: 'practical', 'digital-stewardship': 'settings',
+    'digital-skills': 'ai'
+  };
+
   function courseArtwork(course) {
     if (course.id === 'plfc-officer-handover') return 'handover';
     if (course.id === 'plfc-volunteer-onboarding') return 'volunteer';
-    return 'library';
+    return categoryArtwork[course.category] || 'library';
+  }
+
+  function appendCourseCard(container, item, card) {
+    const key = item.category || 'courses';
+    let section = [...container.children].find(child => child.dataset.category === key);
+    if (!section) {
+      section = node('section', undefined, 'course-shelf');
+      section.dataset.category = key;
+      const name = item.categoryName || courses.categories.find(category => category.id === key)?.name || 'Courses';
+      const heading = node('h4', name, 'course-shelf-heading');
+      heading.id = `${container.id}-${key}`;
+      section.setAttribute('aria-labelledby', heading.id);
+      const list = node('div', undefined, 'course-card-grid');
+      section.append(heading, list);
+      container.append(section);
+    }
+    section.querySelector('.course-card-grid').append(card);
   }
 
   function courseHomeSection(section) {
@@ -583,7 +611,7 @@
   async function loadCourses(page = 1) {
     const result = await courseApi(`courses?page=${page}`);
     renderLearningPage('portal-courses-catalogue', page, result.more, result.courses, item => {
-      const card = record(item.title);
+      const card = record(item.title, undefined, 'h5');
       card.classList.add('course-learner-card');
       card.prepend(courseSprite(courseArtwork(item)));
       card.append(node('p', `${item.provider} · ${item.categoryName} · Version ${item.revision}`, 'portal-hint'));
@@ -597,7 +625,7 @@
         drawCourse((await courseApi(courseSlug(item))).course);
       }))));
       return card;
-    }, loadCourses, 'Courses will appear here when your training group publishes them.');
+    }, loadCourses, 'Courses will appear here when your training group publishes them.', appendCourseCard);
   }
 
   function lessonMedia(container, course, lesson, number) {
@@ -825,7 +853,7 @@
       art.append(courseSprite(artwork));
       const status = node('div');
       status.append(badge(`${item.state === 'draft' ? 'Draft' : 'Published'} · Version ${item.revision}`, item.state));
-      card.append(art,status,node('h4',item.title),
+      card.append(art,status,node('h5',item.title),
         node('p', `${item.lessons.length} ${item.lessons.length === 1 ? 'lesson' : 'lessons'} · Practical task`, 'portal-hint'));
       card.append(node('p', item.description));
       const controls = [button(item.state === 'draft' ? 'Edit draft' : 'Preview course', () => openCourseEditor(item), 'primary')];
@@ -842,7 +870,7 @@
       }
       card.append(actionRow(...controls));
       return card;
-    }, next => loadCourseStaff(next, 1, 'versions'), 'This group has no courses yet.');
+    }, next => loadCourseStaff(next, 1, 'versions'), 'This group has no courses yet.', appendCourseCard);
     if (part !== 'versions') renderLearningPage('portal-courses-assessments', queuePage, result.moreQueue, result.queue,
       courseAssessmentCard, next => loadCourseStaff(1, next, 'queue'), 'There are no practicals awaiting assessment.');
   }
