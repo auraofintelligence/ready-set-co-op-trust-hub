@@ -549,7 +549,6 @@ async function passwordRegistrationSubject(db, env, identity, purpose, data, now
 async function createPasswordOptions(request, env, identity, purpose, data, now, loc) {
   const db = env.DB, login = ['login', 'reauth', 'recovery-codes'].includes(purpose);
   const protocol = protocolValue(login ? data.startLoginRequest : data.registrationRequest, login ? 128 : 43);
-  await throttle(db, request, env, now, 'password-' + purpose + '-options', typeof data.username === 'string' ? data.username.trim().toLowerCase().slice(0, 40) : identity?.accountId ?? '');
   let id = null, payload = {}, password = null, registrationResponse, loginResponse, serverLoginState;
   let userIdentifier;
   if (login) {
@@ -561,6 +560,9 @@ async function createPasswordOptions(request, env, identity, purpose, data, now,
       name = identity.username;
     } else name = username(data.username);
     const passwordAttempt = await reservePasswordAttempt(db, env, now, name);
+    // Blocked account retries stop here so they cannot consume the broader
+    // request allowance across the instant when the account window expires.
+    await throttle(db, request, env, now, 'password-' + purpose + '-options', name);
     payload = { passwordAttempt };
     const account = await db.prepare("SELECT * FROM member_accounts WHERE username=? AND status='active'").bind(name).first();
     if (account) {
@@ -569,6 +571,8 @@ async function createPasswordOptions(request, env, identity, purpose, data, now,
     }
     userIdentifier = id ?? await keyed(env, 'opaque-unknown-user', name);
   } else {
+    const subject = typeof data.username === 'string' ? data.username.trim().toLowerCase().slice(0, 40) : identity?.accountId ?? '';
+    await throttle(db, request, env, now, 'password-' + purpose + '-options', subject);
     ({ id, payload } = await passwordRegistrationSubject(db, env, identity, purpose, data, now));
     userIdentifier = id;
   }

@@ -21,11 +21,14 @@
   function value(form, name) { return field(form, name)?.value?.trim() || ''; }
   function checked(form, name) { return field(form, name)?.checked === true; }
   function readPassword(form, name = 'password', confirm = false) {
-    const password = field(form, name).value.normalize('NFC');
+    const raw = field(form, name).value;
+    const repeated = confirm ? field(form, 'confirmPassword').value : '';
+    if (raw.length > 1024 || repeated.length > 1024) throw new Error('Use no more than 128 characters.');
+    const password = raw.normalize('NFC');
     const length = Array.from(password).length;
     if (!length) throw new Error('Enter a password.');
     if (length > 128) throw new Error('Use no more than 128 characters.');
-    if (confirm && password !== field(form, 'confirmPassword').value.normalize('NFC')) throw new Error('The two passwords do not match. Check them and try again.');
+    if (confirm && password !== repeated.normalize('NFC')) throw new Error('The two passwords do not match. Check them and try again.');
     return password;
   }
   function revealPassword(input, visible) {
@@ -178,6 +181,7 @@
   }
   function clearPrivate() {
     authRevision++; stopPasswordWorker();
+    clearLearning();
     state.participantView = false; state.participantLoaded = false;
     state.identity = null; state.profile = null; state.sites = []; state.groups = []; state.applications = []; state.committeeSites = []; state.accounts = []; state.allSites = []; state.selectedAccount = null; state.selectedApplication = null; state.selectedSite = null; state.selectedGroup = ''; state.selectedCommittee = ''; state.selectedPost = null; state.roleAssignment = null; state.profileDirty = false; state.resubmission = null; state.accountEvents = []; state.reviewApplications = []; state.committeePosts = []; state.groupPosts = []; retries.clear();
     state.invitations = []; state.invitationTotal = 0; state.invitationPage = 1; state.invitationSearch = ''; clearInvitationContext();
@@ -230,8 +234,9 @@
   }
   function updatePortalView() {
     const webmaster = state.identity?.webmaster === true, administration = webmaster && !state.participantView;
-    for (const panel of ['profile', 'applications', 'groups']) $(`tab-${panel}`).hidden = administration;
+    for (const panel of ['profile', 'learning', 'applications', 'groups']) $(`tab-${panel}`).hidden = administration;
     $('tab-webmaster').hidden = !administration;
+    $('portal-learning-desk').hidden = !administration || ['access', 'local'].includes(state.identity?.authentication);
     $('tab-committee').hidden = webmaster ? !administration : !state.committeeSites.length;
     $('portal-participant-view').hidden = !webmaster;
     $('portal-participant-view').textContent = state.participantView ? 'Back to administration' : 'Open participant view (optional)';
@@ -335,6 +340,174 @@
     if (state.authMode === 'setup' && (result.setupComplete === true || !result.bootstrapAvailable)) { state.authMode = ''; showAuth(); setStatus('The first webmaster account has already been established. Sign in to continue.'); }
     else { if (state.authMode === 'setup') { $('portal-setup-help').hidden = true; setStatus('Cloudflare account setup is ready. Keep the setup key below, complete your details and choose your own password.', 'success'); } else { if (state.authMode === 'invite') await loadInvitationContext(); setStatus(state.authMode ? 'Complete the private account step below.' : 'Sign in or create an account to continue.'); } }
   }
+  const evidenceStates = { submitted: 'Review requested', more_info: 'More information requested', verified: 'Verified', declined: 'Declined', revoked: 'Revoked', withdrawn: 'Withdrawn', expired: 'Expired' };
+  const evidenceTypes = {
+    work_rights: ['Working holiday work rights', ['vevo']],
+    licence: ['Licence', ['issuer', 'sighted']],
+    qualification: ['Qualification or training credential', ['issuer', 'sighted']],
+    english: ['Workplace English', ['practical', 'issuer', 'sighted']],
+    skill: ['Practical skill', ['practical', 'issuer', 'sighted']]
+  };
+  const evidenceMethods = {
+    vevo: 'Checked in VEVO with the person’s permission',
+    issuer: 'Confirmed with the issuer',
+    sighted: 'Document sighted',
+    practical: 'Observed in a practical task'
+  };
+  const learning = { profile: null, profileDirty: false, review: null };
+
+  function clearLearning() {
+    learning.profile = null;
+    learning.profileDirty = false;
+    learning.review = null;
+    for (const id of ['portal-learning-profile', 'portal-learning-evidence-form', 'portal-learning-review-form']) $(id).reset();
+    for (const id of ['portal-learning-completions', 'portal-learning-evidence', 'portal-learning-drafts', 'portal-learning-reviews']) $(id).replaceChildren();
+    for (const id of ['portal-learning-desk', 'portal-learning-request-panel']) $(id).open = false;
+    $('portal-learning-review-form').hidden = true;
+    $('portal-learning-content').hidden = true;
+    $('portal-learning-review-title').textContent = 'Record an evidence decision';
+  }
+
+  function renderLearningProfile(profile) {
+    const form = $('portal-learning-profile');
+    learning.profile = profile;
+    learning.profileDirty = false;
+    for (const name of ['availableFrom', 'availableUntil', 'english', 'skills', 'licences']) field(form, name).value = profile[name];
+    for (const control of form.querySelectorAll('[name="pathways"]')) control.checked = profile.pathways.includes(control.value);
+  }
+
+  async function reloadLearningProfile() {
+    renderLearningProfile((await api('/api/learning/profile')).profile);
+  }
+
+  function renderLearningPage(id, page, more, entries, format, next, noEntries) {
+    const container = $(id);
+    const moreId = `${id}-more`;
+    $(moreId)?.remove();
+    if (page === 1) container.replaceChildren();
+    if (!entries.length && page === 1) empty(container, noEntries);
+    for (const entry of entries) container.append(format(entry));
+    if (more) {
+      const control = button('Load more', () => run(() => next(page + 1)));
+      control.id = moreId;
+      control.dataset.pageMore = 'true';
+      container.insertAdjacentElement('afterend', control);
+    }
+  }
+
+  async function loadLearningCompletions(page = 1) {
+    const result = await api(`/api/learning/completions?page=${page}`);
+    renderLearningPage('portal-learning-completions', page, result.more, result.completions, item => {
+      const card = record(item.title);
+      card.append(node('p', `${item.provider} · Course version ${item.revision} · Completed ${date(item.completedAt)}`));
+      return card;
+    }, loadLearningCompletions, 'Your completed courses will appear here.');
+  }
+
+  function evidenceCard(item) {
+    const card = record(item.label);
+    const label = item.status === 'verified' && item.method === 'sighted' ? 'Document sighted' : evidenceStates[item.status];
+    card.append(badge(label, item.status));
+    card.append(node('p', [evidenceTypes[item.category][0], item.issuer].filter(Boolean).join(' · ')));
+    if (item.method) card.append(node('p', evidenceMethods[item.method]));
+    if (item.expiresOn) {
+      const expiry = new Date(`${item.expiresOn}T00:00:00Z`).toLocaleDateString('en-AU', { dateStyle: 'medium', timeZone: 'UTC' });
+      card.append(node('p', `Expiry ${expiry}`));
+    }
+    if (item.reviewedBy) card.append(node('p', `Reviewed by ${item.reviewedBy} on ${date(item.reviewedAt)}`));
+    if (item.note) card.append(node('p', item.note));
+    return card;
+  }
+
+  async function loadLearningEvidence(page = 1) {
+    const result = await api(`/api/learning/evidence?page=${page}`);
+    renderLearningPage('portal-learning-evidence', page, result.more, result.evidence, item => {
+      const card = evidenceCard(item);
+      if (item.status === 'more_info') {
+        card.append(button('Request another review', () => run(async () => {
+          await api(`/api/learning/evidence/${item.id}`, { method: 'PATCH', data: { expectedVersion: item.version, action: 'resubmit' } });
+          await loadLearningEvidence();
+        }, 'Your evidence is back in the review queue.')));
+      }
+      if (!['withdrawn', 'revoked'].includes(item.status)) {
+        const confirm = node('details', undefined, 'portal-record');
+        confirm.append(node('summary', 'Withdraw this request'), node('p', 'This will close the request and change the status on your profile.'));
+        confirm.append(button('Confirm withdrawal', () => run(async () => {
+          await api(`/api/learning/evidence/${item.id}`, { method: 'PATCH', data: { expectedVersion: item.version, action: 'withdraw' } });
+          await loadLearningEvidence();
+        }, 'Your evidence request has been withdrawn.')));
+        card.append(confirm);
+      }
+      return card;
+    }, loadLearningEvidence, 'Your evidence requests and their review status will appear here.');
+  }
+
+  async function loadLearning() {
+    await Promise.all([learning.profile ? null : reloadLearningProfile(), loadLearningCompletions(), loadLearningEvidence()]);
+    $('portal-learning-content').hidden = false;
+  }
+
+  function updateLearningReviewFields() {
+    const form = $('portal-learning-review-form');
+    const verify = value(form, 'status') === 'verified';
+    $('portal-learning-method').hidden = !verify;
+    $('portal-learning-expiry').hidden = !verify;
+    field(form, 'method').required = verify;
+    field(form, 'expiresOn').required = verify && learning.review?.category === 'work_rights';
+    field(form, 'note').required = !verify;
+  }
+
+  function editLearningReview(item) {
+    const form = $('portal-learning-review-form');
+    form.reset();
+    learning.review = item;
+    $('portal-learning-review-title').textContent = `Review ${item.label} for ${item.applicant}`;
+    const decisions = field(form, 'status');
+    decisions.replaceChildren();
+    option(decisions, 'Choose a decision', '');
+    if (item.recordedStatus === 'verified') option(decisions, 'Revoke verification', 'revoked');
+    else {
+      option(decisions, 'Verify evidence', 'verified');
+      if (item.recordedStatus === 'submitted') option(decisions, 'Request more information', 'more_info');
+      option(decisions, 'Decline evidence', 'declined');
+    }
+    const methods = field(form, 'method');
+    methods.replaceChildren();
+    option(methods, 'Choose how you checked', '');
+    for (const method of evidenceTypes[item.category][1]) option(methods, evidenceMethods[method], method);
+    updateLearningReviewFields();
+    form.hidden = false;
+    $('portal-learning-review-title').focus();
+  }
+
+  async function loadLearningReviews(page = 1) {
+    const result = await api(`/api/learning/reviews?page=${page}`);
+    renderLearningPage('portal-learning-reviews', page, result.more, result.evidence, item => {
+      const card = evidenceCard(item);
+      card.append(node('p', `Submitted by ${item.applicant}`), button('Review evidence', () => editLearningReview(item)));
+      return card;
+    }, loadLearningReviews, 'There are no evidence records to review.');
+  }
+
+  async function loadLearningDrafts() {
+    const { drafts } = await api('/api/learning/drafts');
+    const container = $('portal-learning-drafts');
+    container.replaceChildren();
+    for (const item of drafts) {
+      const card = node('details', undefined, 'portal-record');
+      card.append(node('summary', item.title), badge(`Draft · Version ${item.revision}`), node('p', item.description));
+      const lessons = node('ol');
+      for (const lesson of item.lessons) {
+        const entry = node('li');
+        entry.append(node('strong', lesson.title), node('p', lesson.body));
+        lessons.append(entry);
+      }
+      card.append(lessons);
+      container.append(card);
+    }
+    if (!drafts.length) empty(container, 'There are no course drafts to preview.');
+  }
+
   function profileData() {
     const form = $('portal-profile');
     return { displayName: value(form, 'displayName'), email: value(form, 'email'), phone: value(form, 'phone'), organisation: value(form, 'organisation'), locality: value(form, 'locality'), interests: [...form.querySelectorAll('input[name="interests"]:checked')].map(input => input.value), about: value(form, 'about'), consentContact: checked(form, 'consentContact'), consentFutureHandover: checked(form, 'consentFutureHandover'), expectedVersion: state.profile?.version ?? 0 };
@@ -647,7 +820,49 @@
   for (const tab of document.querySelectorAll('[data-panel]')) tab.addEventListener('click', () => {
     if (state.busy || tab.hidden) return; const panel = tab.dataset.panel; selectPanel(panel);
     if (panel === 'webmaster') run(loadWebmasterLists); if (panel === 'security') run(loadPasskeys);
+    if (panel === 'learning') run(loadLearning);
   });
+
+  listenForm('portal-learning-profile', form => run(async () => {
+    if (!learning.profile) return;
+    const fields = Object.fromEntries(['availableFrom', 'availableUntil', 'english', 'skills', 'licences'].map(name => [name, value(form, name)]));
+    const pathways = [...form.querySelectorAll('[name="pathways"]:checked')].map(control => control.value);
+    const result = await api('/api/learning/profile', { method: 'PATCH', data: { ...fields, pathways, expectedVersion: learning.profile.version } });
+    renderLearningProfile(result.profile);
+  }, 'Your work and learning profile is saved.'));
+  $('portal-learning-profile').addEventListener('input', () => { learning.profileDirty = true; });
+  $('portal-learning-reload').addEventListener('click', () => {
+    if (learning.profileDirty && !window.confirm('Replace your unsaved edits with the saved profile?')) return;
+    run(reloadLearningProfile, 'Saved profile reloaded.');
+  });
+  $('portal-learning-refresh').addEventListener('click', () => run(loadLearningEvidence, 'Evidence status refreshed.'));
+  listenForm('portal-learning-evidence-form', form => run(async () => {
+    const data = { category: value(form, 'category'), label: value(form, 'label'), issuer: value(form, 'issuer'), consent: checked(form, 'consent') };
+    await api('/api/learning/evidence', { method: 'POST', data: stableCreate('learning-evidence', data) });
+    retries.delete('learning-evidence');
+    form.reset();
+    $('portal-learning-request-panel').open = false;
+    await loadLearningEvidence();
+  }, 'Your private evidence request is recorded.'));
+  $('portal-learning-review-load').addEventListener('click', () => run(loadLearningReviews));
+  $('portal-learning-drafts-load').addEventListener('click', () => run(loadLearningDrafts));
+  field($('portal-learning-review-form'), 'status').addEventListener('change', updateLearningReviewFields);
+  $('portal-learning-review-cancel').addEventListener('click', () => {
+    learning.review = null;
+    $('portal-learning-review-form').reset();
+    $('portal-learning-review-form').hidden = true;
+    $('portal-learning-review-load').focus();
+  });
+  listenForm('portal-learning-review-form', form => run(async () => {
+    if (!learning.review) return;
+    const fields = Object.fromEntries(['status', 'method', 'expiresOn', 'note'].map(name => [name, value(form, name)]));
+    await api(`/api/learning/reviews/${learning.review.id}`, { method: 'PATCH', data: { ...fields, expectedVersion: learning.review.version } });
+    learning.review = null;
+    form.reset();
+    form.hidden = true;
+    await loadLearningReviews();
+    $('portal-learning-review-load').focus();
+  }, 'The evidence decision is recorded.'));
   document.querySelector('.portal-tabs').addEventListener('keydown', event => {
     const tabs = [...document.querySelectorAll('[data-panel]')].filter(tab => !tab.hidden);
     const index = tabs.indexOf(event.target); if (index < 0) return;

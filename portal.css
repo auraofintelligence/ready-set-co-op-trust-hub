@@ -24,6 +24,7 @@
 .portal-password-field { display: grid; gap: .35rem; min-width: 0; }
 .portal-password-control { position: relative; min-width: 0; }
 .portal-page .portal-password-control input { padding-inline-end: 3.3rem; }
+.portal-password-control input::-ms-reveal { display: none; }
 .portal-page .portal-password-toggle { position: absolute; inset-inline-end: 2px; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; min-height: 44px; padding: 0; display: grid; place-items: center; border: 0; border-radius: .3rem; background: transparent; color: #38235f; cursor: pointer; }
 .portal-password-toggle:hover, .portal-password-toggle[aria-pressed="true"] { background: #ede5fb; }
 .portal-password-toggle:focus-visible { outline: 3px solid #7334d4; outline-offset: 1px; }

@@ -4,6 +4,7 @@ import { handleMapRequest } from './map-records.mjs';
 import { handleGovernanceRequest } from './governance.mjs';
 import { resolveAccountSession, handleAccountRequest } from './accounts.mjs';
 import { handleMemberServiceRequest, memberGovernanceScope } from './member-services.mjs';
+import { handleLearningRequest, LearningRequestError } from './learning.mjs';
 
 const BODY_LIMIT = 12 * 1024;
 const CONSENT_VERSION = '2026-11-19';
@@ -312,6 +313,11 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
             const response=await handleMemberServiceRequest(request,env,{identity,now:now(),readJSON:()=>readJSON(request)});
             if(response)return secure(response,{api});
           }
+          if (url.pathname.startsWith('/api/learning/')) {
+            if (!['GET', 'HEAD'].includes(request.method)) requireSameOrigin(request, url, { required: true });
+            const response = await handleLearningRequest(request, env.DB, { identity, now: now(), readJSON: () => readJSON(request) });
+            return secure(response, { api });
+          }
           const repository = createRepository(env.DB);
           if (url.pathname.startsWith('/api/admin/governance')) {
             if (!['GET', 'HEAD'].includes(request.method)) requireSameOrigin(request, url, { required: true });
@@ -366,7 +372,7 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
         const assetRequest = assetUrl.href === url.href ? request : new Request(assetUrl, request);
         return secure(await env.ASSETS.fetch(assetRequest), { privatePage:privatePage||portalPage, passwordCrypto:portalPage, allowLocation: url.pathname === '/map.html' });
       } catch (error) {
-        const known = error instanceof HttpError;
+        const known = error instanceof HttpError || error instanceof LearningRequestError;
         const status = known ? error.status : 503;
         const response = json({ error: known ? error.message : 'The service is temporarily unavailable. Please try again.',
           code: known ? error.code : 'service_unavailable' }, status,

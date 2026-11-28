@@ -1,3 +1,5 @@
+import { exportLearning } from './learning.mjs';
+
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const SLUG = /^[a-z0-9][a-z0-9-]{0,63}$/;
 const CONSENT_VERSION = '2026-11-27';
@@ -240,7 +242,8 @@ export async function handleMemberServiceRequest(request,env,{identity,now,readJ
       const bound='(SELECT COUNT(*)<=10000 AND COALESCE(SUM(length(CAST(snapshot_json AS BLOB))),0)<=4194304 FROM member_service_history WHERE account_id=?)';
       const result=await db.batch([db.prepare('SELECT * FROM member_profiles WHERE account_id=?').bind(identity.accountId),db.prepare(`SELECT a.*,s.name AS site_name FROM member_applications a JOIN member_sites s ON s.id=a.site_id WHERE a.account_id=? AND ${bound} ORDER BY a.created_at LIMIT 10001`).bind(identity.accountId,identity.accountId),db.prepare('SELECT site_id,role,version,updated_at FROM member_site_roles WHERE account_id=? LIMIT 10001').bind(identity.accountId),db.prepare(`SELECT * FROM member_service_history WHERE account_id=? AND ${bound} ORDER BY created_at,id LIMIT 10001`).bind(identity.accountId,identity.accountId),db.prepare('SELECT COUNT(*) AS total,COALESCE(SUM(length(CAST(snapshot_json AS BLOB))),0) AS bytes FROM member_service_history WHERE account_id=?').bind(identity.accountId)]);
       const counts=rows(result[4])[0];if(counts.total>10000||counts.bytes>4*1024*1024||rows(result[1]).length>10000||rows(result[2]).length>10000)fail(413,'export_too_large','Contact the site organiser for a complete database export of your records.');
-      return json({schemaVersion:1,exportedAt:now,account:{id:identity.accountId,username:identity.username,emailVerified:false},profile:profileFrom(rows(result[0])[0],identity),applications:rows(result[1]).map(applicationFrom),groupAccess:rows(result[2]),history:rows(result[3]).map(revisionFrom)},200,{'Content-Disposition':'attachment; filename="ready-setco-my-records.json"'});
+      const learning = await exportLearning(db, identity.accountId, now);
+      return json({schemaVersion:1,exportedAt:now,account:{id:identity.accountId,username:identity.username,emailVerified:false},profile:profileFrom(rows(result[0])[0],identity),applications:rows(result[1]).map(applicationFrom),groupAccess:rows(result[2]),history:rows(result[3]).map(revisionFrom),learning},200,{'Content-Disposition':'attachment; filename="ready-setco-my-records.json"'});
     }
     fail(405,'method_not_allowed','This member action or method is not supported.');
   }catch(error){

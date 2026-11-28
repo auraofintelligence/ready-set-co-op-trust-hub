@@ -140,6 +140,11 @@ test('password cooldown starts at the first attempt and does not reset at a fixe
   const blocked = await attempt(); assert.equal(blocked.status, 429); assert.equal(blocked.headers.get('Retry-After'), '900');
   f.setNow('2026-11-27T10:15:00.000Z'); assert.equal((await attempt()).status, 429);
   f.setNow('2026-11-27T10:29:59.899Z');
+  for (let index = 0; index < 25; index++) {
+    const retry = await attempt();
+    assert.equal(retry.status, 429);
+    assert.equal(retry.headers.get('Retry-After'), '1');
+  }
   const almost = await attempt(); assert.equal(almost.status, 429); assert.equal(almost.headers.get('Retry-After'), '1');
   f.setNow('2026-11-27T10:29:59.900Z'); await okay(await attempt());
 });

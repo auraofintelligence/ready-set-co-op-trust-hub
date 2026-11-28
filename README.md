@@ -14,6 +14,8 @@ It is a proposed **minimum viable community for a fair go in the age of superint
 
 **Committee invitations, 28 November 2026:** the Webmaster administration view now has a dedicated invitation register. Choose a person and local group, prepare their private invitation link, and follow its pending, expired, accepted or cancelled status. The Webmaster can replace unused links, cancel invitations or explicitly reopen a cancelled invitation. The recipient sees the group and committee access before accepting; access is granted when their account activation succeeds.
 
+**Learning and work profiles:** the private portal provides participation preferences, course completion history and evidence requests for employment, volunteering and training. The Webmaster can review evidence and preview the first PLFC officer handover and volunteer onboarding drafts. See [learning and work records](docs/LEARNING-AND-WORK.md).
+
 Strange But True is the initial sole trader operator. ready SET Co-op remains proposed; cooperative formation, formal member admission, employment arrangements and service handovers require their actual decisions and agreements.
 
 ## Open the co-op hub

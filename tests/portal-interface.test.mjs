@@ -111,6 +111,40 @@ test('signed-out portal keeps private data unloaded and cancelled passkeys do no
   assert.equal(f.window.localStorage.length, 0); assert.equal(f.window.sessionStorage.length, 0);
 });
 
+test('Learning & work loads privately, saves preferences and clears the view on logout', async t => {
+  let profile = { pathways: [], availableFrom: '', availableUntil: '', english: '', skills: '', licences: '', version: 0 };
+  const f = fixture(t, { override: ({ path, options, body }) => {
+    if (path === '/api/learning/profile') {
+      if (options.method === 'PATCH') {
+        const { expectedVersion, ...values } = body;
+        profile = { ...values, version: expectedVersion + 1 };
+      }
+      return json({ profile });
+    }
+    if (path === '/api/learning/completions') return json({ completions: [{ title: 'PLFC officer onboarding and handover', provider: 'PLFC', revision: 1, completedAt: '2026-11-28T10:00:00Z' }] });
+    if (path === '/api/learning/evidence') return json({ evidence: [] });
+    return null;
+  } });
+  await f.idle();
+  assert.equal(f.calls.some(call => call.path.startsWith('/api/learning/')), false);
+  f.$('tab-learning').click();
+  await f.idle();
+  assert.equal(f.$('panel-learning').hidden, false);
+  assert.match(f.$('portal-learning-completions').textContent, /PLFC officer onboarding and handover.*Course version 1/);
+  const form = f.$('portal-learning-profile');
+  f.set(form, 'skills', 'Fictional media production');
+  form.querySelector('[value="volunteering"]').checked = true;
+  f.submit(form);
+  await f.idle();
+  assert.equal(profile.skills, 'Fictional media production');
+  assert.deepEqual(profile.pathways, ['volunteering']);
+  f.$('portal-logout').click();
+  await f.idle();
+  assert.equal(form.elements.skills.value, '');
+  assert.equal(f.$('portal-learning-completions').textContent, '');
+  assert.equal(f.$('portal-learning-content').hidden, true);
+});
+
 test('registration accepts a simple one-character password with explicit consent and privately displayed recovery codes', async t => {
   const f = fixture(t, { signedIn: false }); await f.idle(); const form = f.$('portal-register');
   assert.equal(form.elements.consent.checked, false);
@@ -166,6 +200,18 @@ test('typed password sign-in preserves spaces, normalises Unicode and never invo
   assert.equal(f.window.localStorage.length, 0); assert.equal(f.window.sessionStorage.length, 0);
 });
 
+test('password input rejects over 128 Unicode code points without silently truncating pasted text', async t => {
+  const f = fixture(t, { signedIn: false }); await f.idle();
+  const form = f.$('portal-login'), password = '😀'.repeat(128);
+  assert.equal(form.elements.password.hasAttribute('maxlength'), false);
+  f.set(form, 'username', identity.username);
+  f.set(form, 'password', password + '😀'); f.submit(form); await f.idle();
+  assert.match(f.$('portal-status').textContent, /128 characters/);
+  assert.equal(f.passwordCalls.length, 0);
+  f.set(form, 'password', password); f.submit(form); await f.idle();
+  assert.equal(f.passwordCalls[0].params.password, password);
+});
+
 test('webmasters land in administration after sign-in or session reload without loading participant records', async t => {
   const admin = { ...identity, webmaster: true };
   for (const signedIn of [false, true]) {
@@ -174,7 +220,7 @@ test('webmasters land in administration after sign-in or session reload without 
     assert.equal(f.$('portal-title').textContent, 'Webmaster administration');
     assert.equal(f.$('portal-admin-intro').hidden, false); assert.equal(f.$('portal-member-intro').hidden, true);
     assert.equal(f.$('panel-webmaster').hidden, false); assert.equal(f.$('tab-webmaster').getAttribute('aria-selected'), 'true');
-    for (const panel of ['profile', 'applications', 'groups']) { assert.equal(f.$(`tab-${panel}`).hidden, true); assert.equal(f.$(`panel-${panel}`).hidden, true); }
+    for (const panel of ['profile', 'learning', 'applications', 'groups']) { assert.equal(f.$(`tab-${panel}`).hidden, true); assert.equal(f.$(`panel-${panel}`).hidden, true); }
     assert.equal(f.$('tab-committee').hidden, false); assert.equal(f.$('tab-security').hidden, false);
     assert.ok(f.$('panel-webmaster').querySelector('a[href="manage.html"]'));
     assert.equal(f.$('portal-participant-view').textContent, 'Open participant view (optional)');
