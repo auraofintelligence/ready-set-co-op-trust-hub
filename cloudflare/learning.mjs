@@ -215,7 +215,7 @@ async function listEvidence(db, accountId, now, page, reviewer = false) {
 
 async function completions(db, accountId, page = 1, size = PAGE_SIZE) {
   const result = await db.prepare(`SELECT v.title,c.provider_name AS provider,lc.course_id AS courseId,
-    lc.revision,lc.completed_at AS completedAt FROM learning_completions lc
+    lc.revision,lc.completed_at AS completedAt,lc.assessed_by IS NOT NULL AS assessed FROM learning_completions lc
     JOIN learning_course_versions v ON v.course_id=lc.course_id AND v.revision=lc.revision
     JOIN learning_courses c ON c.id=lc.course_id
     WHERE lc.account_id=? ORDER BY lc.completed_at DESC,lc.course_id,lc.revision LIMIT ? OFFSET ?`)

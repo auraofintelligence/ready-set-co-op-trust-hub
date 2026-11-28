@@ -410,6 +410,7 @@
     const result = await api(`/api/learning/completions?page=${page}`);
     renderLearningPage('portal-learning-completions', page, result.more, result.completions, item => {
       const card = record(item.title);
+      if (item.assessed !== undefined) card.append(badge(item.assessed ? 'Assessed' : 'Read-through', 'passed'));
       card.append(node('p', `${item.provider} · Course version ${item.revision} · Completed ${date(item.completedAt)}`));
       return card;
     }, loadLearningCompletions, 'Your completed courses will appear here.');
@@ -616,9 +617,13 @@
       card.prepend(courseSprite(courseArtwork(item)));
       card.append(node('p', `${item.provider} · ${item.categoryName} · Version ${item.revision}`, 'portal-hint'));
       card.append(node('p', item.description));
-      if (item.practicalStatus) card.append(badge(practicalStates[item.practicalStatus], item.practicalStatus));
+      if (item.completedAt) card.append(badge(item.requiresAssessment ? 'Assessed and completed' : 'Guide completed', 'passed'));
+      else if (item.practicalStatus) card.append(badge(practicalStates[item.practicalStatus], item.practicalStatus));
       else if (item.enrolmentId) card.append(node('p', `${item.lessonsDone} of ${item.lessonCount} lessons complete`));
-      const label = item.practicalStatus === 'passed' ? 'Open completed course' : item.enrolmentId ? 'Continue course' : 'Open course';
+      if (item.requiresAssessment !== undefined && !item.completedAt) {
+        card.append(node('p', item.requiresAssessment ? 'Assessment required' : 'Read-through guide', 'portal-hint'));
+      }
+      const label = item.completedAt || item.practicalStatus === 'passed' ? 'Open completed course' : item.enrolmentId ? 'Continue course' : 'Open course';
       card.append(actionRow(button(label, () => run(async () => {
         const dirty = $('portal-courses-reader').querySelector('form[data-dirty="true"]');
         if (dirty && !window.confirm('Discard your unsaved practical response?')) return;
@@ -752,6 +757,7 @@
       }, 'You’re enrolled. Your progress is saved as you go.'), 'primary')));
     } else {
       card.append(node('p', `${course.progress.length} of ${course.lessons.length} lessons complete`, 'portal-hint'));
+      if (course.completedAt && !course.practical) card.append(badge('Guide completed', 'passed'));
       course.lessons.forEach((lesson, index) => {
         const number = index + 1;
         const done = course.progress.includes(number);
@@ -762,12 +768,16 @@
         const complete = async answers => {
           const result = await courseApi(target + '/progress', { method:'POST', data:{ number, ...(answers ? { answers } : {}) } });
           await loadCourses();
+          const finished = result.course.completedAt && !course.completedAt;
+          if (finished) await loadLearningCompletions();
           const next = result.course.lessons.findIndex((_, position) => !result.course.progress.includes(position + 1)) + 1;
           drawCourse(result.course, answers ? number : next);
-          if (answers) setStatus('Practice complete. Your progress is saved.','success');
+          if (finished) setStatus('Guide completed. Your progress is saved.','success');
+          else if (answers) setStatus('Practice complete. Your progress is saved.','success');
+          else setStatus('Lesson marked complete.','success');
         };
         const hasQuestions = lessonQuestions(detail, lesson.questions, { done, submit:complete });
-        if (!done && !hasQuestions) detail.append(actionRow(button('Mark lesson complete', () => run(() => complete(), 'Lesson marked complete.'))));
+        if (!done && !hasQuestions) detail.append(actionRow(button('Mark lesson complete', () => run(() => complete()))));
         card.append(detail);
       });
       if (course.practical) drawPractical(card, course, target);
@@ -854,7 +864,7 @@
       const status = node('div');
       status.append(badge(`${item.state === 'draft' ? 'Draft' : 'Published'} · Version ${item.revision}`, item.state));
       card.append(art,status,node('h5',item.title),
-        node('p', `${item.lessons.length} ${item.lessons.length === 1 ? 'lesson' : 'lessons'} · Practical task`, 'portal-hint'));
+        node('p', `${item.lessons.length} ${item.lessons.length === 1 ? 'lesson' : 'lessons'} · ${item.practical ? 'Assessed course' : 'Read-through guide'}`, 'portal-hint'));
       card.append(node('p', item.description));
       const controls = [button(item.state === 'draft' ? 'Edit draft' : 'Preview course', () => openCourseEditor(item), 'primary')];
       if (item.state === 'published') {
@@ -1274,7 +1284,8 @@
       courseField('description','What will people learn?',360,3,item?.description));
     if (category) settings.append(category);
     const practical = node('section',undefined,'course-work-paper course-field-stack');
-    practical.append(node('h3','Practical task'),courseField('practical','What should learners do, and what will you look for?',1200,7,item?.practical));
+    practical.append(node('h3','Practical task'),node('p','Add a task and what the assessor should check for an assessed course. Leave the task blank for a read-through guide.','portal-hint'),
+      courseField('practical','What should learners do, and what will you look for?',1200,7,item?.practical,false));
     const lessons = node('div');
     const preview = node('section');
     preview.hidden = true;

@@ -51,11 +51,14 @@ async function catalogue(db, identity, now, currentPage) {
   const learner = gate(identity, now, 'c.site_id', 'learn');
   const rows = (await db.prepare(`SELECT c.id,c.category_id AS category,g.name AS categoryName,c.provider_name AS provider,
       v.revision,v.title,v.description,e.id AS enrolmentId,p.status AS practicalStatus,
+      v.practical<>'' AS requiresAssessment, completion.completed_at AS completedAt,
       (SELECT COUNT(*) FROM learning_lesson_progress l WHERE l.enrolment_id=e.id) AS lessonsDone,
       json_array_length(v.lessons_json) AS lessonCount
     FROM learning_courses c JOIN learning_categories g ON g.id=c.category_id
     JOIN learning_course_versions v ON v.course_id=c.id
     LEFT JOIN learning_enrolments e ON e.course_id=c.id AND e.revision=v.revision AND e.account_id=?
+    LEFT JOIN learning_completions completion ON completion.account_id=e.account_id
+      AND completion.course_id=e.course_id AND completion.revision=e.revision
     LEFT JOIN learning_practicals p ON p.enrolment_id=e.id AND p.attempt=(SELECT max(attempt) FROM learning_practicals WHERE enrolment_id=e.id)
     WHERE (v.state='published' OR (v.state='retired' AND e.id IS NOT NULL)) AND ${learner.sql}
     ORDER BY g.position,v.title,c.id,v.revision DESC LIMIT ? OFFSET ?`)
@@ -65,9 +68,11 @@ async function catalogue(db, identity, now, currentPage) {
 
 async function lessonCourse(db, identity, now, courseId, revision) {
   const learner = gate(identity, now, 'c.site_id', 'learn');
-  const row = await db.prepare(`SELECT ${courseSelect},e.id AS enrolmentId
+  const row = await db.prepare(`SELECT ${courseSelect},e.id AS enrolmentId,completion.completed_at AS completedAt
     FROM learning_courses c JOIN learning_course_versions v ON v.course_id=c.id
     LEFT JOIN learning_enrolments e ON e.course_id=c.id AND e.revision=v.revision AND e.account_id=?
+    LEFT JOIN learning_completions completion ON completion.account_id=e.account_id
+      AND completion.course_id=e.course_id AND completion.revision=e.revision
     WHERE c.id=? AND v.revision=? AND (v.state='published' OR (v.state='retired' AND e.id IS NOT NULL)) AND ${learner.sql}`)
     .bind(identity.accountId, courseId, revision, ...learner.values).first();
   if (!row) missing();
@@ -165,7 +170,7 @@ async function staffData(db, identity, now, siteId, currentPage, queuePage) {
 function draftFields(data) {
   const title = text(data.title, 140, 'a title');
   const description = text(data.description, 360, 'an overview');
-  const practical = text(data.practical, 1200, 'instructions for the practical');
+  const practical = text(data.practical ?? '', 1200, 'instructions for the practical', false);
   if (!Array.isArray(data.lessons) || !data.lessons.length || data.lessons.length > 8) {
     fail(400, 'course_fields', 'Add between one and eight lessons.');
   }

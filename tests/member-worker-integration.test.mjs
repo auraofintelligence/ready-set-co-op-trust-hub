@@ -33,8 +33,10 @@ test('the live Worker routes keep PLFC training private and honour group permiss
   }
   assert.equal((await learner.request(base+'/course-staff/groups/'+group)).status,404);
   const visible=await okay(await owner.request(base+'/course-staff/groups/'+group));
-  assert.equal(visible.versions.length,2);
-  await okay(await owner.request(base+'/course-staff/drafts/plfc-volunteer-onboarding/1','PATCH',{action:'publish',editVersion:1}));
+  assert.equal(visible.versions.length,15);
+  const draft=visible.versions.find(version=>version.id==='plfc-volunteer-onboarding');
+  assert.equal(draft.practical,'');
+  await okay(await owner.request(base+'/course-staff/drafts/plfc-volunteer-onboarding/1','PATCH',{action:'publish',editVersion:draft.editVersion}));
   assert.equal((await learner.request(course)).status,404);
   await okay(await owner.request('/api/webmaster/sites/'+group+'/roles','PUT',{accountId:member.identity.accountId,role:'participant',expectedVersion:0}));
   const before=await okay(await learner.request(course));
@@ -42,6 +44,16 @@ test('the live Worker routes keep PLFC training private and honour group permiss
   assert.equal((await learner.request(course+'/enrol','POST',{},'https://foreign.example')).status,403);
   const enrolment=await okay(await learner.request(course+'/enrol','POST',{}));
   assert.ok(enrolment.course.enrolmentId);
+  assert.equal((await learner.request(course+'/practical','POST',{response:'Fictional example',previousAttempt:0})).status,404);
+  for(const [index] of enrolment.course.lessons.entries()){
+    const result=await okay(await learner.request(course+'/progress','POST',{number:index+1}));
+    assert.equal(Boolean(result.course.completedAt),index===enrolment.course.lessons.length-1);
+  }
+  const completed=await okay(await learner.request(base+'/completions'));
+  assert.equal(completed.completions.length,1);
+  assert.equal(completed.completions[0].assessed,0);
+  await okay(await learner.request(course+'/progress','POST',{number:1}));
+  assert.equal((await okay(await learner.request(base+'/completions'))).completions.length,1);
   await okay(await owner.request('/api/webmaster/sites/'+group+'/roles','PUT',{accountId:member.identity.accountId,role:'none',expectedVersion:1}));
   assert.equal((await learner.request(course+'/progress','POST',{number:1})).status,404);
 });

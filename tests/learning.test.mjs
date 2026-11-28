@@ -107,6 +107,7 @@ test('the five training groups start with private, editable drafts and completio
   assert.ok(['site-tours','member-start','committee','grants'].every(id => categories.some(item => item.id === id)));
   const counts = { 'plfc-training':15, 'sandy-sports-training':18, 'noticeboard-training':8, 'msmn-training':10, 'ready-setco-training':12 };
   const { groups } = await saved(await f.call('/course-staff/groups','GET',undefined,f.admin));
+  let assessed = 0;
   for (const [site,count] of Object.entries(counts)) {
     assert.ok(groups.some(group => group.id === site));
     const { versions } = await saved(await f.call(`/course-staff/groups/${site}`,'GET',undefined,f.admin));
@@ -116,14 +117,15 @@ test('the five training groups start with private, editable drafts and completio
     assert.equal(f.sqlite.prepare('SELECT published + applications_open AS open FROM member_sites WHERE id=?').get(site).open,0);
     for (const version of versions) {
       assert.equal(version.state,'draft');
-      assert.ok(version.practical);
+      if (version.practical) assessed++;
+      assert.ok(version.lessons.every(lesson => version.practical ? lesson.questions?.length === 2 : !lesson.questions?.length));
       for (const lesson of version.lessons) assert.deepEqual(draftLesson(lesson),lesson);
       if (!['plfc-officer-handover','plfc-volunteer-onboarding'].includes(version.id)) {
         assert.ok(version.lessons.some(lesson => lesson.captureNotes));
-        assert.ok(version.lessons.some(lesson => lesson.questions?.length));
       }
     }
   }
+  assert.equal(assessed,35);
   const migration = readFileSync(new URL('../migrations/0012_project_course_drafts.sql',import.meta.url),'utf8');
   f.sqlite.exec("UPDATE learning_course_versions SET title='Editor update' WHERE course_id='sandy-site-tour'");
   f.sqlite.exec(migration);
@@ -153,9 +155,11 @@ test('PLFC staff publish privately and learners progress through a revised pract
   assert.equal((await f.call(`/course-staff/groups/${site}`)).status,404);
   const staff = await saved(await f.call(`/course-staff/groups/${site}`,'GET',undefined,f.admin));
   assert.equal(staff.versions.length,15);
-  assert.ok(staff.versions.every(v => v.state === 'draft' && v.practical));
+  assert.ok(staff.versions.every(v => v.state === 'draft'));
+  const draft = staff.versions.find(version => version.id === course);
+  assert.ok(draft.practical);
   const versionPath = `/course-staff/drafts/${course}/1`;
-  await saved(await f.call(versionPath, 'PATCH', { action:'publish',editVersion:1 }, f.admin));
+  await saved(await f.call(versionPath, 'PATCH', { action:'publish',editVersion:draft.editVersion }, f.admin));
   assert.equal((await saved(await f.call('/courses'))).courses.length,1);
   assert.deepEqual((await saved(await f.call('/courses','GET',undefined,f.other))).courses,[]);
   assert.equal((await f.call(target,'GET',undefined,f.other)).status,404);
@@ -163,7 +167,15 @@ test('PLFC staff publish privately and learners progress through a revised pract
   assert.equal((await saved(await f.call(target + '/enrol','POST',{}))).course.enrolmentId,enrolled.enrolmentId);
   const practical = { response:'Fictional meeting, three actions and a follow-up date.',previousAttempt:0 };
   assert.equal((await f.call(target + '/practical','POST',practical)).status,409);
-  for (const number of enrolled.lessons.map((_,i) => i+1)) await saved(await f.call(target + '/progress','POST',{number}));
+  const firstQuestions = draft.lessons[0].questions;
+  assert.equal((await f.call(target + '/progress','POST',{number:1,answers:{[firstQuestions[0].id]:firstQuestions[0].correct_choice_id}})).status,400);
+  const wrong = Object.fromEntries(firstQuestions.map(question => [question.id,question.choices.find(choice=>choice.id!==question.correct_choice_id).id]));
+  assert.equal((await f.call(target + '/progress','POST',{number:1,answers:wrong})).status,422);
+  for (const [index,lesson] of draft.lessons.entries()) {
+    const answers = Object.fromEntries(lesson.questions.map(question => [question.id,question.correct_choice_id]));
+    await saved(await f.call(target + '/progress','POST',{number:index+1,answers}));
+  }
+  assert.equal((await saved(await f.call(target))).course.completedAt,null);
   assert.equal((await saved(await f.call(target + '/progress','POST',{number:1}))).course.progress.length,enrolled.lessons.length);
   await saved(await f.call(target + '/practical','POST',practical));
   assert.equal((await saved(await f.call(target + '/practical','POST',practical))).course.assessment.attempt,1);

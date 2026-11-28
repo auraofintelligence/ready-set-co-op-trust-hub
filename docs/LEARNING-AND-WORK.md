@@ -7,7 +7,7 @@ ReadySETCO is a proposed cooperative. Strange But True is the initial operator. 
 - **Learning & work** is available in the participant view. A person can save paid work, working holiday work, community volunteering, training, employer participation and grant-writing interests separately. The profile also records availability, self-described workplace English, skills and licence types.
 - **Evidence reviews** takes a credential name and optional issuer with explicit consent to internal review. Reviewers record the method, decision, expiry where applicable, and a member-visible note. Members can withdraw a request or ask for another review after more information is requested. An expiry or withdrawal is reflected on the private profile.
 - **Webmaster → Learning and evidence desk** gives the native Webmaster an evidence review queue and a shortcut to Course builder. Evidence review is a ReadySETCO operator responsibility. Club committee access by itself leaves those records private. Self-review is blocked.
-- **Your courses**, inside **Learning & work**, lists courses published to the learner's groups. Members can enrol, resume lessons and submit a practical using fictional examples. Assessors can pass a practical or give feedback and request changes. A pass posts a version-linked completion on the member's profile.
+- **Your courses**, inside **Learning & work**, lists courses published to the learner's groups. Members can enrol and resume lessons. Finishing the lessons in a read-through guide records guide completion. An assessed course also requires a practical using fictional examples. An independent assessor can pass it or give feedback and request changes. Completion records identify which route the learner took.
 - **Course builder** lets the native Webmaster and the committee for a training group create, edit, reorder and preview lessons, publish a version and assess practicals from that group. Current learners can keep working in the release they started after a new version is published. The personal export includes the learner's enrolments, progress, practicals and completions alongside evidence reviews.
 
 ## Starting PLFC training
@@ -17,13 +17,13 @@ Open a course in **Course builder** and choose a lesson from the outline. The il
 Practice questions have a correct choice and explanation. Learners can retry before completing the lesson. Practical tasks go to a human assessor under **Assessments**. Use **Preview as a learner** to check individual lessons. Save your draft before publishing it from the preview. Private screenshots and direct-video captions are served only to authorised authors or enrolled members of that course. Video playback uses the linked host.
 
 1. Sign in and open **Course builder**. Select **Point Lookout Fishing Club training**.
-2. Choose **Edit draft**. The officer course covers preparing a changeover, running a first meeting rehearsal, handing over access and equipment, and checking in after the first week. The volunteer induction covers agreeing on a shift, briefing and safeguards, and handing over at the end of the shift. Each course ends with a written practical and assessment criteria.
+2. Choose **Edit draft**. The shared officer course covers the changeover, meeting rehearsal, access and equipment, and the first-week check-in. It includes lesson questions and a written practical. The general volunteer guide covers agreeing on a shift, briefing and safeguards, and handing over at the end of the shift.
 3. After the club clears the material for use, select **Preview as a learner**, then **Publish to this group**. The group is private and has no public applications.
 4. Give the intended learner **Participant** access to the PLFC training group under **Webmaster → Manage account → Group responsibilities**. Assign **Committee** access to trusted course authors or assessors. People can then open the course from **Learning & work**. Another authorised assessor must review a course assessor's own practical.
 
 ## Draft catalogue
 
-Choose a training group in **Course builder**. Courses are grouped by site tours, member welcomes, office-holder handovers and skills. The new drafts start with two short lessons, a practice question, a fictional practical task and notes to guide a screenshot or screen recording.
+Choose a training group in **Course builder**. Courses are grouped by site tours, member welcomes, office-holder handovers and skills. The catalogue contains 28 read-through guides for general awareness and orientation, and 35 assessed courses for official roles and job readiness. New drafts start with two short lessons and capture notes for a screenshot or screen recording. Assessed drafts have two questions per lesson and a fictional practical for independent review. To set the route on an editable draft, fill in the **Practical task** for assessment or leave it blank for a guide.
 
 | Training group | Drafts | Coverage |
 | --- | ---: | --- |
