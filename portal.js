@@ -158,6 +158,16 @@
       return link;
     } catch { return null; }
   }
+  function lessonInstructions(body) {
+    const instructions = node('p', undefined, 'portal-preserve');
+    for (const [index, line] of String(body ?? '').split('\n').entries()) {
+      if (index) instructions.append('\n');
+      const resource = line.match(/^([^|]+) \| (https:\/\/\S+)$/);
+      const link = resource && safeLink(resource[2], resource[1].trim());
+      instructions.append(link || line);
+    }
+    return instructions;
+  }
   function download(content, name, type = 'application/json') {
     const href = URL.createObjectURL(new Blob([typeof content === 'string' ? content : JSON.stringify(content, null, 2)], { type }));
     const link = node('a'); link.href = href; link.download = name; document.body.append(link); link.click(); link.remove();
@@ -763,7 +773,7 @@
         const done = course.progress.includes(number);
         const detail = node('details', undefined, 'portal-record portal-course-lesson');
         detail.open = openLesson === number;
-        detail.append(node('summary', `${number}. ${lesson.title}${done ? ' · Complete' : ''}`), node('p', lesson.body, 'portal-preserve'));
+        detail.append(node('summary', `${number}. ${lesson.title}${done ? ' · Complete' : ''}`), lessonInstructions(lesson.body));
         lessonMedia(detail, course, lesson, number);
         const complete = async answers => {
           const result = await courseApi(target + '/progress', { method:'POST', data:{ number, ...(answers ? { answers } : {}) } });
@@ -906,7 +916,7 @@
     const entries = course.lessons.map((lesson,index) => ({
       title:lesson.title || 'Untitled lesson', sprite:'write', number:index+1,
       paint:() => {
-        content.append(node('h3',lesson.title || 'Untitled lesson'), node('p',lesson.body,'portal-preserve'));
+        content.append(node('h3',lesson.title || 'Untitled lesson'), lessonInstructions(lesson.body));
         lessonMedia(content,course,lesson,index+1);
         lessonQuestions(content,lesson.questions,{preview:true});
       }
@@ -1168,6 +1178,7 @@
     const sections = lessonProductionEditor(item,lesson);
     const write = node('div',undefined,'course-field-stack');
     write.append(courseField('lessonTitle','Lesson title',140,0,lesson.title),courseField('lessonBody','Lesson instructions',2200,8,lesson.body));
+    write.append(node('p','Add a link on its own line using a label, a vertical bar and the full HTTPS address.', 'portal-hint'));
     const tools = [
       { id:'write',label:'Write',panel:write },
       { id:'screenshot',label:'Screenshot',panel:sections.screenshot },

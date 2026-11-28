@@ -129,11 +129,17 @@ test('the five training groups start with private, editable drafts and completio
       assert.match(media.lessons[0].body,/from opening to close without pausing/);
       assert.match(media.lessons[3].body,/committee’s approved minutes correction/);
       assert.match(media.lessons[5].body,/recordings and transcripts permanently/);
+      const holiday = versions.find(version => version.id === 'training-working-holiday');
+      assert.equal(holiday.lessons[0].title,'Start with the work you want');
+      assert.match(holiday.lessons[0].body,/join\.html\?interest=working_holiday/);
+      assert.match(holiday.lessons[1].body,/help clarify missing facts with the employer/);
+      assert.match(holiday.lessons[3].body,/different role, another location/);
     }
     assert.equal((await f.call(`/course-staff/groups/${site}`)).status,404);
     assert.equal(f.sqlite.prepare('SELECT published + applications_open AS open FROM member_sites WHERE id=?').get(site).open,0);
     for (const version of versions) {
       assert.equal(version.state,'draft');
+      assert.match(version.lessons[0].body,/ \| https:\/\//);
       if (version.practical) assessed++;
       lessons += version.lessons.length;
       assert.ok(version.lessons.length >= (version.practical ? 6 : 5));
@@ -171,7 +177,11 @@ test('the five training groups start with private, editable drafts and completio
   f.sqlite.exec("UPDATE learning_course_versions SET state='published',edit_version=1 WHERE course_id='sandy-live-broadcast-crew'");
   const authoredSecretary = readVersion.get('sandy-secretary'), releasedBroadcast = readVersion.get('sandy-live-broadcast-crew');
   const plfcSecretary = readVersion.get('plfc-secretary');
-  const curriculumFiles = readdirSync(new URL('../migrations/',import.meta.url)).filter(file => /^001[3-8]_/.test(file)).sort();
+  f.sqlite.prepare(`UPDATE learning_course_versions SET edit_version=2, edited_by=?,
+    lessons_json=json_set(lessons_json,'$[0].body',?) WHERE course_id='training-working-holiday'`)
+    .run(f.admin.accountId,"Keep the author's working holiday enquiry copy.");
+  const authoredHoliday = readVersion.get('training-working-holiday');
+  const curriculumFiles = readdirSync(new URL('../migrations/',import.meta.url)).filter(file => /^001[3-9]_/.test(file)).sort();
   for (const file of curriculumFiles) f.sqlite.exec(readFileSync(new URL(`../migrations/${file}`,import.meta.url),'utf8'));
   assert.deepEqual(readVersion.get('plfc-president'),edited);
   assert.deepEqual(readVersion.get('sandy-president'),released);
@@ -180,6 +190,7 @@ test('the five training groups start with private, editable drafts and completio
   assert.deepEqual(readVersion.get('sandy-secretary'),authoredSecretary);
   assert.deepEqual(readVersion.get('sandy-live-broadcast-crew'),releasedBroadcast);
   assert.deepEqual(readVersion.get('plfc-secretary'),plfcSecretary);
+  assert.deepEqual(readVersion.get('training-working-holiday'),authoredHoliday);
   assert.deepEqual((await saved(await f.call('/courses'))).courses,[]);
   const complete = () => f.sqlite.prepare('INSERT INTO learning_completions(account_id,course_id,revision,completed_at) VALUES(?,?,1,?)').run(f.member.accountId, 'plfc-officer-handover', NOW);
   assert.throws(complete, /released version/);

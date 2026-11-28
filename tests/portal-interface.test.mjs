@@ -286,7 +286,7 @@ test('the private learner can open a screenshot, load video by choice and correc
   const question = {id:'q-01',prompt:'Which detail is needed?',choices:[{id:'a',text:'An owner'},{id:'b',text:'A colour'}]};
   const course = { id:'plfc-officer-handover',revision:1,title:'PLFC handover',description:'Practice',provider:'PLFC',categoryName:'Committee',
     enrolmentId:'example-enrolment',lessonCount:1,lessonsDone:0,progress:[],assessment:null,
-    lessons:[{ title:'Pass on an action',body:'Use a fictional example.',screenshot:{id:'screenshot-id',alt:'Fictional action list'},
+    lessons:[{ title:'Pass on an action',body:'Use a fictional example.\n\nOfficial guide | https://example.org/guide\nUnsafe link | javascript:alert(1)\nCredentials | https://name:secret@example.org/guide',screenshot:{id:'screenshot-id',alt:'Fictional action list'},
       video:{url:'https://www.youtube-nocookie.com/embed/abcdefghijk',transcript:'Name an owner.'},questions:[question] }] };
   const f = fixture(t,{override:({path,body})=>{
     if(path==='/api/learning/profile') return json({profile:{pathways:[],availableFrom:'',availableUntil:'',english:'',skills:'',licences:'',version:0}});
@@ -307,6 +307,10 @@ test('the private learner can open a screenshot, load video by choice and correc
   f.$('portal-courses-catalogue').querySelector('button').click();
   await f.idle();
   const reader = f.$('portal-courses-reader');
+  const instructions = reader.querySelector('.portal-course-lesson .portal-preserve');
+  assert.deepEqual([...instructions.querySelectorAll('a')].map(link => [link.textContent,link.href,link.rel]),
+    [['Official guide','https://example.org/guide','noopener noreferrer']]);
+  assert.match(instructions.textContent,/Unsafe link \| javascript/);
   assert.equal(reader.querySelector('img').alt,'Fictional action list');
   assert.equal(reader.querySelector('iframe'),null);
   [...reader.querySelectorAll('button')].find(button=>button.textContent==='Load video from YouTube').click();
