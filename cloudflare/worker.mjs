@@ -6,6 +6,7 @@ import { resolveAccountSession, handleAccountRequest } from './accounts.mjs';
 import { handleMemberServiceRequest, memberGovernanceScope } from './member-services.mjs';
 import { handleLearningRequest, LearningRequestError } from './learning.mjs';
 import { handleCourseRequest } from './learning-courses.mjs';
+import { DRAFT_LIMIT } from './learning-course-content.mjs';
 
 const BODY_LIMIT = 12 * 1024;
 const CONSENT_VERSION = '2026-11-19';
@@ -38,7 +39,8 @@ function secure(response, { api = false, privatePage = false, passwordCrypto = f
     result.headers.set('Pragma', 'no-cache');
     result.headers.set('X-Robots-Tag', 'noindex, nofollow, noarchive');
     result.headers.set('Content-Security-Policy', api ? "default-src 'none'; frame-ancestors 'none'" :
-      "default-src 'self'; script-src 'self'" + (passwordCrypto ? " 'wasm-unsafe-eval'" : '') + "; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
+      "default-src 'self'; script-src 'self'" + (passwordCrypto ? " 'wasm-unsafe-eval'" : '') + "; worker-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; img-src 'self' data:;" +
+      (passwordCrypto ? " media-src 'self' https:; frame-src https://www.youtube-nocookie.com;" : '') + " frame-ancestors 'none'; base-uri 'self'; form-action 'self'");
   }
   if (origin) {
     result.headers.set('Access-Control-Allow-Origin', origin);
@@ -71,12 +73,12 @@ function requireSameOrigin(request, url, { required = false } = {}) {
   }
 }
 
-async function readJSON(request) {
+async function readJSON(request, limit = BODY_LIMIT) {
   if (!/^application\/json(?:\s*;|$)/i.test(request.headers.get('Content-Type') ?? '')) {
     fail(415, 'json_required', 'Send application/json.');
   }
   const length = request.headers.get('Content-Length');
-  if (length && Number(length) > BODY_LIMIT) fail(413, 'body_too_large', 'The request is too large.');
+  if (length && Number(length) > limit) fail(413, 'body_too_large', 'The request is too large.');
   if (!request.body) fail(400, 'invalid_json', 'Send a JSON object.');
   const reader = request.body.getReader();
   const chunks = [];
@@ -86,7 +88,7 @@ async function readJSON(request) {
       const { value, done } = await reader.read();
       if (done) break;
       size += value.byteLength;
-      if (size > BODY_LIMIT) {
+      if (size > limit) {
         await reader.cancel();
         fail(413, 'body_too_large', 'The request is too large.');
       }
@@ -316,8 +318,9 @@ export function createWorker({ keyResolver, now = () => new Date().toISOString()
           }
           if (url.pathname.startsWith('/api/learning/')) {
             if (!['GET', 'HEAD'].includes(request.method)) requireSameOrigin(request, url, { required: true });
-            const handler = /^\/api\/learning\/(?:courses|course-staff)(?:\/|$)/.test(url.pathname) ? handleCourseRequest : handleLearningRequest;
-            const response = await handler(request, env.DB, { identity, now: now(), readJSON: () => readJSON(request) });
+            const handler = /^\/api\/learning\/(?:courses|course-staff|course-media)(?:\/|$)/.test(url.pathname) ? handleCourseRequest : handleLearningRequest;
+            const draftWrite = /^\/api\/learning\/course-staff\/drafts(?:\/|$)/.test(url.pathname);
+            const response = await handler(request, env.DB, { identity, now: now(), readJSON: () => readJSON(request, draftWrite ? DRAFT_LIMIT : BODY_LIMIT) });
             return secure(response, { api });
           }
           const repository = createRepository(env.DB);

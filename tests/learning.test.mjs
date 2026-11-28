@@ -28,9 +28,11 @@ function fixture(t) {
   const member = account('learner');
   const other = account('other');
   const admin = account('webmaster', true);
-  async function call(path, method = 'GET', data = undefined, identity = member, now = NOW) {
-    const request = new Request(`${ORIGIN}/api/learning${path}`, { method });
-    const handler = /^\/(courses|course-staff)(\/|$)/.test(path) ? handleCourseRequest : handleLearningRequest;
+  async function call(path, method = 'GET', data = undefined, identity = member, now = NOW, media) {
+    const request = new Request(`${ORIGIN}/api/learning${path}`, {
+      method, ...(media ? { body:media.body,headers:{'Content-Type':media.type} } : {})
+    });
+    const handler = /^\/(courses|course-staff|course-media)(\/|$)/.test(path) ? handleCourseRequest : handleLearningRequest;
     try { return await handler(request, db, { identity, now, readJSON: async () => data }); }
     catch (error) {
       if (!(error instanceof LearningRequestError)) throw error;
@@ -172,7 +174,7 @@ test('course builder saves draft content and rejects stale changes and unrelated
     description:'Practice for a fictional event.', lessons:[{title:'Brief the team',body:'Confirm the meeting point.'}],
     practical:'Write a fictional event briefing.' };
   const route = '/course-staff/drafts';
-  assert.equal((await f.call(route,'POST',data,f.other)).status,409);
+  assert.equal((await f.call(route,'POST',data,f.other)).status,404);
   await saved(await f.call(route,'POST',data,f.admin));
   await saved(await f.call(route,'POST',data,f.admin));
   const changes = { action:'save',editVersion:1,title:data.title,description:'Updated overview',lessons:data.lessons,practical:data.practical };
@@ -180,4 +182,65 @@ test('course builder saves draft content and rejects stale changes and unrelated
   assert.equal((await f.call(`${route}/${data.id}/1`,'PATCH',changes,f.admin)).status,409);
   const group = await saved(await f.call(`/course-staff/groups/${siteId}`,'GET',undefined,f.admin));
   assert.equal(group.versions.find(course => course.id === data.id).description,'Updated overview');
+});
+
+test('lesson media stays private and practice is checked before progress is written', async t => {
+  const f = fixture(t);
+  const siteId = 'plfc-training', courseId = crypto.randomUUID(), screenshotId = crypto.randomUUID();
+  const picture = Uint8Array.from(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aUz8AAAAASUVORK5CYII=','base64'));
+  const upload = `/course-staff/media/${siteId}/${screenshotId}`;
+  const screenshot = `/course-media/${screenshotId}`;
+  assert.equal((await f.call(upload,'PUT',undefined,f.other,NOW,{ body:picture,type:'image/png' })).status,404);
+  assert.equal((await f.call(upload,'PUT',undefined,f.admin,NOW,{ body:new TextEncoder().encode('<svg/>'),type:'image/png' })).status,415);
+  assert.equal((await saved(await f.call(upload,'PUT',undefined,f.admin,NOW,{ body:picture,type:'image/png' }))).id,screenshotId);
+  assert.equal((await saved(await f.call(`/course-staff/media/${siteId}/${crypto.randomUUID()}`,'PUT',undefined,f.admin,NOW,{ body:picture,type:'image/png' }))).id,screenshotId);
+  assert.equal((await f.call(screenshot,'GET',undefined,null)).status,401);
+  assert.equal((await f.call(screenshot)).status,404);
+  const staffShot = await f.call(screenshot,'GET',undefined,f.admin);
+  assert.equal(staffShot.headers.get('Content-Type'),'image/png');
+  assert.deepEqual(new Uint8Array(await staffShot.arrayBuffer()),picture);
+
+  const question = {id:'q-01',type:'single_choice',mode:'practice',prompt:'What makes an action usable?',
+    choices:[{id:'a',text:'An owner and a date'},{id:'b',text:'A colour'}],correct_choice_id:'a',
+    explanation:'A named owner can follow up.',source_refs:['CAPTURE:S02']};
+  const captions = 'WEBVTT\n\n00:00:00.000 --> 00:00:02.000\nShow an owner and a date.';
+  const draft = {id:courseId,siteId,category:'committee',title:'Fictional visual lesson',description:'Learner steps',
+    practical:'Write a handover.',lessons:[{title:'Mark an action',body:'Use a fictional item.',
+      captureNotes:'Private capture planning',screenshot:{id:screenshotId,alt:'Fictional action list',caption:'Check the owner field.'},
+      video:{url:'https://media.example.test/example.mp4',transcript:'Show an owner and a date.',captions},questions:[question]}]};
+  const staffDraft = '/course-staff/drafts';
+  const invalid = structuredClone(draft);
+  invalid.lessons[0].video.url = 'https://example.test/watch';
+  assert.equal((await f.call(staffDraft,'POST',invalid,f.admin)).status,400);
+  invalid.lessons[0].video.url = draft.lessons[0].video.url;
+  invalid.lessons[0].screenshot.id = crypto.randomUUID();
+  assert.equal((await f.call(staffDraft,'POST',invalid,f.admin)).status,400);
+  await saved(await f.call(staffDraft,'POST',draft,f.admin));
+  await saved(await f.call(`${staffDraft}/${courseId}/1`,'PATCH',{action:'publish',editVersion:1},f.admin));
+  f.sqlite.prepare(`INSERT INTO member_site_roles (site_id,account_id,role,created_at,updated_at,updated_by,write_id)
+    VALUES (?,?,?,?,?,?,?)`).run(siteId,f.member.accountId,'participant',NOW,NOW,'test',crypto.randomUUID());
+  const path = `/courses/${courseId}/1`;
+  const captionPath = path + '/captions/1';
+  const outline = (await saved(await f.call(path))).course;
+  assert.deepEqual(outline.lessons,[{title:'Mark an action'}]);
+  assert.equal((await f.call(captionPath)).status,404);
+  assert.equal((await f.call(screenshot)).status,404);
+  const enrolled = (await saved(await f.call(path+'/enrol','POST',{}))).course;
+  assert.deepEqual(enrolled.lessons[0].questions[0].choices,question.choices);
+  assert.equal(enrolled.lessons[0].questions[0].correct_choice_id,undefined);
+  assert.equal(enrolled.lessons[0].captureNotes,undefined);
+  assert.equal(enrolled.lessons[0].video.captions,undefined);
+  assert.equal(enrolled.lessons[0].video.captionsUrl,'/api/learning'+captionPath);
+  assert.equal(await (await f.call(captionPath)).text(),captions);
+  assert.equal((await f.call(screenshot)).status,200);
+  assert.equal((await f.call(screenshot,'GET',undefined,f.other)).status,404);
+  assert.equal((await f.call(path+'/progress','POST',{number:1})).status,400);
+  assert.equal((await f.call(path+'/progress','POST',{number:1,answers:{'q-01':'b'}})).status,422);
+  assert.deepEqual((await saved(await f.call(path))).course.progress,[]);
+  const completed = await saved(await f.call(path+'/progress','POST',{number:1,answers:{'q-01':'a'}}));
+  assert.equal(completed.course.lessons[0].questions[0].explanation,question.explanation);
+  assert.deepEqual(completed.course.progress,[1]);
+  f.sqlite.prepare('UPDATE member_site_roles SET role=? WHERE account_id=?').run('none',f.member.accountId);
+  assert.equal((await f.call(screenshot)).status,404);
+  assert.equal((await f.call(captionPath)).status,404);
 });

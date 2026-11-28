@@ -196,18 +196,22 @@
     for (const id of ['portal-application-workspace', 'portal-committee-workspace', 'portal-role-workspace', 'portal-invitation-workspace', 'portal-site-select']) fillOptions($(id), []);
     clearRecovery(); showAuth();
   }
-  async function api(path, { method = 'GET', data } = {}) {
-    const response = await fetch(path, { method, credentials: 'same-origin', cache: 'no-store', headers: { Accept: 'application/json', ...(data === undefined ? {} : { 'Content-Type': 'application/json' }) }, ...(data === undefined ? {} : { body: JSON.stringify(data) }) });
-    let body;
-    try { body = await response.json(); } catch { body = {}; }
+  async function api(path, { method = 'GET', data, file } = {}) {
+    const headers = { Accept:'application/json' };
+    if (file) headers['Content-Type'] = file.type;
+    else if (data !== undefined) headers['Content-Type'] = 'application/json';
+    const body = file ?? (data === undefined ? undefined : JSON.stringify(data));
+    const response = await fetch(path, { method, credentials:'same-origin', cache:'no-store', headers, body });
+    let result;
+    try { result = await response.json(); } catch { result = {}; }
     if (!response.ok) {
-      const error = new Error(body.error || 'The server could not complete this request.'); error.status = response.status; error.code = body.code;
+      const error = new Error(result.error || 'The server could not complete this request.'); error.status = response.status; error.code = result.code;
       const retryableAuth = /^\/api\/auth\/(?:password\/)?(?:login|reauth|recovery-codes)\/(?:options|verify)$/.test(path) && ['password_invalid', 'invalid_ceremony'].includes(error.code);
       if (response.status === 401 && state.identity && !retryableAuth) clearPrivate();
       else if (response.status === 403 && error.code === 'webmaster_required' && path.startsWith('/api/webmaster/') && state.identity?.webmaster) clearPrivate();
       throw error;
     }
-    return body;
+    return result;
   }
   async function run(action, message = '') {
     if (state.busy) return;
@@ -511,6 +515,11 @@
     return control;
   }
   function courseForm(form, action, message) {
+    form.addEventListener('invalid', event => {
+      for (let element = event.target.parentElement; element && element !== form; element = element.parentElement) {
+        if (element.tagName === 'DETAILS') element.open = true;
+      }
+    }, true);
     form.addEventListener('submit', event => {
       event.preventDefault();
       if (!state.busy && form.reportValidity()) run(() => action(form), message);
@@ -552,6 +561,109 @@
     }, loadCourses, 'Courses will appear here when your training group publishes them.');
   }
 
+  function lessonMedia(container, course, lesson, number) {
+    if (lesson.screenshot) {
+      const figure = node('figure', undefined, 'portal-course-figure');
+      const image = node('img');
+      const src = `/api/learning/course-media/${lesson.screenshot.id}`;
+      image.src = src;
+      image.alt = lesson.screenshot.alt;
+      image.loading = 'lazy';
+      const full = node('a', 'Open full-size screenshot');
+      full.href = src;
+      full.target = '_blank';
+      full.rel = 'noopener';
+      const caption = node('figcaption', lesson.screenshot.caption || undefined);
+      caption.append(full);
+      figure.append(image, caption);
+      container.append(figure);
+    }
+    if (!lesson.video) return;
+    const section = node('section', undefined, 'portal-course-video');
+    const youtube = lesson.video.url.startsWith('https://www.youtube-nocookie.com/embed/');
+    const slot = node('div');
+    const play = button(youtube ? 'Load video from YouTube' : 'Load lesson video', () => {
+      if (youtube) {
+        const player = node('iframe');
+        player.src = lesson.video.url;
+        player.title = `${lesson.title} lesson video`;
+        player.allowFullscreen = true;
+        player.referrerPolicy = 'strict-origin-when-cross-origin';
+        slot.append(player);
+      } else {
+        const player = node('video');
+        player.controls = true;
+        player.preload = 'metadata';
+        player.src = lesson.video.url;
+        if (lesson.video.captionsUrl || lesson.video.captions) {
+          const track = node('track');
+          track.kind = 'captions';
+          track.srclang = 'en';
+          track.label = 'English';
+          track.default = true;
+          track.src = lesson.video.captionsUrl ?? `/api/learning/courses/${course.id}/${course.revision}/captions/${number}`;
+          player.append(track);
+        }
+        slot.append(player);
+      }
+      play.remove();
+      slot.firstElementChild?.focus();
+    });
+    const transcript = node('details');
+    transcript.append(node('summary', 'Read the video transcript'), node('p', lesson.video.transcript, 'portal-preserve'));
+    section.append(actionRow(play), slot, transcript);
+    container.append(section);
+  }
+
+  function lessonQuestions(container, questions, { done = false, preview = false, submit } = {}) {
+    if (!questions?.length) return false;
+    container.append(node('h4', 'Practise what you learned'));
+    if (done) {
+      for (const question of questions) {
+        const answer = question.choices.find(choice => choice.id === question.correct_choice_id);
+        container.append(node('p', question.prompt), node('p', `${answer?.text ?? ''} ${question.explanation ?? ''}`.trim(), 'portal-hint'));
+      }
+      return true;
+    }
+    const form = node('form', undefined, 'portal-form portal-course-questions');
+    const status = node('p', undefined, 'portal-hint');
+    status.setAttribute('role','status');
+    for (const question of questions) {
+      const fieldset = node('fieldset', undefined, 'portal-record');
+      fieldset.append(node('legend', question.prompt));
+      for (const choice of question.choices) {
+        const label = node('label', undefined, 'portal-check');
+        const input = node('input');
+        input.type = 'radio';
+        input.name = question.id;
+        input.value = choice.id;
+        input.required = true;
+        label.append(input, node('span', choice.text));
+        fieldset.append(label);
+      }
+      form.append(fieldset);
+    }
+    form.append(courseSubmit(preview ? 'Check preview answers' : 'Check answers'), status);
+    courseForm(form, async current => {
+      const answers = Object.fromEntries([...current.querySelectorAll('input[type="radio"]:checked')]
+        .map(input => [input.name,input.value]));
+      status.replaceChildren();
+      if (preview) {
+        for (const question of questions) {
+          const correct = answers[question.id] === question.correct_choice_id;
+          status.append(node('span', correct ? `Correct. ${question.explanation}` : 'Try that question again.'));
+        }
+        return;
+      }
+      try { await submit(answers); } catch (error) {
+        if (error.code !== 'course_practice_retry') throw error;
+        status.textContent = error.message;
+      }
+    });
+    container.append(form);
+    return true;
+  }
+
   function drawCourse(course, openLesson = 0) {
     const card = node('article', undefined, 'portal-record portal-course-reader');
     const heading = node('h3', course.title);
@@ -579,12 +691,16 @@
         const detail = node('details', undefined, 'portal-record portal-course-lesson');
         detail.open = openLesson === number;
         detail.append(node('summary', `${number}. ${lesson.title}${done ? ' · Complete' : ''}`), node('p', lesson.body, 'portal-preserve'));
-        if (!done) detail.append(actionRow(button('Mark lesson complete', () => run(async () => {
-          const result = await courseApi(target + '/progress', { method:'POST', data:{ number } });
+        lessonMedia(detail, course, lesson, number);
+        const complete = async answers => {
+          const result = await courseApi(target + '/progress', { method:'POST', data:{ number, ...(answers ? { answers } : {}) } });
           await loadCourses();
           const next = result.course.lessons.findIndex((_, position) => !result.course.progress.includes(position + 1)) + 1;
-          drawCourse(result.course, next);
-        }, 'Lesson marked complete.'))));
+          drawCourse(result.course, answers ? number : next);
+          if (answers) setStatus('Practice complete. Your progress is saved.','success');
+        };
+        const hasQuestions = lessonQuestions(detail, lesson.questions, { done, submit:complete });
+        if (!done && !hasQuestions) detail.append(actionRow(button('Mark lesson complete', () => run(() => complete(), 'Lesson marked complete.'))));
         card.append(detail);
       });
       if (course.practical) drawPractical(card, course, target);
@@ -689,10 +805,247 @@
     for (const [index, lesson] of course.lessons.entries()) {
       const detail = node('details', undefined, 'portal-record portal-course-lesson');
       detail.append(node('summary', `${index + 1}. ${lesson.title}`), node('p', lesson.body, 'portal-preserve'));
+      lessonMedia(detail,course,lesson,index+1);
+      lessonQuestions(detail,lesson.questions,{preview:true});
       preview.append(detail);
     }
     preview.append(node('h4', 'Practical activity'), node('p', course.practical, 'portal-preserve'));
     return preview;
+  }
+
+  const lessonField = (root, name) => root.querySelector(`[name="${name}"]`);
+  const lessonText = (root, name) => lessonField(root,name).value.trim();
+
+  function screenshotEditor(lesson) {
+    const box = node('fieldset', undefined, 'portal-record');
+    box.append(node('legend','Screenshot'));
+    const label = node('label','PNG, JPEG or WebP, up to 1 MiB');
+    const pick = node('input');
+    pick.type = 'file';
+    pick.accept = 'image/png,image/jpeg,image/webp';
+    label.append(pick);
+    const image = node('img');
+    image.className = 'portal-course-image';
+    const note = node('p', undefined, 'portal-hint');
+    const alt = courseField('shotAlt','Describe the screen for someone who cannot see it',280,2,lesson.screenshot?.alt ?? '',false);
+    const caption = courseField('shotCaption','Screenshot caption or callouts (optional)',500,2,lesson.screenshot?.caption ?? '',false);
+    let screenshotId = lesson.screenshot?.id ?? '';
+    const remove = button('Remove screenshot', () => {
+      screenshotId = '';
+      pick.value = '';
+      update();
+      courses.editorDirty = true;
+    });
+    function update() {
+      image.hidden = !screenshotId;
+      remove.hidden = !screenshotId;
+      lessonField(box,'shotAlt').required = !!screenshotId;
+      if (screenshotId) {
+        image.src = `/api/learning/course-media/${screenshotId}`;
+        image.alt = lessonText(box,'shotAlt') || 'Screenshot preview';
+      } else image.removeAttribute('src');
+      note.textContent = screenshotId ? 'Screenshot attached.' : 'Choose a screenshot cleared for this training group.';
+    }
+    const attach = button('Attach screenshot', () => run(async () => {
+      const file = pick.files[0];
+      if (!file || file.size > 1024 * 1024 || !['image/png','image/jpeg','image/webp'].includes(file.type)) {
+        throw new Error('Choose a PNG, JPEG or WebP screenshot of 1 MiB or less.');
+      }
+      const result = await courseApi(`course-staff/media/${courses.site}/${crypto.randomUUID()}`, { method:'PUT',file });
+      screenshotId = result.id;
+      pick.value = '';
+      update();
+      courses.editorDirty = true;
+      lessonField(box,'shotAlt').focus();
+    }, 'Screenshot attached. Save the draft to keep it with the lesson.'));
+    box.append(label, actionRow(attach, remove), image, note, alt, caption);
+    alt.addEventListener('input', () => { image.alt = lessonText(box,'shotAlt') || 'Screenshot preview'; });
+    update();
+    return {
+      box,
+      read() {
+        if (pick.files[0]) throw new Error('Attach the selected screenshot before saving, or clear the file.');
+        if (!screenshotId) return null;
+        return { id:screenshotId, alt:lessonText(box,'shotAlt'), caption:lessonText(box,'shotCaption') };
+      }
+    };
+  }
+
+  function questionEditor(question = {}) {
+    const block = node('fieldset', undefined, 'portal-record portal-course-question-edit');
+    const id = question.id ?? `q-${crypto.randomUUID()}`;
+    const choices = node('div');
+    const choiceOptions = node('select');
+    choiceOptions.name = 'answerKey';
+    choiceOptions.required = true;
+    const correct = node('label','Correct choice');
+    correct.append(choiceOptions);
+    const addChoice = (choice = {}) => {
+      const label = courseField('answerText','Choice',240,0,choice.text ?? '');
+      label.dataset.id = choice.id ?? `c-${crypto.randomUUID()}`;
+      choices.append(label);
+    };
+    function reflectChoices(selection = choiceOptions.value) {
+      choiceOptions.replaceChildren();
+      option(choiceOptions,'Choose the correct answer','');
+      [...choices.children].forEach((child,index) => {
+        const content = lessonText(child,'answerText');
+        option(choiceOptions,content || `Choice ${index+1}`,child.dataset.id);
+      });
+      choiceOptions.value = selection;
+    }
+    for (const choice of question.choices ?? [{ id:'a' },{ id:'b' }]) addChoice(choice);
+    choices.addEventListener('input', () => reflectChoices());
+    const removeChoice = button('Remove last choice', () => {
+      if (choices.childElementCount <= 2) return setStatus('A question needs at least two choices.','error');
+      choices.lastElementChild.remove();
+      reflectChoices();
+      courses.editorDirty = true;
+    });
+    const moreChoice = button('Add choice', () => {
+      if (choices.childElementCount >= 4) return setStatus('A question can have up to four choices.','error');
+      addChoice();
+      reflectChoices();
+      choices.lastElementChild.querySelector('input').focus();
+      courses.editorDirty = true;
+    });
+    block.append(node('legend','Practice question'), courseField('questionPrompt','Question',480,2,question.prompt ?? ''),
+      choices, actionRow(moreChoice,removeChoice), correct,
+      courseField('answerExplanation','Explain the correct answer',650,3,question.explanation ?? ''),
+      actionRow(button('Remove question', () => { block.remove(); courses.editorDirty = true; })));
+    reflectChoices(question.correct_choice_id);
+    block.readQuestion = () => ({
+      id, type:'single_choice', mode:'practice', prompt:lessonText(block,'questionPrompt'),
+      choices:[...choices.children].map(child => ({ id:child.dataset.id,text:lessonText(child,'answerText') })),
+      correct_choice_id:choiceOptions.value, explanation:lessonText(block,'answerExplanation'), source_refs:question.source_refs ?? []
+    });
+    return block;
+  }
+
+  function readLessonPacket(input) {
+    const source = input.trim().replace(/^```(?:json)?\s*([\s\S]*?)\s*```$/i,'$1');
+    let packet;
+    try { packet = JSON.parse(source); } catch { throw new Error('Paste a valid JSON lesson packet.'); }
+    if (packet?.format_version !== 1 ||
+        !['title','body','capture_notes','questions'].some(key => Object.hasOwn(packet,key))) {
+      throw new Error('Use the version 1 lesson format from the exported prompt.');
+    }
+    for (const [name,max] of [['title',140],['body',2200],['capture_notes',2200]]) {
+      if (name in packet && (typeof packet[name] !== 'string' || packet[name].length > max)) {
+        throw new Error(`The imported ${name.replace('_',' ')} must be text and fit within ${max} characters.`);
+      }
+    }
+    if ('questions' in packet) {
+      if (!Array.isArray(packet.questions) || packet.questions.length > 4) throw new Error('Include up to four practice questions.');
+      const slug = value => typeof value === 'string' && /^[a-z0-9][a-z0-9-]{0,39}$/.test(value);
+      const fits = (value,limit) => typeof value === 'string' && !!value.trim() && value.trim().length <= limit;
+      const valid = packet.questions.every(q => q && slug(q.id) && q.type === 'single_choice' && q.mode === 'practice' &&
+        fits(q.prompt,480) && fits(q.explanation,650) && Array.isArray(q.choices) && q.choices.length >= 2 && q.choices.length <= 4 &&
+        q.choices.every(choice => choice && slug(choice.id) && fits(choice.text,240)) &&
+        new Set(q.choices.map(choice => choice.id)).size === q.choices.length &&
+        q.choices.some(choice => choice.id === q.correct_choice_id) &&
+        (!('source_refs' in q) || Array.isArray(q.source_refs) && q.source_refs.length <= 8 && q.source_refs.every(ref => fits(ref,200))));
+      if (!valid || new Set(packet.questions.map(q => q.id)).size !== packet.questions.length) {
+        throw new Error('Check the question IDs, choices, correct answers and explanations against the exported format.');
+      }
+    }
+    return packet;
+  }
+
+  function lessonPrompt(item, questionList) {
+    const packet = {
+      format_version:1, lesson_id:'replace-with-lesson-slug', title:lessonText(item,'lessonTitle'),
+      body:lessonText(item,'lessonBody'), capture_notes:lessonText(item,'captureNotes'),
+      questions:[...questionList.children].map(question => question.readQuestion())
+    };
+    const example = { id:'q-01',type:'single_choice',mode:'practice',prompt:'Which detail is needed?',choices:[
+      { id:'a',text:'A named owner' },{ id:'b',text:'A decoration' }],correct_choice_id:'a',explanation:'The owner will follow up.',source_refs:['CAPTURE:S01'] };
+    return [
+      'ReadySETCO lesson prompt, format version 1',
+      'Draft or revise one task-based lesson in plain Australian English. Work from approved material and the observed screen capture below.',
+      'Use fictional records. Mark any unverified control, action or timing Needs capture. Do not invent observed labels or timecodes.',
+      'For the person recording, list shots by ID, action and screen detail to verify. Use draft narration only for spoken instructions.',
+      'Return one JSON object using the sample fields. Limit title to 140 characters, lesson body and capture_notes to 2,200 characters each, and questions to four.',
+      'Use 2 to 4 choices per question, one correct choice and an explanation. Keep correct answers in the author copy.',
+      'For this workflow media is attached by the human reviewer. Put proposed shot IDs and capture gaps in capture_notes.',
+      'Current lesson input',JSON.stringify(packet,null,2),
+      'Approved source notes or observed capture for this run','[Add your sanitised observations, source notes or transcript here.]',
+      'Output format example',JSON.stringify({ ...packet,questions:[example] },null,2)
+    ].join('\n\n') + '\n';
+  }
+
+  function lessonProductionEditor(item, lesson) {
+    const production = node('details', undefined, 'portal-record portal-course-lesson');
+    const notes = courseField('captureNotes','Recording plan and private capture notes',2200,5,lesson.captureNotes ?? '',false);
+    const shot = screenshotEditor(lesson);
+    const video = node('fieldset', undefined, 'portal-record');
+    video.append(node('legend','Lesson video'),
+      courseField('videoUrl','YouTube or direct HTTPS MP4/WebM link',1200,0,lesson.video?.url ?? '',false),
+      courseField('transcript','Video transcript',6000,4,lesson.video?.transcript ?? '',false),
+      courseField('captions','WebVTT captions for a direct video (optional)',8000,3,lesson.video?.captions ?? '',false),
+      node('p','For YouTube, set the captions on the video host. Use a link approved for this training group.','portal-hint'));
+    const captionFileLabel = node('label','Load a WebVTT captions file');
+    const captionFile = node('input');
+    captionFile.type = 'file';
+    captionFile.accept = '.vtt,text/vtt';
+    captionFileLabel.append(captionFile);
+    captionFile.addEventListener('change', () => run(async () => {
+      const file = captionFile.files[0];
+      if (!file) return;
+      if (file.size > 32000) throw new Error('Use a shorter WebVTT file.');
+      const content = await file.text();
+      if (content.length > 8000 || !content.trimStart().startsWith('WEBVTT')) throw new Error('Choose a WebVTT file with up to 8,000 characters.');
+      lessonField(video,'captions').value = content;
+      captionFile.value = '';
+      courses.editorDirty = true;
+    }, 'Captions loaded into the draft.'));
+    video.append(captionFileLabel);
+    const questions = node('div',undefined,'portal-course-question-list');
+    for (const question of lesson.questions ?? []) questions.append(questionEditor(question));
+    function addQuestion() {
+      if (questions.childElementCount >= 4) return setStatus('A lesson can have up to four practice questions.','error');
+      const block = questionEditor();
+      questions.append(block);
+      block.querySelector('textarea').focus();
+      courses.editorDirty = true;
+    }
+    const exchange = node('details',undefined,'portal-record portal-course-lesson');
+    const importBox = courseField('lessonPacket','Paste the JSON returned by your model',64000,5,'',false);
+    const paste = lessonField(importBox,'lessonPacket');
+    exchange.append(node('summary','Export or import an AI lesson draft'),
+      node('p','Use the exported prompt in a model you choose. Remove private records before sharing it.','portal-hint'),
+      actionRow(button('Download lesson prompt', () => download(lessonPrompt(item,questions),'readysetco-lesson-prompt.txt','text/plain;charset=utf-8'))),
+      importBox, actionRow(button('Import into this lesson', () => {
+        try {
+          const packet = readLessonPacket(paste.value);
+          if ('questions' in packet && questions.childElementCount && !window.confirm('Replace the questions in this lesson?')) return;
+          for (const [key,name] of [['title','lessonTitle'],['body','lessonBody'],['capture_notes','captureNotes']]) {
+            if (key in packet) lessonField(item,name).value = packet[key];
+          }
+          if ('questions' in packet) questions.replaceChildren(...packet.questions.map(questionEditor));
+          paste.value = '';
+          courses.editorDirty = true;
+          setStatus('AI draft imported. Review the lesson, then save it.','success');
+        } catch (error) { setStatus(error.message,'error'); }
+      })));
+    production.append(node('summary','Screen recording, media and practice questions'), exchange, notes, shot.box, video,
+      node('h4','Practice questions'), questions, actionRow(button('Add practice question',addQuestion)));
+    item.readLesson = () => {
+      const screenshot = shot.read();
+      const url = lessonText(video,'videoUrl');
+      const transcript = lessonText(video,'transcript');
+      const captions = lessonText(video,'captions');
+      if (url && !transcript) throw new Error('Add a transcript for the lesson video.');
+      if (!url && (transcript || captions)) throw new Error('Add a video link for the transcript or captions.');
+      const captureNotes = lessonText(item,'captureNotes');
+      return {
+        title:lessonText(item,'lessonTitle'), body:lessonText(item,'lessonBody'),
+        ...(captureNotes ? { captureNotes } : {}), ...(screenshot ? { screenshot } : {}),
+        ...(url ? { video:{ url,transcript,captions } } : {}),
+        questions:[...questions.children].map(question => question.readQuestion())
+      };
+    };
+    return production;
   }
 
   function courseLessonEditor(lesson = { title:'',body:'' }) {
@@ -703,7 +1056,8 @@
       courses.editorDirty = true;
     };
     item.append(node('legend', 'Lesson'), courseField('lessonTitle','Lesson title',140,0,lesson.title),
-      courseField('lessonBody','Lesson text',900,4,lesson.body),
+      courseField('lessonBody','Lesson text',2200,4,lesson.body),
+      lessonProductionEditor(item,lesson),
       actionRow(button('Move up', () => move(-1)), button('Move down', () => move(1)), button('Remove lesson', () => {
         if (item.parentElement.childElementCount === 1) { setStatus('A course needs at least one lesson.', 'error'); return; }
         item.remove();
@@ -749,9 +1103,7 @@
     form.addEventListener('input', () => { courses.editorDirty = true; });
     courseForm(form, async current => {
       const values = { title:value(current,'title'), description:value(current,'description'), practical:value(current,'practical'),
-        lessons:[...lessons.children].map(lesson => ({
-          title:lesson.querySelector('[name="lessonTitle"]').value.trim(), body:lesson.querySelector('[name="lessonBody"]').value.trim()
-        })) };
+        lessons:[...lessons.children].map(lesson => lesson.readLesson()) };
       if (item) await courseApi(draftSlug(item), { method:'PATCH', data:{ ...values, action:'save', editVersion:item.editVersion } });
       else {
         const data = { ...values, siteId:courses.site, category:value(current,'category') };

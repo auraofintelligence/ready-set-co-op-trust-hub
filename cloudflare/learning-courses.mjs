@@ -1,25 +1,12 @@
 import { LearningRequestError } from './learning.mjs';
+import { DRAFT_LIMIT, SCREENSHOT_GROUP_LIMIT, UUID, fields, text, draftLesson, learnerCourse, checkPractice, readScreenshot } from './learning-course-content.mjs';
 
 const ID = /^[a-z0-9][a-z0-9-]{0,63}$/;
-const UUID = /^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/;
 const PAGE_SIZE = 25;
 const okay = body => Response.json(body);
 const fail = (status, code, message) => { throw new LearningRequestError(status, code, message); };
 const missing = () => fail(404, 'course_not_found', 'This course or activity is unavailable for your account.');
 const conflict = () => fail(409, 'course_conflict', 'This activity has changed. Reload it and try again.');
-
-function fields(data, allowed) {
-  if (!data || typeof data !== 'object' || Array.isArray(data) || Object.keys(data).some(key => !allowed.includes(key))) {
-    fail(400, 'course_fields', 'The course request contains unexpected fields.');
-  }
-}
-
-function text(value, max, label, required = true) {
-  if (typeof value !== 'string' || value.trim().length > max || (required && !value.trim())) {
-    fail(400, 'course_fields', `Enter ${label} in up to ${max} characters.`);
-  }
-  return value.trim();
-}
 
 function positive(value) {
   if (!Number.isSafeInteger(value) || value < 1) fail(400, 'course_fields', 'Choose a valid course version or activity.');
@@ -105,9 +92,11 @@ async function enrol(db, identity, now, course) {
 }
 
 async function completeLesson(db, identity, now, course, data) {
-  fields(data, ['number']);
+  fields(data, ['number','answers']);
   const number = positive(data.number);
   if (!course.enrolmentId || number > course.lessons.length) missing();
+  if (course.progress.includes(number)) return;
+  checkPractice(course.lessons[number - 1].questions,data.answers);
   const learner = gate(identity, now, 'c.site_id', 'learn');
   const row = await db.prepare(`INSERT INTO learning_lesson_progress (enrolment_id,lesson_number,completed_at)
     SELECT e.id,?,? FROM learning_enrolments e JOIN learning_courses c ON c.id=e.course_id
@@ -179,14 +168,19 @@ function draftFields(data) {
   if (!Array.isArray(data.lessons) || !data.lessons.length || data.lessons.length > 8) {
     fail(400, 'course_fields', 'Add between one and eight lessons.');
   }
-  const lessons = data.lessons.map(lesson => {
-    fields(lesson, ['title','body']);
-    return { title: text(lesson.title, 140, 'a lesson title'), body: text(lesson.body, 900, 'the lesson text') };
-  });
-  if (new TextEncoder().encode(JSON.stringify({ title,description,practical,lessons })).length > 10500) {
-    fail(400, 'course_fields', 'This course draft is too large. Shorten its lesson text and try again.');
+  const lessons = data.lessons.map(draftLesson);
+  if (new TextEncoder().encode(JSON.stringify({ title,description,practical,lessons })).length > DRAFT_LIMIT - 1024) {
+    fail(400, 'course_fields', 'This course draft is too large. Shorten the text or use shorter caption files.');
   }
   return { title,description,practical,lessons: JSON.stringify(lessons) };
+}
+
+async function confirmScreenshots(db, siteId, lessonsJson) {
+  const screenshots = [...new Set(JSON.parse(lessonsJson).flatMap(lesson => lesson.screenshot ? [lesson.screenshot.id] : []))];
+  if (!screenshots.length) return;
+  const record = await db.prepare(`SELECT count(*) AS total FROM learning_screenshots
+    WHERE site_id=? AND id IN (SELECT value FROM json_each(?))`).bind(siteId,JSON.stringify(screenshots)).first();
+  if (record.total !== screenshots.length) fail(400, 'course_screenshot_scope', 'Add screenshots from this training group.');
 }
 
 async function startDraft(db, identity, now, data) {
@@ -194,6 +188,8 @@ async function startDraft(db, identity, now, data) {
   const siteId = id(data.siteId), courseId = id(data.id, UUID), category = id(data.category);
   const draft = draftFields(data);
   const staff = gate(identity, now, 's.id', 'staff');
+  if (!(await db.prepare(`SELECT s.id FROM member_sites s WHERE s.id=? AND ${staff.sql}`).bind(siteId,...staff.values).first())) missing();
+  await confirmScreenshots(db,siteId,draft.lessons);
   if (!(await db.prepare('SELECT id FROM learning_categories WHERE id=?').bind(category).first())) {
     fail(400, 'course_fields', 'Choose a course category.');
   }
@@ -240,12 +236,14 @@ async function editDraft(db, identity, now, courseId, revision, data) {
   if (existing.state !== 'draft' || expected !== existing.editVersion) conflict();
   if (data.action === 'save') {
     const draft = draftFields(data);
+    await confirmScreenshots(db,existing.siteId,draft.lessons);
     const saved = await db.prepare(`UPDATE learning_course_versions SET title=?,description=?,lessons_json=?,practical=?,
       edit_version=edit_version+1,edited_by=? WHERE course_id=? AND revision=? AND state='draft' AND edit_version=? AND ${access} RETURNING revision`)
       .bind(draft.title,draft.description,draft.lessons,draft.practical,identity.accountId,courseId,revision,expected,...args).first();
     if (!saved) conflict();
   } else if (data.action === 'publish') {
-    draftFields(courseFrom(existing));
+    const draft = draftFields(courseFrom(existing));
+    await confirmScreenshots(db,existing.siteId,draft.lessons);
     const [ , released] = await db.batch([
       db.prepare(`UPDATE learning_course_versions SET state='retired' WHERE course_id=? AND state='published' AND ${access}
         AND EXISTS (SELECT 1 FROM learning_course_versions WHERE course_id=? AND revision=? AND state='draft' AND edit_version=?)`)
@@ -277,19 +275,68 @@ async function assess(db, identity, now, enrolmentId, attempt, data) {
   return okay({ status: data.decision });
 }
 
+async function uploadScreenshot(db, identity, now, siteId, screenshotId, request) {
+  const staff = gate(identity,now,'s.id','staff');
+  if (!(await db.prepare(`SELECT s.id FROM member_sites s WHERE s.id=? AND ${staff.sql}`).bind(siteId,...staff.values).first())) missing();
+  const image = await readScreenshot(request);
+  await db.prepare(`INSERT INTO learning_screenshots (id,site_id,mime,byte_count,digest,content_base64,created_by,created_at)
+    SELECT ?,s.id,?,?,?,?,?,? FROM member_sites s WHERE s.id=? AND ${staff.sql}
+    AND COALESCE((SELECT SUM(byte_count) FROM learning_screenshots WHERE site_id=s.id),0)+?<=?
+    ON CONFLICT DO NOTHING`).bind(screenshotId,image.mime,image.size,image.digest,image.base64,identity.accountId,now,siteId,
+      ...staff.values,image.size,SCREENSHOT_GROUP_LIMIT).run();
+  const stored = await db.prepare(`SELECT a.id FROM learning_screenshots a JOIN member_sites s ON s.id=a.site_id
+    WHERE s.id=? AND a.digest=? AND ${staff.sql}`).bind(siteId,image.digest,...staff.values).first();
+  if (!stored) fail(409,'course_screenshot_storage','The screenshot could not be saved. Check your access or the group’s 32 MiB screenshot limit.');
+  return okay({ id:stored.id });
+}
+
+async function courseScreenshot(db, identity, now, screenshotId, head) {
+  const staff = gate(identity,now,'a.site_id','staff');
+  const learner = gate(identity,now,'a.site_id','learn');
+  const row = await db.prepare(`SELECT a.mime,a.byte_count${head ? '' : ',a.content_base64'} FROM learning_screenshots a
+    WHERE a.id=? AND (${staff.sql} OR (${learner.sql} AND EXISTS (
+      SELECT 1 FROM learning_enrolments e JOIN learning_courses c ON c.id=e.course_id
+      JOIN learning_course_versions v ON v.course_id=e.course_id AND v.revision=e.revision
+      JOIN json_each(v.lessons_json) lesson ON json_extract(lesson.value,'$.screenshot.id')=a.id
+      WHERE e.account_id=? AND c.site_id=a.site_id AND v.state IN ('published','retired')
+    )))`).bind(screenshotId,...staff.values,...learner.values,identity.accountId).first();
+  if (!row) missing();
+  const body = head ? null : Uint8Array.from(atob(row.content_base64), char => char.charCodeAt(0));
+  return new Response(body,{headers:{ 'Content-Type':row.mime,'Content-Length':String(row.byte_count) }});
+}
+
+async function courseCaptions(db, identity, now, courseId, revision, number) {
+  const staff = gate(identity,now,'c.site_id','staff');
+  const learner = gate(identity,now,'c.site_id','learn');
+  const row = await db.prepare(`SELECT json_extract(v.lessons_json,?) AS captions FROM learning_courses c
+    JOIN learning_course_versions v ON v.course_id=c.id
+    WHERE c.id=? AND v.revision=? AND (${staff.sql} OR (${learner.sql} AND v.state IN ('published','retired') AND EXISTS (
+      SELECT 1 FROM learning_enrolments e WHERE e.account_id=? AND e.course_id=c.id AND e.revision=v.revision
+    )))`).bind(`$[${number - 1}].video.captions`,courseId,revision,...staff.values,...learner.values,identity.accountId).first();
+  if (!row?.captions) missing();
+  return new Response(row.captions,{headers:{'Content-Type':'text/vtt; charset=utf-8'}});
+}
+
 export async function handleCourseRequest(request, db, { identity, now, readJSON }) {
   if (!identity || !UUID.test(identity.accountId ?? '') || identity.status !== 'active') {
     fail(401, 'account_required', 'Sign in to your ReadySETCO account.');
   }
   const url = new URL(request.url);
   const method = request.method;
-  const [section,key,revisionPath,action,extra] = url.pathname.slice('/api/learning/'.length).split('/');
+  const [section,key,revisionPath,action,extra,overflow] = url.pathname.slice('/api/learning/'.length).split('/');
+  if (overflow !== undefined) missing();
+  if (section === 'courses' && action === 'captions' && method === 'GET' && extra) {
+    return courseCaptions(db,identity,now,id(key),positive(Number(revisionPath)),positive(Number(extra)));
+  }
   if (extra !== undefined) missing();
+  if (section === 'course-media' && revisionPath === undefined && ['GET','HEAD'].includes(method)) {
+    return courseScreenshot(db,identity,now,id(key,UUID),method === 'HEAD');
+  }
   if (section === 'courses') {
     if (!key && method === 'GET') return catalogue(db, identity, now, page(url));
     const courseId = id(key), revision = positive(Number(revisionPath));
     const course = await lessonCourse(db, identity, now, courseId, revision);
-    if (!action && method === 'GET') return okay({ course });
+    if (!action && method === 'GET') return okay({ course:learnerCourse(course) });
     if (method !== 'POST') missing();
     const data = await readJSON();
     if (action === 'enrol') { fields(data, []); await enrol(db,identity,now,course); }
@@ -298,10 +345,11 @@ export async function handleCourseRequest(request, db, { identity, now, readJSON
     else missing();
     const current = await lessonCourse(db,identity,now,courseId,revision);
     if (!current.enrolmentId) conflict();
-    return okay({ course: current });
+    return okay({ course:learnerCourse(current) });
   }
   if (section === 'course-staff') {
     if (key === 'groups' && revisionPath === undefined && method === 'GET') return staffGroups(db,identity,now,page(url));
+    if (key === 'media' && method === 'PUT') return uploadScreenshot(db,identity,now,id(revisionPath),id(action,UUID),request);
     if (key === 'groups' && !action && method === 'GET') {
       const queue = url.searchParams.get('queue') ?? '1';
       return staffData(db,identity,now,id(revisionPath),page(url),positive(Number(queue)));

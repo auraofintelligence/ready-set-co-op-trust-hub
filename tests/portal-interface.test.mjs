@@ -219,6 +219,84 @@ test('the Webmaster can edit a PLFC draft and publish from the scoped course bui
   assert.match(versions.textContent,/Published/);
 });
 
+test('the lesson editor exports a portable prompt and imports AI text and questions into the draft', async t => {
+  const group = { id:'plfc-training',name:'Point Lookout Fishing Club training' };
+  const draft = { id:'plfc-officer-handover',revision:1,title:'PLFC handover',description:'Prepare a handover.',state:'draft',
+    editVersion:1,lessons:[{title:'Open actions',body:'Read the handover list.'}],practical:'Write a fictional handover.' };
+  let saved;
+  const f = fixture(t, { account:{ ...identity,webmaster:true,authentication:'password' }, override:({path,body}) => {
+    if (path === '/api/learning/course-staff/groups') return json({ groups:[group] });
+    if (path === '/api/learning/course-staff/groups/plfc-training') return json({ group,versions:[draft],categories:[],queue:[] });
+    if (path === '/api/learning/course-staff/drafts/plfc-officer-handover/1') { saved = body; return json({ id:draft.id,revision:1 }); }
+    return null;
+  } });
+  await f.idle();
+  f.$('tab-course-staff').click();
+  await f.idle();
+  f.$('portal-courses-versions').querySelectorAll('button')[1].click();
+  const form = f.$('portal-courses-editor').querySelector('form');
+  const action = label => [...form.querySelectorAll('button')].find(control => control.textContent === label);
+  action('Download lesson prompt').click();
+  assert.match(await f.downloads[0].text(),/Read the handover list/);
+  assert.match(await f.downloads[0].text(),/Needs capture/);
+  const question = {id:'q-01',type:'single_choice',mode:'practice',prompt:'Which field is needed?',
+    choices:[{id:'a',text:'Owner'},{id:'b',text:'Colour'}],correct_choice_id:'a',explanation:'The owner follows up.'};
+  f.set(form,'lessonPacket', JSON.stringify({format_version:1,title:'Hand over an open action',body:'Show who will follow up.',
+    capture_notes:'S01 shows the fictional record.',questions:[question]}));
+  action('Import into this lesson').click();
+  assert.equal(form.elements.lessonTitle.value,'Hand over an open action');
+  assert.equal(form.elements.answerKey.value,'a');
+  assert.match(f.$('portal-status').textContent,/imported/);
+  f.set(form,'videoUrl','https://www.youtube.com/watch?v=abcdefghijk');
+  f.set(form,'transcript','A fictional action has an owner.');
+  f.submit(form);
+  await f.idle();
+  assert.equal(saved.lessons[0].captureNotes,'S01 shows the fictional record.');
+  assert.equal(saved.lessons[0].video.transcript,'A fictional action has an owner.');
+  assert.equal(saved.lessons[0].questions[0].correct_choice_id,'a');
+});
+
+test('the private learner can open a screenshot, load video by choice and correct an answer', async t => {
+  const target = '/api/learning/courses/plfc-officer-handover/1';
+  const question = {id:'q-01',prompt:'Which detail is needed?',choices:[{id:'a',text:'An owner'},{id:'b',text:'A colour'}]};
+  const course = { id:'plfc-officer-handover',revision:1,title:'PLFC handover',description:'Practice',provider:'PLFC',categoryName:'Committee',
+    enrolmentId:'example-enrolment',lessonCount:1,lessonsDone:0,progress:[],assessment:null,
+    lessons:[{ title:'Pass on an action',body:'Use a fictional example.',screenshot:{id:'screenshot-id',alt:'Fictional action list'},
+      video:{url:'https://www.youtube-nocookie.com/embed/abcdefghijk',transcript:'Name an owner.'},questions:[question] }] };
+  const f = fixture(t,{override:({path,body})=>{
+    if(path==='/api/learning/profile') return json({profile:{pathways:[],availableFrom:'',availableUntil:'',english:'',skills:'',licences:'',version:0}});
+    if(path==='/api/learning/evidence') return json({evidence:[]});
+    if(path==='/api/learning/completions') return json({completions:[]});
+    if(path==='/api/learning/courses') return json({courses:[course]});
+    if(path===target+'/progress'){
+      if(body.answers['q-01']==='b') return json({code:'course_practice_retry',error:'Check the lesson and try again.'},422);
+      course.progress=[1];
+      Object.assign(question,{correct_choice_id:'a',explanation:'The owner follows up.'});
+    }
+    if(path.startsWith(target)) return json({course});
+    return null;
+  }});
+  await f.idle();
+  f.$('tab-learning').click();
+  await f.idle();
+  f.$('portal-courses-catalogue').querySelector('button').click();
+  await f.idle();
+  const reader = f.$('portal-courses-reader');
+  assert.equal(reader.querySelector('img').alt,'Fictional action list');
+  assert.equal(reader.querySelector('iframe'),null);
+  [...reader.querySelectorAll('button')].find(button=>button.textContent==='Load video from YouTube').click();
+  assert.match(reader.querySelector('iframe').src,/youtube-nocookie/);
+  const form=reader.querySelector('.portal-course-questions');
+  form.querySelector('[value="b"]').checked=true;
+  f.submit(form);
+  await f.idle();
+  assert.match(form.querySelector('[role="status"]').textContent,/try again/);
+  form.querySelector('[value="a"]').checked=true;
+  f.submit(form);
+  await f.idle();
+  assert.match(reader.textContent,/The owner follows up/);
+});
+
 test('registration accepts a simple one-character password with explicit consent and privately displayed recovery codes', async t => {
   const f = fixture(t, { signedIn: false }); await f.idle(); const form = f.$('portal-register');
   assert.equal(form.elements.consent.checked, false);

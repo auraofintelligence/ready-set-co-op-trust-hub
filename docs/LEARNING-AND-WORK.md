@@ -12,6 +12,10 @@ ReadySETCO is a proposed cooperative. Strange But True is the initial operator. 
 
 ## Starting PLFC training
 
+In a course draft, each lesson has a **Screen recording, media and practice questions** section. Export the prompt and bring back a JSON draft from any model. Record the actual workflow in a demo or sanitised view. Attach a PNG, JPEG or WebP screenshot up to 1 MiB with a text description. Add a YouTube or direct HTTPS MP4/WebM link with a transcript. For direct video, you can attach WebVTT captions. YouTube captions are managed with the video. Use a video host whose audience settings suit the intended learners.
+
+Practice questions have a correct choice and explanation. Learners can retry before completing the lesson. The existing practical goes to a human assessor. Save the lesson and reopen it to preview the saved version before publishing. Private screenshots and direct-video captions are served only to authorised authors or enrolled members of that course. Video playback uses the linked host.
+
 1. Sign in and open **Course builder**. Select **Point Lookout Fishing Club training**.
 2. Choose **Edit or preview draft**. The officer course covers preparing a changeover, running a first meeting rehearsal, handing over access and equipment, and checking in after the first week. The volunteer induction covers agreeing on a shift, briefing and safeguards, and handing over at the end of the shift. Each course ends with a written practical and assessment criteria.
 3. After the club clears the material for use, select **Publish course**, then **Publish to this group**. The group is private and has no public applications.

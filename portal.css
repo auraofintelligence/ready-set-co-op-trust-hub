@@ -76,6 +76,12 @@
 .portal-course-lesson > label + label { margin-top: .9rem; }
 .portal-course-lesson > summary, .portal-course-release > summary { display: list-item; min-height: 44px; padding-block: .5rem; font-weight: 650; cursor: pointer; }
 .portal-course-reader h3:focus { scroll-margin-top: 6rem; }
+.portal-course-figure, .portal-course-video, .portal-course-question-edit { margin-block: 1rem; }
+.portal-course-figure img, .portal-course-image { display: block; max-width: 100%; height: auto; margin-block: .75rem; border-radius: .35rem; }
+.portal-course-figure figcaption a { display: inline-flex; align-items: center; min-height: 44px; margin-inline-start: .6rem; }
+.portal-course-video iframe, .portal-course-video video { display: block; width: 100%; aspect-ratio: 16 / 9; border: 0; margin-block: .65rem; background: #101020; }
+.portal-course-video summary { display: list-item; min-height: 44px; padding-block: .5rem; cursor: pointer; }
+.portal-course-questions [role="status"] span { display: block; }
 .portal-record .portal-actions { margin-top: .7rem; }
 .portal-record dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: .3rem .8rem; margin: .8rem 0 0; }
 .portal-record dt { font-weight: 600; }

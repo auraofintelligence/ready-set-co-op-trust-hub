@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { buildSite } from './build.mjs';
 import { createSqliteD1 } from './sqlite-d1.mjs';
 import worker from '../cloudflare/worker.mjs';
+import { DRAFT_LIMIT, SCREENSHOT_LIMIT } from '../cloudflare/learning-course-content.mjs';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
 if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('Use Node.js 24 or newer for the local SQLite server.');
@@ -111,10 +112,12 @@ const server = http.createServer(async (incoming, outgoing) => {
       else if (value !== undefined) headers.set(name, value);
     }
     const chunks = [];
+    const bodyLimit = requestUrl.pathname.startsWith('/api/learning/course-staff/media/') ? SCREENSHOT_LIMIT
+      : requestUrl.pathname.startsWith('/api/learning/course-staff/drafts') ? DRAFT_LIMIT : 65536;
     let length = 0;
     for await (const chunk of incoming) {
       length += chunk.length;
-      if (length > 65536) {
+      if (length > bodyLimit) {
         outgoing.writeHead(413, { 'Content-Type': 'text/plain' });
         outgoing.end('Request too large.');
         return;
