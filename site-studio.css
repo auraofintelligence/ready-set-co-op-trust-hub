@@ -22,15 +22,14 @@
 .studio-hero.page-intro p:not(.eyebrow),
 .studio-hero.map-intro p:not(.eyebrow) { color: #f3eafb; }
 .studio-hero.home-hero h1 span { color: #bff1dd; }
-.studio-hero a:where(:not(.button, .sbt-brand-link)) { color: #efe0ff; }
+#main .studio-hero a:where(:not(.button, .sbt-brand-link)) { color: #efe0ff; }
 .studio-hero figcaption { opacity: .95; }
 .studio-hero .button.secondary, .studio-hero .map-text-button { color: #fff; border-color: #d2bfdc; background: #ffffff14; }
 .studio-hero .button.secondary:hover, .studio-hero .map-text-button:hover { background: #ffffff2b; }
 .studio-hero .note { color: var(--studio-ink); background: #f8f0fc; }
 .studio-hero .note p, .studio-hero.page-intro .note p:not(.eyebrow) { color: var(--studio-ink); }
-.studio-hero .note a { color: #542981; }
+#main .studio-hero :is(.note, .formation-status, .home-lesson-card) a:where(:not(.button, .sbt-brand-link)) { color: #542981; }
 .studio-hero .formation-status, .studio-hero.page-intro .formation-status p:not(.eyebrow) { color: var(--studio-ink); }
-.studio-hero .formation-status a { color: #542981; }
 .studio-hero.formation-hero .formation-status { margin-top: 0; }
 .studio-hero-with-art {
   display: grid;
@@ -71,7 +70,6 @@
 .studio-site-preview { padding-block: 1rem 2.2rem; }
 .studio-site-preview a, .home-lesson-card a { display: inline-flex; min-height: 44px; align-items: center; font-weight: 650; }
 .home-lesson-card { margin-block: 1.25rem; color: var(--studio-ink); }
-.studio-hero .home-lesson-card a { color: #542981; }
 .home-lesson-card h2 { font-size: clamp(1.2rem, 3vw, 1.65rem); }
 .home-lesson-card .studio-thumb { width: clamp(4rem, 8vw, 5.5rem); }
 .studio-hero .home-lesson-card a:focus-visible { outline-color: #762db0; }
@@ -106,7 +104,10 @@
 .join-steps h3 { margin-bottom: .3rem; }
 .join-demo { background: var(--studio-paper); }
 .join-demo .section-heading { margin-bottom: 1rem; }
-.join-demo-nav { margin-bottom: 1rem; }
+.join-demo-nav {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
 .join-demo-nav button, .join-page .operations-form .join-choice {
   display: flex;
   align-items: center;
@@ -190,7 +191,8 @@
   .studio-side-card { align-items: flex-start; gap: .75rem; }
   .studio-side-card .studio-thumb { width: 3.75rem; }
   .portal-page .studio-portal-art { width: 3.75rem; }
-  .join-demo-nav button { min-height: 3rem; }
+  .join-demo-nav button { flex-direction: column; justify-content: center; gap: .25rem; text-align: center; line-height: 1.25; }
+  .join-demo-nav .studio-thumb { width: min(100%, 3rem); }
 }
 html[data-reading-mode="easy"] #main .studio-hero-with-art,
 html[data-reading-mode="easy"] #main .formation-hero.studio-hero-with-art {
@@ -198,6 +200,8 @@ html[data-reading-mode="easy"] #main .formation-hero.studio-hero-with-art {
 }
 html[data-reading-mode="easy"] .studio-hero-with-art > img,
 html[data-reading-mode="easy"] .studio-hero-side { justify-self: start; }
+html[data-reading-mode="easy"] .studio-hero.home-hero h1 span { color: #d8ffec; }
+html[data-reading-mode="easy"] .join-demo-nav { grid-template-columns: 1fr; }
 html[data-reading-mode="easy"] .studio-hero :is(a,button):focus-visible { outline-color: #ffe18f; }
 @media print {
   #main :is(.page-intro, .home-hero, .page-hero, .map-intro, .operations-hero).studio-hero,
